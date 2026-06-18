@@ -26,6 +26,8 @@
 - Репозитории и middleware принудительно фильтруют по `tenant_id`.
 - Любая попытка доступа к ресурсу другого тенанта → `403` с кодом `tenant_isolation_violation` и записью в аудит.
 - Тесты изоляции — обязательная часть приёмки (этап 6).
+- Детальная ER-модель, индексы, правила хранения и Alembic-план зафиксированы
+  в [DATA_MODEL.md](DATA_MODEL.md) и [ADR-0007](adr/0007-data-model-and-tenant-storage.md).
 
 ```mermaid
 flowchart LR
@@ -103,6 +105,8 @@ flowchart LR
 - Единый `audit_logger` фиксирует чувствительные события с `tenant_id`.
 - Хэши операций (`audit_hash = SHA256(json.dumps({event_type, tenant_id, points, metadata, timestamp}, sort_keys=True))`).
 - Метрики и логи содержат `tenant_id` как обязательный label, но не содержат ПДн.
+- Нарушения tenant isolation публикуются как `tenant.isolation_violation` с
+  hash-полями, `resource_type` и `correlation_id`, без раскрытия ПДн.
 
 ---
 

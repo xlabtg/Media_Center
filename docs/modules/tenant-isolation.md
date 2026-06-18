@@ -7,6 +7,8 @@
 ## Зона ответственности
 - Единые утилиты контекста тенанта (`tenant_id`) для всех сервисов
 - Изоляция на уровне БД (фильтры/политики), ChromaDB (коллекции/namespace), S3/MinIO (префиксы), Redis (ключи), RabbitMQ (маршрутизация)
+- Проверка PostgreSQL-таблиц и Alembic-миграций: tenant-owned таблицы обязаны
+  иметь `tenant_id`, tenant-aware индексы и composite FK/unique rules
 - Гарантия отсутствия межтенантных утечек данных
 
 ## Основные интерфейсы
@@ -30,6 +32,8 @@
 ## Связанные документы
 - [SECURITY.md](../SECURITY.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [DATA_MODEL.md](../DATA_MODEL.md)
+- [ADR-0007](../adr/0007-data-model-and-tenant-storage.md)
 - [COMPLIANCE.md](../COMPLIANCE.md)
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 

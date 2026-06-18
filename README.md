@@ -28,6 +28,7 @@
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Требования FR/NFR, границы MVP и KPI пилота |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Единый глоссарий терминов (НМЦ, пай, МСЦ, Кв, HITL, …) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура системы, C4-диаграммы, микросервисы, технологический стек |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | ER-модель, индексы, tenant-aware стратегия хранения и план миграций |
 | [docs/adr/](docs/adr/) | ADR-журнал ключевых архитектурных решений |
 | [docs/contracts/](docs/contracts/) | Контракты REST/gRPC и RabbitMQ-событий между сервисами |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |

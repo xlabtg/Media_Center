@@ -12,6 +12,11 @@
 в этом документе, ADR-журнал — в [adr/README.md](adr/README.md), контракты
 межсервисного взаимодействия — в [contracts/README.md](contracts/README.md).
 
+Статус baseline для issue
+[#7](https://github.com/xlabtg/Media_Center/issues/7): ER-модель, индексы,
+tenant-aware стратегия хранения и план миграций зафиксированы в
+[DATA_MODEL.md](DATA_MODEL.md) и [ADR-0007](adr/0007-data-model-and-tenant-storage.md).
+
 ---
 
 ## 1. Принципы
@@ -393,33 +398,29 @@ sequenceDiagram
 
 ---
 
-## 12. Модель данных (фрагмент)
+## 12. Модель данных и хранение
 
-**`contributions`**
-| Поле | Тип | Примечание |
-|------|-----|-----------|
-| `id` | UUID | PK |
-| `tenant_id` | String(36) | индексируется |
-| `event_type` | String | тип события вклада |
-| `points_awarded` | Float | начисленные баллы |
-| `metadata` | JSON | контекст события |
-| `created_at` | DateTime | |
-| `audit_hash` | String(64) | SHA256 |
+Каноническая ER-модель, таблицы, индексы, storage isolation matrix и план
+миграций описаны в [DATA_MODEL.md](DATA_MODEL.md). Этот раздел оставляет только
+архитектурный обзор, чтобы схема не расходилась между документами.
 
-Индексы: `idx_tenant_event (tenant_id, event_type)`, `idx_tenant_date (tenant_id, created_at)`.
+| Область | Baseline |
+|---------|----------|
+| PostgreSQL | Tenant-owned таблицы содержат `tenant_id NOT NULL`, tenant-aware индексы, composite FK/unique и Row Level Security как defence in depth. |
+| Contribution Ledger | `contributions`, `tenant_weights`, `payout_distributions`; ключевые индексы: `idx_contributions_tenant_event_created`, `uq_tenant_weights_tenant_member_period`. |
+| ChromaDB | Коллекции `nmc_<env>_<tenant_id>_<domain>` и обязательный metadata filter `tenant_id`. |
+| S3 / MinIO | Prefix `tenants/{tenant_id}/{domain}/{object_id}` и object metadata с tenant context. |
+| Redis / RabbitMQ | Ключи и routing keys включают tenant context; consumer повторно проверяет envelope. |
+| Логи / метрики / трейсинг | `tenant_id` и `correlation_id` обязательны, ПДн и токены запрещены. |
+| Миграции | Alembic expand/backfill/contract, naming conventions и allowlist системных таблиц без `tenant_id`. |
 
-**`tenant_weights`**
-| Поле | Тип | Примечание |
-|------|-----|-----------|
-| `tenant_id` | String(36) | PK |
-| `period` | String(7) | `YYYY-MM` |
-| `total_points` | Float | |
-| `avg_points_council` | Float | среднее по Совету |
-| `kv_raw` | Float | до ограничения |
-| `kv_capped` | Float | после ограничения 0.10 |
-| `updated_at` | DateTime | |
+### 12.1. Критерии готовности issue #7
 
-Полная модель данных проектируется на этапе 0 (см. issue по проектированию модели данных).
+| Критерий | Где зафиксировано |
+|----------|-------------------|
+| ER-модель и индексы утверждены | [DATA_MODEL.md](DATA_MODEL.md), разделы 3-5 |
+| Стратегия изоляции описана для всех слоёв хранения | [DATA_MODEL.md](DATA_MODEL.md), разделы 6-7; [SECURITY.md](SECURITY.md) |
+| План миграций определён | [DATA_MODEL.md](DATA_MODEL.md), раздел 8 |
 
 ---
 
@@ -436,10 +437,14 @@ ADR-журнал расположен в [adr/README.md](adr/README.md). На ba
 | [ADR-0004](adr/0004-private-blockchain-audit.md) | Приватный audit-chain только для SHA256-хэшей и метаданных | Accepted |
 | [ADR-0005](adr/0005-hitl-for-sensitive-operations.md) | HITL-контур для выплат и чувствительных действий | Accepted |
 | [ADR-0006](adr/0006-technology-stack-and-versions.md) | Технологический стек и версии | Accepted |
+| [ADR-0007](adr/0007-data-model-and-tenant-storage.md) | Модель данных и tenant-aware стратегия хранения | Accepted |
 
 ADR-0006 закрывает baseline issue #6: версии библиотек и инфраструктуры
 зафиксированы, а приватной блокчейн-платформой выбран Hyperledger Besu 26.6.1
 с консенсусом QBFT.
+
+ADR-0007 закрывает baseline issue #7: ER-модель, индексы, стратегия изоляции
+хранения и Alembic-план миграций зафиксированы в [DATA_MODEL.md](DATA_MODEL.md).
 
 ---
 

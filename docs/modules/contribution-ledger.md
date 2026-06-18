@@ -22,8 +22,17 @@
 - **GET** `/payout-distribution?period=` — доли распределения для выплат
 
 ## Модель данных (черновик)
-- **contributions** — `tenant_id`, `member_id`, `type`, `points`, `metadata`, `audit_hash`, `created_at`
-- **tenant_weights** — `tenant_id`, `member_id`, `kv_raw`, `kv_capped`, `period`
+- **contributions** — `tenant_id`, `member_id`, `event_type`, `source_ref`,
+  `points_awarded`, `metadata`, `audit_hash`, `idempotency_key`, `occurred_at`,
+  `created_at`
+- **tenant_weights** — `tenant_id`, `member_id`, `period`, `total_points`,
+  `avg_points_council`, `kv_raw`, `kv_capped`, `payout_share`,
+  `calculation_hash`
+- **payout_distributions** — immutable snapshot долей для HITL с
+  `distribution_hash`
+- Канонические индексы и ограничения зафиксированы в
+  [DATA_MODEL.md](../DATA_MODEL.md): `idx_contributions_tenant_event_created`,
+  `uq_tenant_weights_tenant_member_period`, `ck_tenant_weights_kv_cap`
 
 ## Зависимости
 - Общая библиотека `shared` (модели, `audit_logger`, утилиты тенанта)
@@ -47,6 +56,7 @@
 - [ECONOMICS.md](../ECONOMICS.md)
 - [SECURITY.md](../SECURITY.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [DATA_MODEL.md](../DATA_MODEL.md)
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
