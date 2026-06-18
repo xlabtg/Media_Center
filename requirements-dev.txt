@@ -4,3 +4,6 @@ mypy==2.1.0
 pytest==9.1.0
 pre-commit==4.6.0
 pip-audit==2.10.1
+SQLAlchemy==2.0.51
+asyncpg==0.31.0
+alembic==1.18.4

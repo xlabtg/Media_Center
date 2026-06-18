@@ -61,6 +61,19 @@
   headers `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
   `X-RateLimit-Reset`.
 
+## Реализовано для issue #20
+
+- `DatabaseSettings`, `AsyncDatabase`, `create_async_engine_from_url()` и
+  `create_async_session_factory()` задают единый async SQLAlchemy доступ через
+  `DATABASE_URL=postgresql+asyncpg://...`;
+- `Base.metadata` содержит Alembic/SQLAlchemy naming conventions из
+  `DATA_MODEL.md`;
+- `Tenant` и `TenantSetting` фиксируют первую tenant foundation модель;
+- `TenantScopedSQLAlchemyRepository` строит обязательный `tenant_id` filter,
+  выполняет async scalar-запросы и аудирует cross-tenant отказы через тот же
+  `tenant.isolation_violation` contract;
+- Alembic окружение и первая reversible migration находятся в `infra/db`.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
