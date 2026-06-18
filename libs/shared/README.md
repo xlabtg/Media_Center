@@ -1,6 +1,6 @@
 # Shared Library
 
-**Статус:** базовый tenant/auth-core слой для этапа 1.
+**Статус:** базовый shared слой для этапа 1.
 
 ## Назначение
 
@@ -140,11 +140,23 @@
   `to_rabbitmq_settings()`, `to_chroma_settings()` и `to_s3_settings()`
   сохраняют совместимость с уже существующими shared-настройками.
 
-## Следующие области
+## Реализовано для issue #26
 
-- audit utilities для SHA256-хэшей и correlation metadata;
-- Pydantic-модели, используемые в межсервисных контрактах;
-- базовые helpers для логов и observability.
+- `SharedBaseModel`, `TenantScopedModel`, `RequestContextModel`,
+  `AuditHashReference`, pagination-типы и typed aliases задают общий Pydantic v2
+  contract для межсервисных payload;
+- `ErrorEnvelope`, `ErrorBody`, `SharedError` и `error_response_body()`
+  унифицируют JSON envelope для `validation_error`, `unauthorized`,
+  `forbidden`, `tenant_isolation_violation`, `rate_limited` и других базовых
+  кодов;
+- `TenantCoreError.to_response_body()` использует тот же envelope, поэтому
+  существующие tenant/RBAC/Gateway ошибки сохраняют совместимый формат ответа;
+- `AuditLogger`, `AuditPayload`, `AuditLogRecord` и `InMemoryAuditLogSink`
+  формируют hash-only audit record с `audit_hash = SHA256(json.dumps({
+  event_type, tenant_id, points, metadata, timestamp}, sort_keys=True))`;
+- `tenant_headers_from_context()`, `tenant_context_from_trusted_headers()` и
+  `tenant_context_scope()` дают reusable tenant helpers для Gateway/downstream
+  wiring и unit-тестов.
 
 ## Правила
 
