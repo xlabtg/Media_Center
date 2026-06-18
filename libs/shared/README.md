@@ -1,6 +1,6 @@
 # Shared Library
 
-**Статус:** базовый tenant-core слой для этапа 1.
+**Статус:** базовый tenant/auth-core слой для этапа 1.
 
 ## Назначение
 
@@ -18,6 +18,19 @@
   ресурсом;
 - sanitized audit event `tenant.isolation_violation` без ПДн и без сырого
   `requested_tenant_id`.
+
+## Реализовано для issue #17
+
+- `AuthTokenService` выдаёт JWT access-token HS256 с `tenant_id`, `sub`,
+  `roles`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti` и `typ=access`;
+- refresh-токены — opaque-значения: в store хранится только SHA256-хэш,
+  исходный токен не логируется и не сохраняется;
+- refresh rotation отзывает использованный токен и отклоняет повторное
+  использование как `401 unauthorized`;
+- `TOTPService` реализует RFC 6238 TOTP для чувствительных операций, включая
+  `payout.confirm`;
+- результат 2FA возвращается как `TwoFactorConfirmation` с `tenant_id`,
+  `subject`, `operation`, `resource_id` и `correlation_id`.
 
 ## Следующие области
 
