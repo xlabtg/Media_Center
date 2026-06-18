@@ -158,6 +158,17 @@
   `tenant_context_scope()` дают reusable tenant helpers для Gateway/downstream
   wiring и unit-тестов.
 
+## Реализовано для issue #31
+
+- `Contribution` и `TenantWeight` добавлены в SQLAlchemy metadata как
+  tenant-owned ORM-модели для Contribution Ledger & Weight Engine;
+- таблицы содержат обязательный `tenant_id`, FK на `tenants`, tenant-aware
+  unique constraints и индексы по tenant/time из `DATA_MODEL.md`;
+- Alembic-ревизия `0002_contribution_ledger` создаёт и откатывает
+  `contributions` и `tenant_weights`;
+- `TenantScopedSQLAlchemyRepository` строит tenant-filtered запросы для обеих
+  новых моделей.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более

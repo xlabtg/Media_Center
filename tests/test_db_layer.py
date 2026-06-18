@@ -147,6 +147,39 @@ def test_repository_denies_cross_tenant_records_with_audit_event() -> None:
     assert audit_sink.events[0].correlation_id == "corr-db-2"
 
 
+def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
+    from libs.shared import Contribution, TenantWeight
+
+    context = TenantContext(
+        tenant_id="tenant-a",
+        subject="member-1",
+        roles=("member_full",),
+        correlation_id="corr-db-3",
+    )
+    contribution_repository = TenantScopedSQLAlchemyRepository(
+        Contribution,
+        resource_type="contributions",
+    )
+    weight_repository = TenantScopedSQLAlchemyRepository(
+        TenantWeight,
+        resource_type="tenant_weights",
+    )
+
+    contribution_sql = str(
+        contribution_repository.statement_for_tenant(context).compile(
+            compile_kwargs={"literal_binds": True}
+        )
+    )
+    weight_sql = str(
+        weight_repository.statement_for_tenant(context).compile(
+            compile_kwargs={"literal_binds": True}
+        )
+    )
+
+    assert "contributions.tenant_id = 'tenant-a'" in contribution_sql
+    assert "tenant_weights.tenant_id = 'tenant-a'" in weight_sql
+
+
 def test_tenant_foundation_migration_upgrades_and_downgrades() -> None:
     migration_module = cast(
         _MigrationModule,
@@ -182,3 +215,123 @@ def test_tenant_foundation_migration_upgrades_and_downgrades() -> None:
             assert "tenants" not in downgraded_tables
         finally:
             migration_module.op = original_op
+
+
+def test_contribution_ledger_migration_upgrades_and_downgrades() -> None:
+    foundation_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.tenant_foundation_0001"),
+    )
+    ledger_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.contribution_ledger_0002"),
+    )
+    engine = create_engine("sqlite:///:memory:")
+
+    with engine.begin() as connection:
+        context = MigrationContext.configure(connection)
+        operations = Operations(context)
+        original_foundation_op = foundation_module.op
+        original_ledger_op = ledger_module.op
+        foundation_module.op = operations
+        ledger_module.op = operations
+        try:
+            foundation_module.upgrade()
+            ledger_module.upgrade()
+            inspector = inspect(connection)
+            upgraded_tables = set(inspector.get_table_names())
+            assert {"contributions", "tenant_weights"}.issubset(upgraded_tables)
+
+            contribution_columns = {
+                column["name"]: column
+                for column in inspector.get_columns("contributions")
+            }
+            assert {
+                "id",
+                "tenant_id",
+                "member_id",
+                "event_type",
+                "source_type",
+                "source_ref",
+                "points_awarded",
+                "metadata",
+                "audit_hash",
+                "idempotency_key",
+                "occurred_at",
+                "created_at",
+            }.issubset(contribution_columns)
+            assert contribution_columns["tenant_id"]["nullable"] is False
+
+            weight_columns = {
+                column["name"]: column
+                for column in inspector.get_columns("tenant_weights")
+            }
+            assert {
+                "id",
+                "tenant_id",
+                "member_id",
+                "period",
+                "total_points",
+                "avg_points_council",
+                "kv_raw",
+                "kv_capped",
+                "payout_share",
+                "calculation_hash",
+                "calculated_at",
+                "updated_at",
+            }.issubset(weight_columns)
+            assert weight_columns["tenant_id"]["nullable"] is False
+
+            contribution_indexes = {
+                index["name"] for index in inspector.get_indexes("contributions")
+            }
+            assert {
+                "idx_contributions_tenant_id",
+                "idx_contributions_tenant_event_created",
+                "idx_contributions_tenant_member_occurred",
+                "idx_contributions_tenant_source",
+                "idx_contributions_audit_hash",
+            }.issubset(contribution_indexes)
+
+            weight_indexes = {
+                index["name"] for index in inspector.get_indexes("tenant_weights")
+            }
+            assert {
+                "idx_tenant_weights_tenant_id",
+                "idx_tenant_weights_tenant_period",
+                "idx_tenant_weights_tenant_period_kv",
+                "idx_tenant_weights_calculation_hash",
+            }.issubset(weight_indexes)
+
+            contribution_uniques = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints("contributions")
+            }
+            assert "uq_contributions_tenant_idempotency" in contribution_uniques
+
+            weight_uniques = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints("tenant_weights")
+            }
+            assert "uq_tenant_weights_tenant_member_period" in weight_uniques
+
+            contribution_checks = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints("contributions")
+            }
+            assert "ck_contributions_points_non_negative" in contribution_checks
+
+            weight_checks = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints("tenant_weights")
+            }
+            assert "ck_tenant_weights_kv_cap" in weight_checks
+
+            ledger_module.downgrade()
+            downgraded_tables = set(inspect(connection).get_table_names())
+            assert "contributions" not in downgraded_tables
+            assert "tenant_weights" not in downgraded_tables
+            assert "tenants" in downgraded_tables
+        finally:
+            ledger_module.op = original_ledger_op
+            foundation_module.op = original_foundation_op

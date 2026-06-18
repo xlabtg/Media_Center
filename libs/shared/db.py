@@ -5,15 +5,19 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol, TypeVar, cast
 
 from sqlalchemy import (
+    CHAR,
     JSON,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     MetaData,
+    Numeric,
     String,
     UniqueConstraint,
     func,
@@ -135,6 +139,128 @@ class TenantSetting(Base, TenantOwnedMixin):
         server_default=text("1"),
     )
     updated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class Contribution(Base, TenantOwnedMixin):
+    __tablename__ = "contributions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_contributions_tenant_idempotency",
+        ),
+        CheckConstraint(
+            "points_awarded >= 0",
+            name="points_non_negative",
+        ),
+        Index(
+            "idx_contributions_tenant_event_created",
+            "tenant_id",
+            "event_type",
+            "created_at",
+        ),
+        Index(
+            "idx_contributions_tenant_member_occurred",
+            "tenant_id",
+            "member_id",
+            "occurred_at",
+        ),
+        Index(
+            "idx_contributions_tenant_source",
+            "tenant_id",
+            "source_type",
+            "source_ref",
+        ),
+        Index("idx_contributions_audit_hash", "audit_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("tenants.tenant_id", name="fk_contributions_tenant_id_tenants"),
+        nullable=False,
+        index=True,
+    )
+    member_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    points_awarded: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    metadata_json: Mapped[dict[str, object]] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+    )
+    audit_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TenantWeight(Base, TenantOwnedMixin):
+    __tablename__ = "tenant_weights"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "member_id",
+            "period",
+            name="uq_tenant_weights_tenant_member_period",
+        ),
+        CheckConstraint(
+            "total_points >= 0 AND avg_points_council >= 0 AND "
+            "kv_raw >= 0 AND kv_capped >= 0 AND payout_share >= 0",
+            name="values_non_negative",
+        ),
+        CheckConstraint("kv_capped <= 0.10", name="kv_cap"),
+        CheckConstraint("payout_share <= 1", name="payout_share"),
+        Index("idx_tenant_weights_tenant_period", "tenant_id", "period"),
+        Index(
+            "idx_tenant_weights_tenant_period_kv",
+            "tenant_id",
+            "period",
+            "kv_capped",
+        ),
+        Index("idx_tenant_weights_calculation_hash", "calculation_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("tenants.tenant_id", name="fk_tenant_weights_tenant_id_tenants"),
+        nullable=False,
+        index=True,
+    )
+    member_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    total_points: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    avg_points_council: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    kv_raw: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    kv_capped: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    payout_share: Mapped[Decimal] = mapped_column(Numeric(12, 10), nullable=False)
+    calculation_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
