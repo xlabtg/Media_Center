@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+        labels:
+          tenant_id: system
+          service: prometheus
+          operation: scrape_self
+
+  - job_name: otel-collector
+    static_configs:
+      - targets:
+          - otel-collector:8889
+        labels:
+          tenant_id: system
+          service: otel-collector
+          operation: export_metrics
+
+  # Сервисы НМЦ должны отдавать /metrics с обязательными labels tenant_id,
+  # service, operation, status для nmc_service_operations_total и
+  # nmc_service_operation_duration_seconds.
+  - job_name: nmc-services
+    honor_labels: true
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8000
+        labels:
+          tenant_id: local-dev
+          service: api-gateway
+          operation: http_request
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: local-api-gateway

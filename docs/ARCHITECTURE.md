@@ -302,7 +302,7 @@ flowchart LR
 | **Шаблоны** | Jinja2 3.1.6 |
 | **Безопасность** | JWT (HS256), AES-256, TLS 1.3+, SHA256, 2FA, RBAC |
 | **Контейнеризация** | Docker, docker-compose |
-| **Наблюдаемость** | Prometheus v3.5.4, Grafana 12.4.4, структурные логи, трейсинг |
+| **Наблюдаемость** | Prometheus v3.5.4, Grafana 12.4.4, OpenTelemetry Collector Contrib 0.154.0, структурные логи, трейсинг |
 | **Тестирование** | pytest 9.1.0, pytest-asyncio 1.4.0, testcontainers 4.14.2 |
 
 Полная матрица версий, правила обновления и обоснование выбора блокчейна

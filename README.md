@@ -71,7 +71,7 @@
 - **AI / Голос:** whisper.cpp v1.9.0 (локальная транскрипция), Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop
 - **Автоматизация:** Telethon 1.44.0 / vk-api 11.10.0, Playwright 1.60.0, ротация прокси (HTTP / SOCKS5 / MTProto)
 - **Безопасность:** JWT (HS256), AES-256, TLS 1.3+, SHA256, 2FA, RBAC
-- **Инфраструктура:** Docker, docker-compose, Prometheus v3.5.4, Grafana 12.4.4, pytest 9.1.0
+- **Инфраструктура:** Docker, docker-compose, Prometheus v3.5.4, Grafana 12.4.4, OpenTelemetry Collector Contrib 0.154.0, pytest 9.1.0
 
 Полная матрица версий и правила обновления зафиксированы в
 [ADR-0006](docs/adr/0006-technology-stack-and-versions.md).
@@ -102,8 +102,8 @@ bash experiments/validate_issue9_ci.sh
 ## 🧰 Локальная разработка
 
 Для issue #10 добавлена воспроизводимая docker-compose среда:
-PostgreSQL, Redis, RabbitMQ, ChromaDB и MinIO. Стек запускается из корня
-репозитория:
+PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO, Prometheus, Grafana и
+OpenTelemetry Collector. Стек запускается из корня репозитория:
 
 ```bash
 make up
@@ -116,6 +116,13 @@ make down
 идемпотентные сиды без ПДн, токенов и денежных сумм. Подробности по портам,
 фикстурам и переопределению env-файла — в
 [infra/local/README.md](infra/local/README.md).
+
+Observability baseline для issue #24 находится в
+[infra/observability/](infra/observability/): Prometheus собирает метрики
+`nmc_service_operations_total` и
+`nmc_service_operation_duration_seconds` с обязательным `tenant_id`, Grafana
+провиженит tenant dashboard, а OpenTelemetry Collector принимает traces/logs по
+OTLP без ПДн, токенов, сырого содержимого и сумм выплат.
 
 ---
 

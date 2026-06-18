@@ -11,7 +11,7 @@ COMPOSE = docker compose --project-name $(LOCAL_PROJECT_NAME) --env-file $(LOCAL
 help:
 	@printf '%s\n' \
 		'Media Center local development targets:' \
-		'  make up       Start PostgreSQL, Redis, RabbitMQ, ChromaDB and MinIO' \
+		'  make up       Start PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO and observability' \
 		'  make migrate  Apply the local PostgreSQL schema and dev seed data' \
 		'  make test     Validate the local environment contract' \
 		'  make down     Stop the local stack' \

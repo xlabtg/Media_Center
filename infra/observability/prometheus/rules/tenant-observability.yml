@@ -1,0 +1,29 @@
+groups:
+  - name: tenant-observability
+    rules:
+      - record: nmc:service_operations:rate5m
+        expr: |
+          sum by (tenant_id, service, operation, status) (
+            rate(nmc_service_operations_total[5m])
+          )
+
+      - record: nmc:service_operation_duration:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (tenant_id, service, operation, le) (
+              rate(nmc_service_operation_duration_seconds_bucket[5m])
+            )
+          )
+
+      - alert: NmcTenantOperationErrors
+        expr: |
+          sum by (tenant_id, service, operation) (
+            rate(nmc_service_operations_total{status=~"error|denied"}[5m])
+          ) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ошибки операций НМЦ для tenant {{ $labels.tenant_id }}"
+          description: "Проверьте service={{ $labels.service }} operation={{ $labels.operation }}."
