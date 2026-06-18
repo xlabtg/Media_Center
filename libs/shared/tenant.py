@@ -8,14 +8,26 @@ import hmac
 import json
 import re
 import time
-from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NoReturn, Protocol, cast
 
-TENANT_ISOLATION_CODE = "tenant_isolation_violation"
-UNAUTHORIZED_CODE = "unauthorized"
+from libs.shared.errors import (
+    TENANT_ISOLATION_CODE,
+    UNAUTHORIZED_CODE,
+    error_response_body,
+)
+
 TENANT_ISOLATION_EVENT = "tenant.isolation_violation"
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
+TENANT_ID_HEADER = "x-tenant-id"
+SUBJECT_ID_HEADER = "x-subject-id"
+ACTOR_ROLES_HEADER = "x-actor-roles"
+CORRELATION_ID_HEADER = "x-correlation-id"
+SERVICE_NAME_HEADER = "x-service-name"
+FORWARDED_PREFIX_HEADER = "x-forwarded-prefix"
+ORIGINAL_PATH_HEADER = "x-original-path"
 
 ASGIMessage = dict[str, object]
 ASGIScope = dict[str, object]
@@ -100,14 +112,12 @@ class TenantCoreError(Exception):
         self.audited = audited
 
     def to_response_body(self) -> dict[str, object]:
-        return {
-            "error": {
-                "code": self.error_code,
-                "message": self.message,
-                "details": self.details,
-                "correlation_id": self.correlation_id,
-            }
-        }
+        return error_response_body(
+            code=self.error_code,
+            message=self.message,
+            details=self.details,
+            correlation_id=self.correlation_id,
+        )
 
 
 class TenantIsolationError(TenantCoreError):
@@ -170,6 +180,63 @@ def require_tenant_context() -> TenantContext:
     if context is None:
         raise TenantIsolationError("Tenant context отсутствует")
     return context
+
+
+@contextmanager
+def tenant_context_scope(context: TenantContext) -> Iterator[TenantContext]:
+    token = set_tenant_context(context)
+    try:
+        yield context
+    finally:
+        reset_tenant_context(token)
+
+
+def tenant_headers_from_context(
+    context: TenantContext,
+    *,
+    service_name: str | None = None,
+    forwarded_prefix: str | None = None,
+    original_path: str | None = None,
+) -> dict[str, str]:
+    headers = {TENANT_ID_HEADER: context.tenant_id}
+    if context.subject is not None:
+        headers[SUBJECT_ID_HEADER] = context.subject
+    if context.roles:
+        headers[ACTOR_ROLES_HEADER] = ",".join(context.roles)
+    if context.correlation_id is not None:
+        headers[CORRELATION_ID_HEADER] = context.correlation_id
+    if service_name is not None:
+        headers[SERVICE_NAME_HEADER] = service_name
+    if forwarded_prefix is not None:
+        headers[FORWARDED_PREFIX_HEADER] = forwarded_prefix
+    if original_path is not None:
+        headers[ORIGINAL_PATH_HEADER] = original_path
+
+    return headers
+
+
+def tenant_context_from_trusted_headers(
+    headers: Mapping[str, str],
+) -> TenantContext:
+    normalized_headers = {
+        name.lower(): value.strip()
+        for name, value in headers.items()
+        if isinstance(name, str) and isinstance(value, str)
+    }
+    correlation_id = _optional_header(
+        normalized_headers,
+        CORRELATION_ID_HEADER,
+    )
+
+    return TenantContext(
+        tenant_id=_validated_tenant_id(
+            normalized_headers.get(TENANT_ID_HEADER),
+            correlation_id=correlation_id,
+        ),
+        subject=_optional_header(normalized_headers, SUBJECT_ID_HEADER),
+        roles=_roles_from_header(normalized_headers.get(ACTOR_ROLES_HEADER)),
+        correlation_id=correlation_id,
+    )
 
 
 def encode_hs256_jwt(
@@ -547,6 +614,26 @@ def _roles_from_claims(claims: Mapping[str, object]) -> tuple[str, ...]:
             return normalized_roles
 
     raise UnauthorizedError("JWT claim roles должен быть строкой или списком строк")
+
+
+def _roles_from_header(value: str | None) -> tuple[str, ...]:
+    if value is None or value.strip() == "":
+        return ()
+
+    raw_roles = value.split(",")
+    roles = tuple(role.strip() for role in raw_roles if role.strip() != "")
+    if len(roles) != len(raw_roles):
+        raise UnauthorizedError("X-Actor-Roles содержит пустую роль")
+
+    return roles
+
+
+def _optional_header(headers: Mapping[str, str], name: str) -> str | None:
+    value = headers.get(name)
+    if value is None or value == "":
+        return None
+
+    return value
 
 
 def _extract_bearer_token(
