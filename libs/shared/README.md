@@ -32,6 +32,19 @@
 - результат 2FA возвращается как `TwoFactorConfirmation` с `tenant_id`,
   `subject`, `operation`, `resource_id` и `correlation_id`.
 
+## Реализовано для issue #18
+
+- зафиксирован набор governance/RBAC ролей: `council`, `presidium`, `board`,
+  `member_full`, `member_assoc`, `audience`;
+- `AccessPolicy` и `require_access()` реализуют deny-by-default проверку ролей
+  в пределах уже проверенного `TenantContext`;
+- `ForbiddenError` возвращает единый error envelope с `403 forbidden`, не
+  смешивая RBAC-отказы с `tenant_isolation_violation`;
+- `RBACASGIMiddleware` даёт endpoint-level guard для API Gateway и сервисных
+  ASGI/FastAPI приложений;
+- `BLOCKCHAIN_AUDIT_ENDPOINT_POLICIES` ограничивает `/audit/record`,
+  `/audit/verify` и `/audit/records/{event_id}` только ролью `council`.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
