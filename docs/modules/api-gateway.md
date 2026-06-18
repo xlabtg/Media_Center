@@ -6,20 +6,34 @@ Tenant-aware точка входа: маршрутизация, проверка
 
 ## Зона ответственности
 - Единая точка входа для клиентов и сервисов
-- Проверка JWT (HS256) и извлечение `tenant_id` из токена
+- Выдача и проверка JWT (HS256), refresh-token rotation
+- Проверка 2FA/TOTP для чувствительных операций
+- Извлечение `tenant_id` из access-token
 - Tenant-aware маршрутизация к микросервисам
 - Ограничение частоты запросов (rate limiting)
 
 ## Основные интерфейсы
+- `POST /auth/login` — выдать `access_token` и `refresh_token` после проверки
+  credentials будущего identity provider
+- `POST /auth/refresh` — повернуть refresh-токен, отозвать старый и выдать
+  новую пару токенов
+- `POST /auth/logout` — отозвать refresh-токен текущей сессии
+- `POST /auth/2fa/totp/setup` — подготовить TOTP secret/provisioning URI через
+  защищённый secret-контур
+- `POST /auth/2fa/totp/verify` — подтвердить TOTP для операции
+  `payout.confirm` или другой чувствительной команды
 - Проксирование `/<service>/...` с проверкой токена и тенанта
 - Ответ `403 tenant_isolation_violation` при попытке кросс-тенант доступа
 
 ## Зависимости
-- Сервис аутентификации (JWT/2FA), Redis (лимиты), все микросервисы
+- `libs/shared.AuthTokenService` и `TOTPService`, Redis/БД для production-store
+  refresh-токенов, все микросервисы
 
 ## Безопасность и мультитенантность
 - `tenant_id` берётся из JWT и пробрасывается во все запросы
 - Любой доступ к чужому тенанту → `403`
+- Access JWT содержит `typ=access`, `jti`, `tenant_id`, `sub`, `roles`, `iss`,
+  `aud`, `iat`, `nbf`, `exp`; refresh-токены хранятся только как SHA256-хэши
 - TLS 1.3+, защита от перебора через rate limiting
 
 ## Связанные задачи (issue)

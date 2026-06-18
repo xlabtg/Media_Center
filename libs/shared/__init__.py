@@ -1,5 +1,15 @@
 """Shared tenant-isolation primitives for Media Center services."""
 
+from libs.shared.auth import (
+    AuthTokenService,
+    InMemoryRefreshTokenStore,
+    RefreshTokenRecord,
+    RefreshTokenStore,
+    TokenPair,
+    TOTPService,
+    TwoFactorConfirmation,
+    hash_refresh_token,
+)
 from libs.shared.tenant import (
     InMemoryAuditSink,
     TenantAuditEvent,
@@ -21,18 +31,26 @@ from libs.shared.tenant import (
 )
 
 __all__ = [
+    "AuthTokenService",
     "InMemoryAuditSink",
+    "InMemoryRefreshTokenStore",
+    "RefreshTokenRecord",
+    "RefreshTokenStore",
+    "TOTPService",
     "TenantAuditEvent",
     "TenantContext",
     "TenantContextASGIMiddleware",
     "TenantCoreError",
     "TenantIsolationError",
     "TenantScopedRepository",
+    "TokenPair",
+    "TwoFactorConfirmation",
     "UnauthorizedError",
     "assert_requested_tenant",
     "decode_hs256_jwt",
     "encode_hs256_jwt",
     "get_tenant_context",
+    "hash_refresh_token",
     "require_tenant_context",
     "reset_tenant_context",
     "set_tenant_context",

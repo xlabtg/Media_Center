@@ -49,6 +49,23 @@ flowchart LR
 - **Авторизация:** RBAC по ролям (`council`, `presidium`, `board`, `member_full`, `member_assoc`, `audience`).
 - **Принцип наименьших привилегий:** доступ к блокчейн-аудиту — только у Совета (`access_controller.py` в Blockchain Auditor).
 
+### 3.1. Auth baseline для issue #17
+
+Baseline auth-core реализован в `libs/shared` и используется как основа для API
+Gateway и HITL Payout Gateway:
+
+- access-token — JWT HS256 с `typ=access`, `jti`, `tenant_id`, `sub`, `roles`,
+  `iss`, `aud`, `iat`, `nbf` и коротким `exp`;
+- refresh-token — opaque token, на сервере хранится только SHA256-хэш,
+  `tenant_id`, `subject`, роли, срок действия и состояние отзыва;
+- refresh rotation обязателен: успешное обновление отзывает старый refresh-token,
+  replay старого токена возвращает `401 unauthorized`;
+- 2FA — TOTP по RFC 6238; для выплат подтверждается операция
+  `payout.confirm`, результат фиксирует `tenant_id`, `subject`, `resource_id` и
+  `correlation_id`;
+- `JWT_SECRET`, TTL токенов, TOTP issuer и production-store refresh-токенов
+  приходят из окружения или vault, не из репозитория.
+
 ---
 
 ## 4. Защита данных
