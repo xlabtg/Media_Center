@@ -82,13 +82,18 @@ class PayoutQueueItem(SharedBaseModel):
     created_at: datetime
     updated_at: datetime
     veto_decision_id: IdempotencyKey | None = None
+    execution_id: IdempotencyKey | None = None
+    execution_ref_hash: str | None = None
+    audit_chain_ref: str | None = None
+    notification_id: IdempotencyKey | None = None
+    executed_at: datetime | None = None
 
     @field_validator("veto_until", "created_at", "updated_at")
     @classmethod
     def _normalize_datetime_field(cls, value: datetime) -> datetime:
         return _normalize_datetime(value)
 
-    @field_validator("confirmed_at")
+    @field_validator("confirmed_at", "executed_at")
     @classmethod
     def _normalize_optional_datetime_field(
         cls,
@@ -136,6 +141,30 @@ class PayoutQueueItem(SharedBaseModel):
                 "confirmed_at": _normalize_datetime(confirmed_at),
                 "audit_hash": audit_hash,
                 "updated_at": _normalize_datetime(confirmed_at),
+            }
+        )
+
+    def with_execution(
+        self,
+        *,
+        execution_id: str,
+        execution_ref_hash: str,
+        audit_chain_ref: str,
+        notification_id: str,
+        executed_at: datetime,
+        audit_hash: str,
+    ) -> PayoutQueueItem:
+        normalized_executed_at = _normalize_datetime(executed_at)
+        return self.model_copy(
+            update={
+                "status": PayoutStatus.EXECUTED,
+                "execution_id": execution_id,
+                "execution_ref_hash": execution_ref_hash,
+                "audit_chain_ref": audit_chain_ref,
+                "notification_id": notification_id,
+                "executed_at": normalized_executed_at,
+                "audit_hash": audit_hash,
+                "updated_at": normalized_executed_at,
             }
         )
 

@@ -12,11 +12,15 @@
 
 ## Ключевые правила и формулы
 - Окно вето: `VETO_WINDOW_HOURS` (по умолчанию **8 ч**)
+- Исполнение идёт только после 2FA и закрытия окна вето; результат фиксируется
+  локальным `audit_hash`, hash-only записью в Private Blockchain Auditor и
+  уведомлением участника.
 
 ## Основные интерфейсы
 - **POST** `/payouts/queue` — поставить выплату в очередь
 - **POST** `/payouts/{id}/veto` — наложить вето (роль Совета)
 - **POST** `/payouts/{id}/confirm` — подтвердить выплату (2FA)
+- **POST** `/payouts/{id}/execute` — исполнить выплату через коннекторы
 - **GET** `/payouts?status=` — список выплат тенанта по статусу
 
 ## Модель данных (черновик)
@@ -33,6 +37,9 @@
 - 2FA подтверждает конкретную операцию `payout.confirm` через TOTP и сохраняет
   `tenant_id`, `subject`, `resource_id` и `correlation_id` для аудита
 - Все решения (вето/подтверждение/исполнение) фиксируются в аудите
+- Сбои платёжного, blockchain-audit и notification коннекторов логируются,
+  получают audit record `payout.failed` и публикуют событие для повторной
+  обработки без перевода выплаты в `executed`
 
 ## Связанные задачи (issue)
 - [#39](https://github.com/xlabtg/Media_Center/issues/39) — queue_manager + veto_manager (окно вето) (`type:feature`)
