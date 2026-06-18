@@ -23,6 +23,25 @@ Messenger Adapter для публикации.
 - `link_rotator` — генерация L1/L2/L3-ссылок, политика вознаграждений
   20/10/5, воспроизводимый взвешенный выбор L3-партнёра и in-memory трекинг
   переходов для unit/integration-контуров.
+- `api` — tenant-aware FastAPI endpoint'ы `POST /generate` и
+  `GET /content/{content_id}` с идемпотентностью, публикацией
+  `content.generated` и записью вклада через Contribution Ledger-compatible
+  logger.
+
+## REST API
+
+`POST /generate` принимает шаблон, контекст, правила валидации,
+`link_routing` для L1/L2/L3 и блок `contribution`. Сервис рендерит контент,
+строит ссылки, сохраняет результат, публикует событие `content.generated` без
+сырого текста материала и создаёт запись вклада с `source_type=cglr_generation`.
+
+`GET /content/{content_id}` возвращает ранее сгенерированный материал только в
+рамках текущего `tenant_id`: исходный текст, `content_with_links`, L1/L2/L3,
+reward distribution и связанную запись вклада.
+
+Для командного endpoint'а обязателен `Idempotency-Key`; повтор с тем же payload
+возвращает тот же `content_id`, повтор с другим payload возвращает
+`409 idempotency_conflict`.
 
 ## Связанные документы
 
