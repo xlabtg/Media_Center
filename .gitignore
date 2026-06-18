@@ -1,0 +1,37 @@
+# --- Артефакты извлечения исходного материала (не входят в репозиторий) ---
+*.mhtml
+experiments/reglament_text.txt
+experiments/reglament_main.html
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+build/
+.cache/
+
+# --- IDE / ОС ---
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# --- Логи и временные файлы ---
+*.log
+logs/
+ci-logs/
+tmp/
+*.tmp
+
+# Временные логи прогона генераторов
+experiments/dry_run.log
+experiments/create_run.log
