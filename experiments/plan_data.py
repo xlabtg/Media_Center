@@ -85,17 +85,17 @@ E0 = {
             "desc": "Финальный выбор технологий и версий с обоснованием в ADR (включая выбор блокчейн-платформы).",
             "goal": "Зафиксировать стек и версии для всех слоёв системы.",
             "scope": [
-                "Backend: Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy async",
-                "Хранилища: PostgreSQL, Redis, RabbitMQ, ChromaDB, S3/MinIO",
-                "Блокчейн: выбор между Hyperledger Besu/Quorum и приватным шардом TON",
-                "AI/голос: Whisper.cpp и сопутствующие библиотеки",
+                "Backend: Python 3.13.x, FastAPI 0.137.2, Pydantic 2.13.4, SQLAlchemy 2.0.x async",
+                "Хранилища: PostgreSQL 17, Redis 7.4, RabbitMQ 4.1, ChromaDB 1.5.9, S3/MinIO",
+                "Блокчейн: Hyperledger Besu 26.6.1 + QBFT",
+                "AI/голос: whisper.cpp v1.9.0 и сопутствующие библиотеки",
             ],
             "acc": [
                 "ADR по стеку приняты с обоснованием",
                 "Выбрана блокчейн-платформа",
                 "Зафиксированы версии зависимостей",
             ],
-            "docs": ["docs/ARCHITECTURE.md"],
+            "docs": ["docs/ARCHITECTURE.md", "docs/adr/0006-technology-stack-and-versions.md"],
         },
         {
             "key": "E0.5", "title": "Проектирование модели данных и стратегии мультитенантности",
@@ -834,12 +834,12 @@ E2_E = {
     "docs": ["docs/SECURITY.md", "docs/modules/blockchain-auditor.md"],
     "children": [
         {
-            "key": "E2.E.1", "title": "Коннектор сети (Besu/Quorum/TON, gRPC) + hash_generator",
+            "key": "E2.E.1", "title": "Коннектор сети (Hyperledger Besu/QBFT, gRPC) + hash_generator",
             "type": "feature", "prio": "critical", "stage": 2, "areas": ["backend"], "comps": ["blockchain-auditor"],
             "desc": "Коннектор к приватной блокчейн-сети по gRPC и генератор детерминированных SHA256-хэшей событий.",
             "goal": "Подключиться к сети и формировать корректные аудит-хэши.",
             "scope": [
-                "gRPC-коннектор к выбранной сети (Besu/Quorum/TON)",
+                "gRPC-коннектор к Hyperledger Besu/QBFT",
                 "hash_generator (SHA256, sort_keys)",
                 "Конфигурация подключения через секреты",
             ],

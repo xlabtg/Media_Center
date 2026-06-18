@@ -43,7 +43,7 @@
 
 ## 🏗 Архитектура в одном абзаце
 
-Мультитенантное (`tenant_id` во всех данных, векторах, логах и выплатах) ядро на **Python 3.11+ / FastAPI / PostgreSQL / Redis / RabbitMQ / ChromaDB**, состоящее из 5 ключевых микросервисов:
+Мультитенантное (`tenant_id` во всех данных, векторах, логах и выплатах) ядро на **Python 3.13.x / FastAPI 0.137.2 / PostgreSQL 17 / Redis 7.4 / RabbitMQ 4.1 / ChromaDB 1.5.9**, состоящее из 5 ключевых микросервисов:
 
 1. **Contribution Ledger & Weight Engine** — учёт баллов, расчёт веса вклада (Кв), экспорт выплат, аудит.
 2. **Content Generator & Link Router (CGLR)** — генерация контента (Jinja2) и ротация ссылок L1/L2/L3.
@@ -55,15 +55,18 @@
 
 ---
 
-## 🛠 Технологический стек (план)
+## 🛠 Технологический стек (baseline ADR-0006)
 
-- **Backend:** Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy (async, asyncpg), Alembic
-- **Хранилища:** PostgreSQL, Redis, RabbitMQ, ChromaDB (Vector DB), S3-совместимое объектное хранилище (MinIO)
-- **Блокчейн:** приватный — Hyperledger Besu / Quorum либо приватный шард TON (только хэши + метаданные)
-- **AI / Голос:** Whisper.cpp (локальная транскрипция), Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop
-- **Автоматизация:** Telethon / VK API, Playwright, ротация прокси (HTTP / SOCKS5 / MTProto)
+- **Backend:** Python 3.13.x (`python:3.13.14-slim`), FastAPI 0.137.2, Pydantic 2.13.4, SQLAlchemy 2.0.51, Alembic 1.18.4, asyncpg 0.31.0
+- **Хранилища:** PostgreSQL 17, Redis 7.4, RabbitMQ 4.1, ChromaDB 1.5.9, S3-совместимое объектное хранилище MinIO RELEASE.2025-09-07T16-13-09Z
+- **Блокчейн:** Hyperledger Besu 26.6.1 + QBFT в приватной permissioned audit-chain (только хэши + метаданные)
+- **AI / Голос:** whisper.cpp v1.9.0 (локальная транскрипция), Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop
+- **Автоматизация:** Telethon 1.44.0 / vk-api 11.10.0, Playwright 1.60.0, ротация прокси (HTTP / SOCKS5 / MTProto)
 - **Безопасность:** JWT (HS256), AES-256, TLS 1.3+, SHA256, 2FA, RBAC
-- **Инфраструктура:** Docker, docker-compose, Prometheus + Grafana, pytest
+- **Инфраструктура:** Docker, docker-compose, Prometheus v3.5.4, Grafana 12.4.4, pytest 9.1.0
+
+Полная матрица версий и правила обновления зафиксированы в
+[ADR-0006](docs/adr/0006-technology-stack-and-versions.md).
 
 ---
 
