@@ -59,8 +59,10 @@
 
 ## 3. Стандарты кода
 
-Технологический стек: **Python 3.11+**, FastAPI, Pydantic v2,
-SQLAlchemy (async, asyncpg), Alembic, pytest.
+Технологический стек baseline: **Python 3.13.x**, FastAPI 0.137.2,
+Pydantic 2.13.4, SQLAlchemy 2.0.51 (async, asyncpg 0.31.0), Alembic 1.18.4,
+pytest 9.1.0. Полная матрица версий зафиксирована в
+[ADR-0006](docs/adr/0006-technology-stack-and-versions.md).
 
 - **Форматирование и линт:** `ruff` (lint + format).
 - **Типизация:** `mypy` (строгий режим для новых модулей).

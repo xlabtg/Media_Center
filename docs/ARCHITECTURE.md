@@ -43,7 +43,7 @@ flowchart TB
     subgraph External["Внешние системы"]
         Platforms["Площадки: Telegram, VK, Dzen, OK, …"]
         Pay["Платёжные шлюзы РФ"]
-        Chain["Приватный блокчейн (Besu/Quorum/TON)"]
+        Chain["Приватный блокчейн (Hyperledger Besu / QBFT)"]
     end
 
     Council --> Gateway
@@ -258,7 +258,7 @@ flowchart LR
 Аудит операций в приватном блокчейне.
 - **Назначение:** запись SHA256-хэшей операций и метаданных, проверка целостности, доступ только для Совета, пакетная запись.
 - **Ключевые компоненты:** `blockchain_connector.py`, `hash_generator.py`, `access_controller.py`, `batch_writer.py`.
-- **Стек:** FastAPI, gRPC, Hyperledger Besu/Quorum или приватный шард TON.
+- **Стек:** FastAPI, gRPC connector, Hyperledger Besu 26.6.1 (QBFT).
 - **Важно:** в блокчейн записываются только хэши и метаданные — **без сумм и персональных данных**.
 - Спецификация: [modules/blockchain-auditor.md](modules/blockchain-auditor.md).
 
@@ -284,21 +284,24 @@ flowchart LR
 
 | Слой | Технологии |
 |------|------------|
-| **Язык / фреймворк** | Python 3.11+, FastAPI, Pydantic v2 |
-| **ORM / миграции** | SQLAlchemy (async, asyncpg), Alembic |
-| **Реляционная БД** | PostgreSQL |
-| **Кэш** | Redis |
-| **Очереди / события** | RabbitMQ |
-| **Векторная БД** | ChromaDB |
-| **Объектное хранилище** | S3-совместимое (MinIO) |
-| **Блокчейн** | Приватный: Hyperledger Besu / Quorum или приватный шард TON; gRPC |
-| **AI / голос** | Whisper.cpp, Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop, XAI |
-| **Автоматизация** | Telethon, VK API, Playwright, политики ретраев и резервные разрешенные каналы |
-| **Шаблоны** | Jinja2 |
+| **Язык / фреймворк** | Python 3.13.x (`python:3.13.14-slim`), FastAPI 0.137.2, Pydantic 2.13.4 |
+| **ORM / миграции** | SQLAlchemy 2.0.51 (async), asyncpg 0.31.0, Alembic 1.18.4 |
+| **Реляционная БД** | PostgreSQL 17 |
+| **Кэш** | Redis 7.4 (`redis:7.4`), redis-py 8.0.0 |
+| **Очереди / события** | RabbitMQ 4.1 (`rabbitmq:4.1-management`), aio-pika 9.6.2 |
+| **Векторная БД** | ChromaDB 1.5.9 |
+| **Объектное хранилище** | S3-совместимое MinIO RELEASE.2025-09-07T16-13-09Z, boto3 1.43.32 |
+| **Блокчейн** | Hyperledger Besu 26.6.1 + QBFT; внутренний gRPC connector в Blockchain Auditor |
+| **AI / голос** | whisper.cpp v1.9.0, Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop, XAI |
+| **Автоматизация** | Telethon 1.44.0, vk-api 11.10.0, Playwright 1.60.0, политики ретраев и резервные разрешенные каналы |
+| **Шаблоны** | Jinja2 3.1.6 |
 | **Безопасность** | JWT (HS256), AES-256, TLS 1.3+, SHA256, 2FA, RBAC |
 | **Контейнеризация** | Docker, docker-compose |
-| **Наблюдаемость** | Prometheus, Grafana, структурные логи, трейсинг |
-| **Тестирование** | pytest |
+| **Наблюдаемость** | Prometheus v3.5.4, Grafana 12.4.4, структурные логи, трейсинг |
+| **Тестирование** | pytest 9.1.0, pytest-asyncio 1.4.0, testcontainers 4.14.2 |
+
+Полная матрица версий, правила обновления и обоснование выбора блокчейна
+зафиксированы в [ADR-0006](adr/0006-technology-stack-and-versions.md).
 
 ---
 
@@ -432,9 +435,11 @@ ADR-журнал расположен в [adr/README.md](adr/README.md). На ba
 | [ADR-0003](adr/0003-tenant-isolation-by-design.md) | Сквозная tenant-изоляция по `tenant_id` | Accepted |
 | [ADR-0004](adr/0004-private-blockchain-audit.md) | Приватный audit-chain только для SHA256-хэшей и метаданных | Accepted |
 | [ADR-0005](adr/0005-hitl-for-sensitive-operations.md) | HITL-контур для выплат и чувствительных действий | Accepted |
+| [ADR-0006](adr/0006-technology-stack-and-versions.md) | Технологический стек и версии | Accepted |
 
-Выбор точных версий библиотек и инфраструктуры будет уточняться отдельными ADR
-в рамках issue #6, не меняя базовые архитектурные границы этого документа.
+ADR-0006 закрывает baseline issue #6: версии библиотек и инфраструктуры
+зафиксированы, а приватной блокчейн-платформой выбран Hyperledger Besu 26.6.1
+с консенсусом QBFT.
 
 ---
 

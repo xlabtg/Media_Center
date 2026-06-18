@@ -129,7 +129,7 @@
 
 | Issue | Задача | Тип | Область / Компонент |
 |-------|--------|-----|---------------------|
-| [#49](https://github.com/xlabtg/Media_Center/issues/49) | 🔴 Коннектор сети (Besu/Quorum/TON, gRPC) + hash_generator | `type:feature` | `area:backend` · `blockchain-auditor` |
+| [#49](https://github.com/xlabtg/Media_Center/issues/49) | 🔴 Коннектор сети (Hyperledger Besu/QBFT, gRPC) + hash_generator | `type:feature` | `area:backend` · `blockchain-auditor` |
 | [#50](https://github.com/xlabtg/Media_Center/issues/50) | 🔴 access_controller (только Совет) + batch_writer | `type:feature` | `area:security` · `blockchain-auditor` |
 | [#51](https://github.com/xlabtg/Media_Center/issues/51) | 🟠 API верификации записей + тесты | `type:feature` | `area:qa` · `blockchain-auditor` |
 

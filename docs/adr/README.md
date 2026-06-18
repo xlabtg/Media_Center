@@ -14,6 +14,7 @@
 | [ADR-0003](0003-tenant-isolation-by-design.md) | Сквозная tenant-изоляция по `tenant_id` | Accepted | 2026-06-18 |
 | [ADR-0004](0004-private-blockchain-audit.md) | Приватный audit-chain только для SHA256-хэшей и метаданных | Accepted | 2026-06-18 |
 | [ADR-0005](0005-hitl-for-sensitive-operations.md) | HITL-контур для выплат и чувствительных действий | Accepted | 2026-06-18 |
+| [ADR-0006](0006-technology-stack-and-versions.md) | Технологический стек и версии | Accepted | 2026-06-18 |
 
 ## Формат новых ADR
 
