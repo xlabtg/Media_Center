@@ -1,0 +1,44 @@
+name: "🚩 Эпик"
+description: "Крупный блок работ: этап или модуль системы"
+title: "[Эпик] "
+labels: ["type:epic"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Описание
+      description: Краткое описание эпика и его места в плане.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 🎯 Цель
+      description: Какой результат должен быть достигнут.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 📦 Объём
+      description: Что входит в эпик (высокоуровнево).
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 📋 Состав задач
+      description: Чек-лист дочерних задач/эпиков.
+      value: |
+        - [ ] #
+  - type: textarea
+    id: exit
+    attributes:
+      label: ✅ Критерии завершения
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: input
+    id: stage
+    attributes:
+      label: Этап (milestone)
+      description: Например, «Этап 2 — Ключевые микросервисы».
