@@ -20,6 +20,7 @@
 | Каталог | Владелец области | Спецификация |
 |---------|------------------|--------------|
 | `services/api-gateway/` | Tenant-aware маршрутизация, authz, rate limit, единая внешняя точка входа | [docs/modules/api-gateway.md](modules/api-gateway.md) |
+| `services/service-template/` | Эталонный FastAPI-шаблон для новых сервисов: healthcheck, `/metrics`, tenant middleware, DB settings, Alembic-структура и smoke-test | [services/service-template/README.md](../services/service-template/README.md) |
 | `services/contribution-ledger/` | Учёт вклада, баллы, Кв, экспорт долей и аудит | [docs/modules/contribution-ledger.md](modules/contribution-ledger.md) |
 | `services/cglr/` | Генерация контента, шаблоны, маршрутизация ссылок L1/L2/L3 | [docs/modules/cglr.md](modules/cglr.md) |
 | `services/hitl-payout-gateway/` | Очередь выплат, окно вето, 2FA, коннекторы исполнения | [docs/modules/hitl-payout-gateway.md](modules/hitl-payout-gateway.md) |
@@ -43,5 +44,6 @@
 Каркас каталогов готов. Базовый `pyproject.toml`, локальные dev-зависимости,
 CI/CD workflow и общий Dockerfile для сборки сервисных образов добавлены в issue
 #9. Исполняемый продуктовый код, lock-файлы и docker-compose добавляются
-отдельными задачами этапов 0-1, чтобы не смешивать инфраструктурный baseline с
-реализацией сервисного шаблона.
+отдельными задачами этапов 0-1. Для новых backend-сервисов добавлен
+`services/service-template/`, который фиксирует единый FastAPI scaffolding без
+расширения границ существующих продуктовых сервисов.
