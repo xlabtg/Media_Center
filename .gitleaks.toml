@@ -1,0 +1,10 @@
+title = "Media Center gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local source-material exports are ignored and must not be committed"
+paths = [
+  '''(?i)\.mhtml$''',
+]
