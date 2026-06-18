@@ -24,6 +24,12 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 - `contribution_ledger.weight_engine` — расчёт `kv_raw`, `kv_capped` с
   потолком `COUNCIL_CAP_KV = 0.10` и нормализованных `payout_share` для
   передачи в контур выплат.
+- `contribution_ledger.payout_exporter` — формирование immutable snapshot
+  распределения для HITL Payout Gateway, `distribution_hash` и событие
+  `payout.distribution_ready`.
+- `contribution_ledger.contribution_events` — генерация audit hash вклада через
+  общий `AuditLogger` и публикация `contribution.recorded` /
+  `audit.record.requested` через общий RabbitMQ event contract.
 
 ## Связанные документы
 
