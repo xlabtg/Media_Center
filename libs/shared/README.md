@@ -107,6 +107,24 @@
   а `InMemoryTenantVectorStore` реализует тот же контракт для unit-тестов и
   локальной wiring без живой ChromaDB.
 
+## Реализовано для issue #23
+
+- `S3Settings`, `s3_endpoint_url_from_env()` и `S3TenantObjectStorage` задают
+  единый S3/MinIO-backed слой через `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`,
+  `S3_SECRET_KEY`, `S3_BUCKET` и `S3_REGION`;
+- `build_tenant_object_key()` строит ключи вида
+  `tenants/<tenant_id>/<domain>/<object_id>`, чтобы объекты не пересекались
+  между tenant;
+- `put_object()` всегда дописывает `tenant_id`, `domain`, `correlation_id` и
+  SHA256 `content_hash` в object metadata, а попытка передать чужой `tenant_id`
+  возвращает `403 tenant_isolation_violation`;
+- `get_object()`, `list_objects()`, `create_presigned_get_url()` и
+  `create_presigned_put_url()` работают только через tenant/domain prefix, а
+  `build_tenant_s3_prefix_policy()` даёт IAM-compatible policy для ограничения
+  доступа сервисного аккаунта;
+- `InMemoryTenantObjectStorage` реализует тот же контракт для unit-тестов и
+  локальной wiring без живого MinIO.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
