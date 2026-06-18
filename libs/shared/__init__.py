@@ -10,6 +10,16 @@ from libs.shared.auth import (
     TwoFactorConfirmation,
     hash_refresh_token,
 )
+from libs.shared.gateway import (
+    APIGatewayASGIMiddleware,
+    GatewayRoute,
+    GatewayRouteNotFoundError,
+    InMemoryRateLimiter,
+    RateLimitDecision,
+    RateLimitedError,
+    RateLimiter,
+    RateLimitPolicy,
+)
 from libs.shared.rbac import (
     AUDIENCE_ROLE,
     BLOCKCHAIN_AUDIT_ENDPOINT_POLICIES,
@@ -49,6 +59,7 @@ from libs.shared.tenant import (
 
 __all__ = [
     "AUDIENCE_ROLE",
+    "APIGatewayASGIMiddleware",
     "AuthTokenService",
     "AccessPolicy",
     "BLOCKCHAIN_AUDIT_ENDPOINT_POLICIES",
@@ -58,12 +69,19 @@ __all__ = [
     "FORBIDDEN_CODE",
     "ForbiddenError",
     "GOVERNANCE_ROLES",
+    "GatewayRoute",
+    "GatewayRouteNotFoundError",
     "InMemoryAuditSink",
+    "InMemoryRateLimiter",
     "InMemoryRefreshTokenStore",
     "MEMBER_ASSOC_ROLE",
     "MEMBER_FULL_ROLE",
     "PRESIDIUM_ROLE",
     "RBACASGIMiddleware",
+    "RateLimitDecision",
+    "RateLimitedError",
+    "RateLimiter",
+    "RateLimitPolicy",
     "RefreshTokenRecord",
     "RefreshTokenStore",
     "TOTPService",

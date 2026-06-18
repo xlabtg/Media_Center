@@ -45,6 +45,22 @@
 - `BLOCKCHAIN_AUDIT_ENDPOINT_POLICIES` ограничивает `/audit/record`,
   `/audit/verify` и `/audit/records/{event_id}` только ролью `council`.
 
+## Реализовано для issue #19
+
+- `GatewayRoute` описывает tenant-aware маршрут от публичного service prefix к
+  downstream ASGI/FastAPI приложению;
+- `APIGatewayASGIMiddleware` выбирает downstream по prefix, срезает gateway
+  prefix из `scope["path"]` и передаёт проверенный tenant context через
+  internal headers;
+- downstream всегда получает `X-Tenant-Id`, `X-Subject-Id`, `X-Actor-Roles`,
+  `X-Correlation-Id`, `X-Service-Name`, `X-Forwarded-Prefix` и
+  `X-Original-Path` из доверенного Gateway context;
+- `InMemoryRateLimiter` и `RateLimitPolicy` дают deterministic fixed-window
+  limiter для локальной wiring и unit-тестов;
+- превышение лимита возвращает единый error envelope `429 rate_limited` и
+  headers `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+  `X-RateLimit-Reset`.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
