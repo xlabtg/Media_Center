@@ -27,7 +27,9 @@
 | [docs/VISION.md](docs/VISION.md) | Видение продукта, миссия, ценности, целевая аудитория |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Требования FR/NFR, границы MVP и KPI пилота |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Единый глоссарий терминов (НМЦ, пай, МСЦ, Кв, HITL, …) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура системы, микросервисы, технологический стек |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура системы, C4-диаграммы, микросервисы, технологический стек |
+| [docs/adr/](docs/adr/) | ADR-журнал ключевых архитектурных решений |
+| [docs/contracts/](docs/contracts/) | Контракты REST/gRPC и RabbitMQ-событий между сервисами |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Мастер-план: эпики, задачи, связь с метками и этапами |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
