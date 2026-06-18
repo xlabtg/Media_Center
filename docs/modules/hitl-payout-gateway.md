@@ -1,6 +1,6 @@
 # HITL Payout Gateway
 
-**Статус:** 🟡 планируется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:hitl-payout`
+**Статус:** 🟢 реализуется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:hitl-payout`
 
 Шлюз выплат с обязательным контролем человека: очередь, окно вето Совета и подтверждение через 2FA. AI исполняет — Совет контролирует.
 
@@ -18,10 +18,15 @@
 
 ## Основные интерфейсы
 - **POST** `/payouts/queue` — поставить выплату в очередь
-- **POST** `/payouts/{id}/veto` — наложить вето (роль Совета)
-- **POST** `/payouts/{id}/confirm` — подтвердить выплату (2FA)
-- **POST** `/payouts/{id}/execute` — исполнить выплату через коннекторы
+- **GET** `/payouts/{id}` — получить выплату tenant
 - **GET** `/payouts?status=` — список выплат тенанта по статусу
+- **POST** `/payouts/{id}/veto` — наложить вето (роль Совета)
+- **POST** `/payouts/{id}/confirm` — подтвердить выплату через TOTP 2FA
+- **POST** `/payouts/{id}/execute` — исполнить выплату через коннекторы
+
+Все рабочие endpoints требуют JWT tenant context и роль `council`. API строится
+через `hitl_payout_gateway.create_hitl_payout_app`, использует общий
+`ServiceTemplateConfig`, tenant middleware и error envelope.
 
 ## Модель данных (черновик)
 - **payouts** — `tenant_id`, `member_id`, `share`, `status`, `veto_until`, `audit_hash`, `created_at`
@@ -33,13 +38,19 @@
 
 ## Безопасность и мультитенантность
 - Ни одна выплата не исполняется без истечения окна вето и подтверждения 2FA
-- Право вето и подтверждения ограничено ролью Совета (RBAC)
+- Право постановки в очередь, чтения, вето, подтверждения и исполнения
+  ограничено ролью Совета (RBAC)
 - 2FA подтверждает конкретную операцию `payout.confirm` через TOTP и сохраняет
   `tenant_id`, `subject`, `resource_id` и `correlation_id` для аудита
+- В текущем in-memory REST wiring TOTP secret хранится на стороне приложения;
+  HTTP-запрос подтверждения передаёт код, а не сам секрет
 - Все решения (вето/подтверждение/исполнение) фиксируются в аудите
 - Сбои платёжного, blockchain-audit и notification коннекторов логируются,
   получают audit record `payout.failed` и публикуют событие для повторной
   обработки без перевода выплаты в `executed`
+- Просроченное вето возвращает `veto_window_closed`; раннее исполнение или
+  исполнение без 2FA возвращает `payout_not_executable`; отсутствие роли
+  возвращает общий `forbidden`.
 
 ## Связанные задачи (issue)
 - [#39](https://github.com/xlabtg/Media_Center/issues/39) — queue_manager + veto_manager (окно вето) (`type:feature`)

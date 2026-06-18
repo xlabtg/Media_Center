@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+from hitl_payout_gateway.api import (
+    HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+    ConfirmPayoutRequest,
+    ExecutePayoutRequest,
+    HITLPayoutAPIState,
+    PayoutListResponse,
+    QueuePayoutRequest,
+    VetoPayoutRequest,
+    create_hitl_payout_app,
+)
 from hitl_payout_gateway.confirmation_manager import (
     PAYOUT_CONFIRM_OPERATION,
     PAYOUT_CONFIRM_POLICY,
@@ -58,6 +68,7 @@ from hitl_payout_gateway.veto_manager import (
 
 __all__ = [
     "DEFAULT_VETO_WINDOW_HOURS",
+    "HITL_PAYOUT_GATEWAY_SERVICE_NAME",
     "HITL_PAYOUT_SCHEMA_VERSION",
     "HITL_PAYOUT_SOURCE",
     "MAX_VETO_WINDOW_HOURS",
@@ -74,6 +85,9 @@ __all__ = [
     "BlockchainAuditConnector",
     "BlockchainAuditRecordCommand",
     "BlockchainAuditRecordResult",
+    "ConfirmPayoutRequest",
+    "ExecutePayoutRequest",
+    "HITLPayoutAPIState",
     "InMemoryBlockchainAuditConnector",
     "InMemoryNotificationConnector",
     "InMemoryPaymentConnector",
@@ -83,6 +97,7 @@ __all__ = [
     "PayoutNotFoundError",
     "NotificationConnector",
     "PaymentConnector",
+    "PayoutListResponse",
     "PayoutConfirmation",
     "PayoutConfirmationManager",
     "PayoutConnectorError",
@@ -97,10 +112,13 @@ __all__ = [
     "PayoutQueueManager",
     "PayoutQueueResult",
     "PayoutStatus",
+    "QueuePayoutRequest",
     "InMemoryVetoDecisionRepository",
     "VetoDecision",
     "VetoManager",
+    "VetoPayoutRequest",
     "VetoWindowClosedError",
+    "create_hitl_payout_app",
     "resolve_veto_window_hours",
     "subject_ref_hash",
     "validate_veto_window_hours",
