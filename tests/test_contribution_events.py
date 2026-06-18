@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 
 from contribution_ledger import record_contribution_event
+
 from libs.shared import InMemoryEventBus, JSONValue
 
 
