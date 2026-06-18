@@ -23,9 +23,14 @@ HITL Payout Gateway управляет очередью выплат, окном
 - `hitl_payout_gateway.queue_manager` ставит выплаты в очередь, рассчитывает
   `veto_until` из `VETO_WINDOW_HOURS` (по умолчанию 8 ч, допустимо 4-12 ч) и
   блокирует переход к исполнению до закрытия окна.
+- `hitl_payout_gateway.confirmation_manager` принимает 2FA-подтверждение
+  операции `payout.confirm`, проверяет роль `council`, фиксирует audit hash и
+  публикует `payout.confirmed`.
 - `hitl_payout_gateway.veto_manager` принимает решение вето только в открытом
   окне, переводит выплату в `canceled`, сохраняет `decision_id` и audit hash.
-- Публикуются события `payout.queued` и `payout.vetoed` по общему
+- Переход к исполнению возможен только после закрытия окна вето и сохранённого
+  2FA-подтверждения.
+- Публикуются события `payout.queued`, `payout.confirmed` и `payout.vetoed` по общему
   `EventEnvelope`-контракту.
 - Audit records не содержат денежных сумм и персональных данных: участники и
   причины решений представлены SHA256-хэшами и техническими метаданными.

@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+from hitl_payout_gateway.confirmation_manager import (
+    PAYOUT_CONFIRM_OPERATION,
+    PAYOUT_CONFIRM_POLICY,
+    PAYOUT_CONFIRM_RESOURCE_TYPE,
+    PAYOUT_CONFIRMED_EVENT,
+    InMemoryPayoutConfirmationRepository,
+    PayoutConfirmation,
+    PayoutConfirmationManager,
+)
 from hitl_payout_gateway.queue_manager import (
     DEFAULT_VETO_WINDOW_HOURS,
     HITL_PAYOUT_SCHEMA_VERSION,
@@ -34,12 +43,19 @@ __all__ = [
     "HITL_PAYOUT_SOURCE",
     "MAX_VETO_WINDOW_HOURS",
     "MIN_VETO_WINDOW_HOURS",
+    "PAYOUT_CONFIRM_OPERATION",
+    "PAYOUT_CONFIRM_POLICY",
+    "PAYOUT_CONFIRM_RESOURCE_TYPE",
+    "PAYOUT_CONFIRMED_EVENT",
     "PAYOUT_QUEUED_EVENT",
     "PAYOUT_VETOED_EVENT",
     "VETO_WINDOW_HOURS_ENV",
+    "InMemoryPayoutConfirmationRepository",
     "InMemoryPayoutQueueRepository",
     "PayoutNotExecutableError",
     "PayoutNotFoundError",
+    "PayoutConfirmation",
+    "PayoutConfirmationManager",
     "PayoutQueueError",
     "PayoutQueueItem",
     "PayoutQueueManager",
