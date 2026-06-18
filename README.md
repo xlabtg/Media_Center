@@ -39,6 +39,7 @@
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
+| [docs/RISK_REGISTER.md](docs/RISK_REGISTER.md) | Реестр рисков ToS, ПДн, финансов, контента, владельцы и меры митигирования |
 | [docs/SECURITY.md](docs/SECURITY.md) | Модель безопасности, мультитенантная изоляция, угрозы |
 | [docs/CODE_STYLE.md](docs/CODE_STYLE.md) | Гайд по стилю кода, pre-commit и локальные проверки |
 | [docs/modules/](docs/modules/) | Технические спецификации модулей (по одному файлу на модуль) |
