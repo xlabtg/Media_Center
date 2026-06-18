@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "AGPL-3.0-only"
 dependencies = [
+  "fastapi==0.137.2",
+  "uvicorn==0.49.0",
   "pydantic==2.13.4",
   "pydantic-settings==2.14.1",
   "SQLAlchemy==2.0.51",
@@ -13,6 +15,7 @@ dependencies = [
   "alembic==1.18.4",
   "redis==8.0.0",
   "aio-pika==9.6.2",
+  "httpx==0.28.1",
   "chromadb-client==1.5.9",
   "boto3==1.43.32",
 ]
