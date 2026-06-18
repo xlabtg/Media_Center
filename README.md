@@ -4,6 +4,7 @@
 
 [![Stage](https://img.shields.io/badge/stage-planning-blue)]()
 [![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![CI](https://github.com/xlabtg/Media_Center/actions/workflows/ci.yml/badge.svg)](https://github.com/xlabtg/Media_Center/actions/workflows/ci.yml)
 
 ---
 
@@ -73,6 +74,27 @@
 
 ---
 
+## ✅ CI/CD
+
+Базовый workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+запускается на PR и push в `main`: `ruff`, `mypy`, `pytest`, SCA через
+`pip-audit`, secret scan через `gitleaks`, Trivy scan репозитория и сборку
+Docker-образов для всех сервисных каталогов. На push в `main` сервисные образы
+публикуются в GHCR.
+
+Локальная проверка критериев issue #9:
+
+```bash
+python -m pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+mypy .
+pytest
+bash experiments/validate_issue9_ci.sh
+```
+
+---
+
 ## 📁 Структура монорепозитория
 
 Репозиторий подготовлен как монорепо сервисов и общей библиотеки. Текущие
@@ -80,6 +102,7 @@
 этапов без изменения зафиксированных границ сервисов.
 
 ```text
+.github/workflows/          # CI/CD: качество, security scan, сборка образов
 services/
   api-gateway/              # единая tenant-aware точка входа
   contribution-ledger/      # учёт вклада и расчёт весов
@@ -91,6 +114,8 @@ libs/shared/                # общие модели, ошибки, tenant/audi
 infra/                      # локальная, deploy и observability-инфраструктура
 docs/                       # требования, архитектура, ADR, контракты
 experiments/                # вспомогательные скрипты и проверки этапа 0
+pyproject.toml              # базовые настройки ruff, mypy, pytest
+requirements-dev.txt        # закреплённые версии инструментов локального CI
 ```
 
 Подробные правила владения каталогами описаны в
