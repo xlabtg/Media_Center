@@ -53,6 +53,7 @@ strict = true
 mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/cglr",
   "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
+  "$MYPY_CONFIG_FILE_DIR/services/hitl-payout-gateway",
 ]
 exclude = [
   "^experiments/",
@@ -66,6 +67,7 @@ pythonpath = [
   ".",
   "services/cglr",
   "services/contribution-ledger",
+  "services/hitl-payout-gateway",
 ]
 addopts = [
   "--strict-config",
