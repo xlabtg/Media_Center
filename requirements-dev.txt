@@ -10,3 +10,4 @@ alembic==1.18.4
 redis==8.0.0
 aio-pika==9.6.2
 chromadb-client==1.5.9
+boto3==1.43.32

@@ -57,7 +57,9 @@ LOCAL_ENV_FILE=infra/local/.env.local make migrate
 | MinIO | `minio/minio:RELEASE.2025-09-07T16-13-09Z` | API `http://localhost:9000`, UI `http://localhost:9001` |
 
 Dev-логины из `infra/local/.env.local.example` предназначены только для
-локального запуска.
+локального запуска. Переменные `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`,
+`S3_SECRET_KEY`, `S3_BUCKET` и `S3_REGION` в этом шаблоне уже указывают на
+локальный MinIO bucket `nmc-dev`.
 
 ## Миграции, сиды и фикстуры
 

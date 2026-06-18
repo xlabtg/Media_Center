@@ -58,6 +58,11 @@ def test_local_env_template_contains_safe_dev_defaults() -> None:
             "MINIO_ROOT_USER=nmc_minio",
             "MINIO_ROOT_PASSWORD=",
             "MINIO_BUCKET=nmc-dev",
+            "S3_ENDPOINT_URL=http://localhost:9000",
+            "S3_ACCESS_KEY=nmc_minio",
+            "S3_SECRET_KEY=",
+            "S3_BUCKET=nmc-dev",
+            "S3_REGION=ru-central-1",
         ],
     )
     assert "CHANGE_ME" not in read_text("infra/local/.env.local.example")
