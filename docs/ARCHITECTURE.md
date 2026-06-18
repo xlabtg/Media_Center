@@ -155,7 +155,7 @@ flowchart LR
 | **Объектное хранилище** | S3-совместимое (MinIO) |
 | **Блокчейн** | Приватный: Hyperledger Besu / Quorum или приватный шард TON; gRPC |
 | **AI / голос** | Whisper.cpp, Agentic RAG, DeepResearch, Content Agent (CUA), RL-KPI loop, XAI |
-| **Автоматизация** | Telethon, VK API, Playwright, ротация прокси (HTTP/SOCKS5/MTProto) |
+| **Автоматизация** | Telethon, VK API, Playwright, политики ретраев и резервные разрешенные каналы |
 | **Шаблоны** | Jinja2 |
 | **Безопасность** | JWT (HS256), AES-256, TLS 1.3+, SHA256, 2FA, RBAC |
 | **Контейнеризация** | Docker, docker-compose |
