@@ -36,6 +36,7 @@
 | [docs/REPOSITORY_STRUCTURE.md](docs/REPOSITORY_STRUCTURE.md) | Структура монорепозитория, сервисов, shared-библиотеки и infra |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Мастер-план: эпики, задачи, связь с метками и этапами |
+| [docs/STAGE_0_ACCEPTANCE.md](docs/STAGE_0_ACCEPTANCE.md) | Итоговая фиксация готовности этапа 0 и gate перед реализацией |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
