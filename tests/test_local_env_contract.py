@@ -53,6 +53,7 @@ def test_local_env_template_contains_safe_dev_defaults() -> None:
             "RABBITMQ_DEFAULT_USER=nmc",
             "RABBITMQ_DEFAULT_PASS=",
             "RABBITMQ_URL=amqp://nmc:nmc_dev_password@localhost:5672/",
+            "CHROMA_HOST=localhost",
             "CHROMA_PORT=8001",
             "MINIO_ROOT_USER=nmc_minio",
             "MINIO_ROOT_PASSWORD=",

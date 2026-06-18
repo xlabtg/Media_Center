@@ -90,6 +90,23 @@
   inbox/idempotency contract: повторно доставленное успешно обработанное
   событие не запускает handler второй раз.
 
+## Реализовано для issue #22
+
+- `ChromaSettings`, `chroma_host_from_env()` и `ChromaTenantVectorStore`
+  задают единый ChromaDB-backed слой через `CHROMA_HOST` / `CHROMA_PORT` и
+  `chromadb-client==1.5.9`;
+- `build_tenant_vector_collection_name()` строит коллекции вида
+  `nmc_<env>_<tenant_id>_<domain>` и нормализует небезопасные символы для
+  ChromaDB collection name;
+- `VectorRecord` и `VectorSearchResult` фиксируют минимальный контракт
+  upsert/query: `id`, embedding, optional document и scalar metadata;
+- `upsert()` всегда дописывает `tenant_id` и `domain` в metadata, а попытка
+  передать metadata/filter с чужим `tenant_id` возвращает
+  `403 tenant_isolation_violation`;
+- `query()` всегда добавляет ChromaDB metadata filter по текущему `tenant_id`,
+  а `InMemoryTenantVectorStore` реализует тот же контракт для unit-тестов и
+  локальной wiring без живой ChromaDB.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
