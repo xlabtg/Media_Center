@@ -97,9 +97,25 @@ Gateway proxy срезает service prefix перед вызовом downstream
 | Метод | Путь | Команда/запрос | Side effect |
 |-------|------|----------------|-------------|
 | `POST` | `/generate` | Сгенерировать материал по шаблону, политике и input data | Да |
-| `POST` | `/content/{id}/validate` | Проверить материал под площадку и контентные правила | Да |
-| `GET` | `/content/{id}` | Получить готовый материал и L1/L2/L3 ссылки | Нет |
-| `GET` | `/templates` | Список шаблонов tenant | Нет |
+| `GET` | `/content/{content_id}` | Получить готовый материал, L1/L2/L3 ссылки и запись вклада | Нет |
+| `POST` | `/content/{content_id}/validate` | Проверить материал под площадку и контентные правила | Да, запланировано |
+| `GET` | `/templates` | Список шаблонов tenant | Нет, запланировано |
+
+В первом REST-контуре реализованы `POST /generate` и
+`GET /content/{content_id}`. `POST /generate` требует `Idempotency-Key` и
+принимает:
+
+- `template_id`, `template_body`, `context`, `validation`;
+- `platform_targets` для события `content.generated`;
+- `link_routing.admin_link`, `link_routing.author_link`, `l3_candidates`,
+  `rotation_seed`;
+- `contribution` с `event_type`, `platform`, `reach`, `extra_reach`,
+  `occurred_at` и безопасной `metadata`.
+
+Ответ содержит `content_id`, `content`, `content_with_links`, `content_hash`,
+массив `links`, `reward_distribution` и объект `contribution`. Логирование
+вклада выполняется с `source_type=cglr_generation` и `source_ref=content_id`;
+сырой текст материала не попадает в событийный payload.
 
 ### Unified Messenger Adapter
 

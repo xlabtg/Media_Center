@@ -24,12 +24,49 @@
 - **POST** `/generate` — сгенерировать контент по шаблону и данным
 - **GET** `/content/{id}` — получить готовый контент с встроенными ссылками
 
+### `POST /generate`
+
+Tenant-aware команда генерации. Требует `Authorization`, `X-Tenant-Id`,
+`X-Correlation-Id` и `Idempotency-Key`.
+
+Ключевые поля запроса:
+
+- `template_id`, `template_body`, `context`, `validation` — входные данные для
+  sandboxed Jinja2-рендеринга.
+- `platform_targets` — целевые площадки для события `content.generated`.
+- `link_routing` — `admin_link` (L1), `author_link` (L2),
+  `l3_candidates`, `rotation_seed` и порог `l3_min_contribution_weight`.
+- `contribution` — настройки записи вклада: `member_id` (если не берётся из
+  JWT `sub`), `event_type`, `platform`, `reach`, `extra_reach`,
+  `occurred_at`, безопасная `metadata`.
+
+Ответ содержит `content_id`, исходный `content`, `content_with_links`,
+`content_hash`, L1/L2/L3-ссылки, `reward_distribution` и связанную запись
+Contribution Ledger с `source_type=cglr_generation`.
+
+Идемпотентность: повтор с тем же `Idempotency-Key` и тем же payload возвращает
+первый результат без повторной публикации событий; повтор с другим payload
+возвращает `409 idempotency_conflict`.
+
+### `GET /content/{content_id}`
+
+Возвращает сохранённый результат генерации для текущего tenant. Если
+`content_id` принадлежит другому tenant, сервис возвращает
+`403 tenant_isolation_violation`; если запись не найдена —
+`404 content_not_found`.
+
 ## Компоненты реализации
 - `template_engine` — sandboxed Jinja2-рендеринг и проверка длины/обязательных
   блоков.
 - `link_rotator` — доменный модуль генерации ссылок L1/L2/L3, расчёта
   reward distribution 20/10/5, добавления tracking query-параметров и учёта
   переходов через `InMemoryReferralClickTracker`.
+- `api` — FastAPI-слой над генерацией, tenant-scoped in-memory репозиторий,
+  idempotency, событие `content.generated` и `ContributionLogger`.
+- `ContributionLogger` — протокол логирования генерации в Contribution Ledger.
+  В текущем in-memory контуре использует расчёт баллов и
+  `record_contribution_event`, чтобы генерация сразу создавала
+  `contribution.recorded` и `audit.record.requested`.
 
 ## Модель данных (черновик)
 - **templates** — `tenant_id`, `name`, `body`, `version`

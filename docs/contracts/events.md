@@ -68,9 +68,16 @@ tenant.<tenant_id>.<domain>.<event_name>
 
 | Event type | Producer | Consumers | Payload baseline |
 |------------|----------|-----------|------------------|
-| `content.generated` | CGLR | Messenger Adapter, Analytics | `content_id`, `template_id`, `content_hash`, `platform_targets` |
+| `content.generated` | CGLR | Messenger Adapter, Analytics | `content_id`, `template_id`, `content_hash`, `platform_targets` без сырого текста материала |
 | `content.validation_failed` | CGLR | Activity Command Center, Notification | `content_id`, `policy_key`, `reason_code` |
 | `contribution.record_requested` | CGLR | Contribution Ledger | `content_id`, `member_id_hash`, `contribution_type`, `metadata_hash` |
+
+Первый REST-контур CGLR логирует генерацию через Contribution
+Ledger-compatible `ContributionLogger`: после `content.generated` создаются
+события `contribution.recorded` и `audit.record.requested` с
+`source_type=cglr_generation` и `source_ref=content_id`. Событие
+`contribution.record_requested` остаётся целевым асинхронным контрактом для
+будущего outbox/consumer варианта.
 
 ### Unified Messenger Adapter
 
