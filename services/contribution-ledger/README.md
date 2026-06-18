@@ -21,6 +21,9 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 - `contribution_ledger.points_calculator` — расчёт `final_points` по формуле
   `round(base × platform_mult × reach_mult × amp_mult, 2)`, Pydantic v2
   модели входа/выхода и таблицы `BASE_POINTS` / `PLATFORM_MULTIPLIERS`.
+- `contribution_ledger.weight_engine` — расчёт `kv_raw`, `kv_capped` с
+  потолком `COUNCIL_CAP_KV = 0.10` и нормализованных `payout_share` для
+  передачи в контур выплат.
 
 ## Связанные документы
 
