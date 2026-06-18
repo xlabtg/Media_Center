@@ -24,6 +24,15 @@ select = [
   "SIM",
 ]
 
+[tool.black]
+target-version = [
+  "py313",
+]
+line-length = 88
+extend-exclude = '''
+^/experiments/
+'''
+
 [tool.mypy]
 python_version = "3.13"
 strict = true
