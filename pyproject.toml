@@ -44,6 +44,9 @@ exclude = [
 testpaths = [
   "tests",
 ]
+pythonpath = [
+  ".",
+]
 addopts = [
   "--strict-config",
   "--strict-markers",

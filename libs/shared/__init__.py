@@ -1,0 +1,41 @@
+"""Shared tenant-isolation primitives for Media Center services."""
+
+from libs.shared.tenant import (
+    InMemoryAuditSink,
+    TenantAuditEvent,
+    TenantContext,
+    TenantContextASGIMiddleware,
+    TenantCoreError,
+    TenantIsolationError,
+    TenantScopedRepository,
+    UnauthorizedError,
+    assert_requested_tenant,
+    decode_hs256_jwt,
+    encode_hs256_jwt,
+    get_tenant_context,
+    require_tenant_context,
+    reset_tenant_context,
+    set_tenant_context,
+    tenant_context_from_authorization_header,
+    tenant_context_from_claims,
+)
+
+__all__ = [
+    "InMemoryAuditSink",
+    "TenantAuditEvent",
+    "TenantContext",
+    "TenantContextASGIMiddleware",
+    "TenantCoreError",
+    "TenantIsolationError",
+    "TenantScopedRepository",
+    "UnauthorizedError",
+    "assert_requested_tenant",
+    "decode_hs256_jwt",
+    "encode_hs256_jwt",
+    "get_tenant_context",
+    "require_tenant_context",
+    "reset_tenant_context",
+    "set_tenant_context",
+    "tenant_context_from_authorization_header",
+    "tenant_context_from_claims",
+]
