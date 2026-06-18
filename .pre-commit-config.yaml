@@ -39,3 +39,4 @@ repos:
           - alembic==1.18.4
           - asyncpg==0.31.0
           - pytest==9.1.0
+          - Jinja2==3.1.6
