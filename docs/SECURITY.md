@@ -200,14 +200,26 @@ Private Blockchain Auditor, Unified Messenger Adapter и клиентским п
 |------------|------------|
 | `DATABASE_URL` | `postgresql+asyncpg://…` |
 | `REDIS_URL` | Подключение к Redis |
+| `RABBITMQ_URL` | Подключение к RabbitMQ |
+| `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL` | Подключение к ChromaDB |
+| `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_REGION` | Объектное хранилище |
 | `JWT_SECRET` | Секрет подписи JWT |
 | `JWT_ALGORITHM` | `HS256` |
+| `ENCRYPTION_KEY` | Ключ шифрования токенов площадок |
 | `BLOCKCHAIN_AUDITOR_URL` | Адрес сервиса блокчейн-аудита |
 | `VETO_WINDOW_HOURS` | Окно вето (по умолчанию 8) |
 | `LOG_LEVEL` | Уровень логирования (`INFO`) |
+| `VAULT_ENABLED`, `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_MOUNT`, `VAULT_PATH` | Интеграция с HashiCorp Vault KV v2 |
 
 - Секреты — через менеджер секретов (vault), не в репозитории.
 - `.env` — в `.gitignore`; в репозитории только `.env.example`.
+- Единая точка загрузки конфигурации — `libs.shared.AppSettings` на
+  `pydantic-settings`; сервисы получают typed settings через `load_app_settings()`.
+- `VaultSecretProvider` используется только при `VAULT_ENABLED=true` и получает
+  секреты из KV v2 path `/<mount>/data/<path>`.
+- Для логов и diagnostics использовать только `AppSettings.redacted_dict()`, где
+  `DATABASE_URL`, `RABBITMQ_URL`, S3 credentials, `JWT_SECRET` и
+  `ENCRYPTION_KEY` скрыты.
 
 ---
 

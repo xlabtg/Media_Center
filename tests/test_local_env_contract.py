@@ -55,6 +55,7 @@ def test_local_env_template_contains_safe_dev_defaults() -> None:
             "RABBITMQ_URL=amqp://nmc:nmc_dev_password@localhost:5672/",
             "CHROMA_HOST=localhost",
             "CHROMA_PORT=8001",
+            "CHROMA_SSL=false",
             "MINIO_ROOT_USER=nmc_minio",
             "MINIO_ROOT_PASSWORD=",
             "MINIO_BUCKET=nmc-dev",

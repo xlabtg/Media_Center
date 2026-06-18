@@ -125,11 +125,26 @@
 - `InMemoryTenantObjectStorage` реализует тот же контракт для unit-тестов и
   локальной wiring без живого MinIO.
 
+## Реализовано для issue #25
+
+- `AppSettings` задаёт единый Pydantic Settings contract для `.env`,
+  environment variables и typed service wiring;
+- `load_app_settings()` заполняет конфигурацию из окружения и может подставлять
+  отсутствующие или `CHANGE_ME*` секреты через `SecretProvider`;
+- `VaultSettings` и `VaultSecretProvider` поддерживают HashiCorp Vault KV v2
+  без хранения реальных секретов в репозитории;
+- `redacted_dict()` отдаёт безопасный для логов снимок конфигурации, где
+  `DATABASE_URL`, `RABBITMQ_URL`, S3 credentials, `JWT_SECRET` и
+  `ENCRYPTION_KEY` скрыты;
+- адаптеры `to_database_settings()`, `to_cache_settings()`,
+  `to_rabbitmq_settings()`, `to_chroma_settings()` и `to_s3_settings()`
+  сохраняют совместимость с уже существующими shared-настройками.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;
 - Pydantic-модели, используемые в межсервисных контрактах;
-- базовые helpers для конфигурации, логов и observability.
+- базовые helpers для логов и observability.
 
 ## Правила
 
