@@ -25,6 +25,7 @@
 | Документ | Назначение |
 |----------|------------|
 | [docs/VISION.md](docs/VISION.md) | Видение продукта, миссия, ценности, целевая аудитория |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Требования FR/NFR, границы MVP и KPI пилота |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Единый глоссарий терминов (НМЦ, пай, МСЦ, Кв, HITL, …) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура системы, микросервисы, технологический стек |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |
