@@ -206,7 +206,7 @@ flowchart LR
 
 | Сервис | Публичный API | Внутренние компоненты | Владелец данных | Публикует события |
 |--------|---------------|-----------------------|-----------------|-------------------|
-| Contribution Ledger & Weight Engine | Учёт вклада, веса Кв, экспорт долей | `points_calculator`, `weight_engine`, `payout_exporter`, `audit_logger` | `contributions`, `tenant_weights` | `contribution.recorded`, `weights.recalculated`, `payout.distribution_ready`, `audit.record.requested` |
+| Contribution Ledger & Weight Engine | Учёт вклада, веса Кв, экспорт долей | `points_calculator`, `weight_engine`, `payout_exporter`, `audit_logger` | `contributions`, `tenant_weights`, `payout_distributions` | `contribution.recorded`, `weights.recalculated`, `payout.distribution_ready`, `audit.record.requested` |
 | CGLR | Генерация контента, ссылки L1/L2/L3 | `template_engine`, `link_rotator`, `platform_validator`, `contribution_logger` | `templates`, `generated_content`, `link_routes` | `content.generated`, `content.validation_failed`, `contribution.record_requested` |
 | Unified Messenger Adapter | Публикация и реестр площадок | `base_adapter`, площадочные адаптеры, `content_transformer`, `link_injector`, `platform_registry` | `platform_registry`, `platform_tokens`, `publication_jobs` | `publication.requested`, `publication.succeeded`, `publication.failed` |
 | HITL Payout Gateway | Очередь выплат, вето, 2FA | `queue_manager`, `veto_manager`, `notification_adapter`, `wallet_connector`, `blockchain_writer` | `payouts`, `veto_decisions`, `approval_sessions` | `payout.queued`, `payout.vetoed`, `payout.confirmed`, `payout.executed`, `audit.record.requested` |
@@ -407,7 +407,7 @@ sequenceDiagram
 | Область | Baseline |
 |---------|----------|
 | PostgreSQL | Tenant-owned таблицы содержат `tenant_id NOT NULL`, tenant-aware индексы, composite FK/unique и Row Level Security как defence in depth. |
-| Contribution Ledger | `contributions`, `tenant_weights`, `payout_distributions`; ключевые индексы: `idx_contributions_tenant_event_created`, `uq_tenant_weights_tenant_member_period`. |
+| Contribution Ledger | `contributions`, `tenant_weights`, `payout_distributions`; ключевые индексы: `idx_contributions_tenant_event_created`, `uq_tenant_weights_tenant_member_period`, `idx_payout_distributions_tenant_period`. |
 | ChromaDB | Коллекции `nmc_<env>_<tenant_id>_<domain>` и обязательный metadata filter `tenant_id`. |
 | S3 / MinIO | Prefix `tenants/{tenant_id}/{domain}/{object_id}` и object metadata с tenant context. |
 | Redis / RabbitMQ | Ключи и routing keys включают tenant context; consumer повторно проверяет envelope. |

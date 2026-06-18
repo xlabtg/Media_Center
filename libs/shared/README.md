@@ -169,6 +169,19 @@
 - `TenantScopedSQLAlchemyRepository` строит tenant-filtered запросы для обеих
   новых моделей.
 
+## Реализовано для issue #34
+
+- `PayoutDistribution` добавлена в SQLAlchemy metadata как tenant-owned
+  immutable snapshot модель для экспортов Contribution Ledger в HITL Payout
+  Gateway;
+- Alembic-ревизия `0003_payout_distributions` создаёт и откатывает
+  `payout_distributions` с `distribution_json`, `distribution_hash`,
+  tenant/period/status индексами и unique constraint по
+  `(tenant_id, distribution_hash)`;
+- `TenantScopedSQLAlchemyRepository` строит tenant-filtered запросы для всех
+  трёх owned-таблиц Contribution Ledger: `contributions`, `tenant_weights`,
+  `payout_distributions`.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более

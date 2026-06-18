@@ -148,7 +148,7 @@ def test_repository_denies_cross_tenant_records_with_audit_event() -> None:
 
 
 def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
-    from libs.shared import Contribution, TenantWeight
+    from libs.shared import Contribution, PayoutDistribution, TenantWeight
 
     context = TenantContext(
         tenant_id="tenant-a",
@@ -164,6 +164,10 @@ def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
         TenantWeight,
         resource_type="tenant_weights",
     )
+    payout_repository = TenantScopedSQLAlchemyRepository(
+        PayoutDistribution,
+        resource_type="payout_distributions",
+    )
 
     contribution_sql = str(
         contribution_repository.statement_for_tenant(context).compile(
@@ -175,9 +179,15 @@ def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
             compile_kwargs={"literal_binds": True}
         )
     )
+    payout_sql = str(
+        payout_repository.statement_for_tenant(context).compile(
+            compile_kwargs={"literal_binds": True}
+        )
+    )
 
     assert "contributions.tenant_id = 'tenant-a'" in contribution_sql
     assert "tenant_weights.tenant_id = 'tenant-a'" in weight_sql
+    assert "payout_distributions.tenant_id = 'tenant-a'" in payout_sql
 
 
 def test_tenant_foundation_migration_upgrades_and_downgrades() -> None:
@@ -333,5 +343,93 @@ def test_contribution_ledger_migration_upgrades_and_downgrades() -> None:
             assert "tenant_weights" not in downgraded_tables
             assert "tenants" in downgraded_tables
         finally:
+            ledger_module.op = original_ledger_op
+            foundation_module.op = original_foundation_op
+
+
+def test_payout_distribution_migration_upgrades_and_downgrades() -> None:
+    foundation_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.tenant_foundation_0001"),
+    )
+    ledger_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.contribution_ledger_0002"),
+    )
+    payout_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.payout_distributions_0003"),
+    )
+    engine = create_engine("sqlite:///:memory:")
+
+    with engine.begin() as connection:
+        context = MigrationContext.configure(connection)
+        operations = Operations(context)
+        original_foundation_op = foundation_module.op
+        original_ledger_op = ledger_module.op
+        original_payout_op = payout_module.op
+        foundation_module.op = operations
+        ledger_module.op = operations
+        payout_module.op = operations
+        try:
+            foundation_module.upgrade()
+            ledger_module.upgrade()
+            payout_module.upgrade()
+            inspector = inspect(connection)
+            upgraded_tables = set(inspector.get_table_names())
+            assert "payout_distributions" in upgraded_tables
+
+            payout_columns = {
+                column["name"]: column
+                for column in inspector.get_columns("payout_distributions")
+            }
+            assert {
+                "id",
+                "tenant_id",
+                "period",
+                "status",
+                "total_kv_capped",
+                "total_payout_share",
+                "member_count",
+                "distribution_json",
+                "distribution_hash",
+                "created_by",
+                "created_at",
+            }.issubset(payout_columns)
+            assert payout_columns["tenant_id"]["nullable"] is False
+
+            payout_indexes = {
+                index["name"] for index in inspector.get_indexes("payout_distributions")
+            }
+            assert {
+                "idx_payout_distributions_tenant_period",
+                "idx_payout_distributions_tenant_status",
+            }.issubset(payout_indexes)
+
+            payout_uniques = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints(
+                    "payout_distributions"
+                )
+            }
+            assert "uq_payout_distributions_tenant_hash" in payout_uniques
+
+            payout_checks = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(
+                    "payout_distributions"
+                )
+            }
+            assert "ck_payout_distributions_values_non_negative" in payout_checks
+            assert "ck_payout_distributions_payout_share" in payout_checks
+
+            payout_module.downgrade()
+            downgraded_tables = set(inspect(connection).get_table_names())
+            assert "payout_distributions" not in downgraded_tables
+            assert "contributions" in downgraded_tables
+            assert "tenant_weights" in downgraded_tables
+            assert "tenants" in downgraded_tables
+        finally:
+            payout_module.op = original_payout_op
             ledger_module.op = original_ledger_op
             foundation_module.op = original_foundation_op

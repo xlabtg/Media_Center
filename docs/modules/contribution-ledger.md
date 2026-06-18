@@ -1,6 +1,6 @@
 # Contribution Ledger & Weight Engine
 
-**Статус:** 🟡 планируется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:contribution-ledger`
+**Статус:** 🟢 базовая реализация · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:contribution-ledger`
 
 Учёт вклада участников в баллах, расчёт коэффициента влияния Кв с потолком и формирование долей распределения с неизменяемым аудитом.
 
@@ -29,10 +29,13 @@
   `avg_points_council`, `kv_raw`, `kv_capped`, `payout_share`,
   `calculation_hash`
 - **payout_distributions** — immutable snapshot долей для HITL с
-  `distribution_hash`
+  `total_kv_capped`, `total_payout_share`, `member_count`,
+  `distribution_json` и `distribution_hash`
 - Канонические индексы и ограничения зафиксированы в
   [DATA_MODEL.md](../DATA_MODEL.md): `idx_contributions_tenant_event_created`,
-  `uq_tenant_weights_tenant_member_period`, `ck_tenant_weights_kv_cap`
+  `uq_tenant_weights_tenant_member_period`, `ck_tenant_weights_kv_cap`,
+  `idx_payout_distributions_tenant_period`,
+  `uq_payout_distributions_tenant_hash`
 
 ## Зависимости
 - Общая библиотека `shared` (модели, `audit_logger`, утилиты тенанта)

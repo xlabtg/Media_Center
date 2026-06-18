@@ -18,6 +18,11 @@ DATABASE_URL=postgresql+asyncpg://nmc:nmc_dev_password@localhost:5432/nmc \
 обязательный `tenant_id`, FK на `tenants`, tenant-aware unique constraints,
 индексы по tenant/time и check-ограничения для баллов и потолка `kv_capped`.
 
+Ревизия `0003_payout_distributions` добавляет immutable snapshot таблицу
+`payout_distributions` для экспортов в HITL Payout Gateway:
+`distribution_hash`, canonical `distribution_json`, tenant/period/status
+индексы и ограничения на неотрицательные суммы Кв/долей.
+
 Сервисные ревизии должны добавляться отдельными цепочками или схемами,
 сохраняя naming conventions и обязательный `tenant_id` для tenant-owned таблиц
 из `docs/DATA_MODEL.md`.

@@ -269,6 +269,56 @@ class TenantWeight(Base, TenantOwnedMixin):
     )
 
 
+class PayoutDistribution(Base, TenantOwnedMixin):
+    __tablename__ = "payout_distributions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "distribution_hash",
+            name="uq_payout_distributions_tenant_hash",
+        ),
+        CheckConstraint(
+            "total_kv_capped >= 0 AND total_payout_share >= 0 AND member_count >= 0",
+            name="values_non_negative",
+        ),
+        CheckConstraint("total_payout_share <= 1", name="payout_share"),
+        Index("idx_payout_distributions_tenant_period", "tenant_id", "period"),
+        Index("idx_payout_distributions_tenant_status", "tenant_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(
+            "tenants.tenant_id",
+            name="fk_payout_distributions_tenant_id_tenants",
+        ),
+        nullable=False,
+        index=True,
+    )
+    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="ready",
+        server_default=text("'ready'"),
+    )
+    total_kv_capped: Mapped[Decimal] = mapped_column(Numeric(14, 5), nullable=False)
+    total_payout_share: Mapped[Decimal] = mapped_column(
+        Numeric(12, 10),
+        nullable=False,
+    )
+    member_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    distribution_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    distribution_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class DatabaseSettings:
     database_url: str
