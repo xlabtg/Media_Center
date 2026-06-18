@@ -16,6 +16,7 @@ dependencies = [
   "redis==8.0.0",
   "aio-pika==9.6.2",
   "httpx==0.28.1",
+  "Jinja2==3.1.6",
   "chromadb-client==1.5.9",
   "boto3==1.43.32",
 ]
@@ -50,6 +51,7 @@ extend-exclude = '''
 python_version = "3.13"
 strict = true
 mypy_path = [
+  "$MYPY_CONFIG_FILE_DIR/services/cglr",
   "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
 ]
 exclude = [
@@ -62,6 +64,7 @@ testpaths = [
 ]
 pythonpath = [
   ".",
+  "services/cglr",
   "services/contribution-ledger",
 ]
 addopts = [
