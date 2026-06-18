@@ -27,6 +27,7 @@
 |----------|------------|
 | [docs/VISION.md](docs/VISION.md) | Видение продукта, миссия, ценности, целевая аудитория |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Требования FR/NFR, границы MVP и KPI пилота |
+| [docs/UX_RESEARCH.md](docs/UX_RESEARCH.md) | UX-сценарии, wireframes и дизайн-система v0 |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Единый глоссарий терминов (НМЦ, пай, МСЦ, Кв, HITL, …) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура системы, C4-диаграммы, микросервисы, технологический стек |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | ER-модель, индексы, tenant-aware стратегия хранения и план миграций |
