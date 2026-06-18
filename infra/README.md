@@ -1,7 +1,7 @@
 # Infra
 
-**Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов и
-локальной docker-compose средой.
+**Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов,
+локальной docker-compose средой и observability baseline.
 
 ## Назначение
 
@@ -15,7 +15,7 @@
 |---------|------------|
 | `local/` | docker-compose для локальной разработки и smoke-проверок. |
 | `deploy/` | Будущие deployment-манифесты и окружения. |
-| `observability/` | Будущие конфигурации Prometheus, Grafana, логов и трейсинга. |
+| `observability/` | Конфигурации Prometheus, Grafana и OpenTelemetry Collector для метрик, логов и трейсинга. |
 | `docker/` | Общие Dockerfile для CI-сборки сервисных образов. |
 
 ## Docker-образы сервисов
@@ -40,7 +40,8 @@ docker build \
 ## Локальная среда
 
 `infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
-ChromaDB и MinIO с фиксированными версиями из ADR-0006. Основной workflow:
+ChromaDB, MinIO, Prometheus, Grafana и OpenTelemetry Collector с фиксированными
+версиями. Основной workflow:
 
 ```bash
 make up
@@ -52,9 +53,21 @@ make down
 Подробности, порты, env-шаблон, миграции, сиды и фикстуры описаны в
 [local/README.md](local/README.md).
 
+## Наблюдаемость
+
+`observability/` фиксирует локальный контракт issue #24:
+
+- `prometheus/prometheus.yml` собирает `nmc_service_operations_total` и
+  `nmc_service_operation_duration_seconds` с labels `tenant_id`, `service`,
+  `operation`, `status`;
+- `grafana/` содержит provisioning datasource и дашборд tenant overview;
+- `otel-collector.yml` принимает OpenTelemetry traces/logs/metrics через OTLP и
+  сохраняет только технические attributes без ПДн.
+
 ## Правила
 
 - docker-compose и образы используют явные версии из
   [ADR-0006](../docs/adr/0006-technology-stack-and-versions.md), без `latest`.
 - Секреты не коммитятся; допустимы только примеры и ссылки на `.env.example`.
-- Observability-конфигурация не должна раскрывать ПДн, токены и суммы выплат.
+- Observability-конфигурация не должна раскрывать ПДн, токены, сырое содержимое
+  и суммы выплат.

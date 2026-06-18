@@ -2,7 +2,9 @@
 
 `infra/local` содержит воспроизводимый docker-compose для разработки и
 smoke-проверок платформы НМЦ. Стек поднимает PostgreSQL, Redis, RabbitMQ,
-ChromaDB и MinIO с версиями из [ADR-0006](../../docs/adr/0006-technology-stack-and-versions.md).
+ChromaDB, MinIO, Prometheus, Grafana и OpenTelemetry Collector с версиями из
+[ADR-0006](../../docs/adr/0006-technology-stack-and-versions.md) и локального
+observability baseline.
 
 ## Быстрый старт
 
@@ -10,7 +12,7 @@ ChromaDB и MinIO с версиями из [ADR-0006](../../docs/adr/0006-techno
 
 - Docker с compose plugin;
 - свободные локальные порты `5432`, `6379`, `5672`, `15672`, `8001`, `9000`,
-  `9001`.
+  `9001`, `9090`, `3000`, `4317`, `4318`, `8889`.
 
 Запуск:
 
@@ -55,11 +57,20 @@ LOCAL_ENV_FILE=infra/local/.env.local make migrate
 | RabbitMQ | `rabbitmq:4.1-management` | AMQP `localhost:5672`, UI `http://localhost:15672` |
 | ChromaDB | `chromadb/chroma:1.5.9` | `http://localhost:8001` |
 | MinIO | `minio/minio:RELEASE.2025-09-07T16-13-09Z` | API `http://localhost:9000`, UI `http://localhost:9001` |
+| Prometheus | `prom/prometheus:v3.5.4` | `http://localhost:9090` |
+| Grafana | `grafana/grafana:12.4.4` | `http://localhost:3000` |
+| OpenTelemetry Collector | `otel/opentelemetry-collector-contrib:0.154.0` | OTLP gRPC `localhost:4317`, OTLP HTTP `http://localhost:4318`, Prometheus exporter `http://localhost:8889` |
 
 Dev-логины из `infra/local/.env.local.example` предназначены только для
 локального запуска. Переменные `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`,
 `S3_SECRET_KEY`, `S3_BUCKET` и `S3_REGION` в этом шаблоне уже указывают на
 локальный MinIO bucket `nmc-dev`.
+
+Prometheus автоматически читает конфигурацию из
+`infra/observability/prometheus/prometheus.yml`, Grafana подключает datasource и
+дашборд из `infra/observability/grafana/`, а OpenTelemetry Collector принимает
+traces/logs/metrics через OTLP. Логи, метрики и traces обязаны содержать
+`tenant_id` и не должны включать ПДн, токены, сырое содержимое или суммы выплат.
 
 ## Миграции, сиды и фикстуры
 
