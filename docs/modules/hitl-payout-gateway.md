@@ -1,6 +1,6 @@
 # HITL Payout Gateway
 
-**Статус:** 🟢 реализуется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:hitl-payout`
+**Статус:** 🟢 реализовано · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:hitl-payout`
 
 Шлюз выплат с обязательным контролем человека: очередь, окно вето Совета и подтверждение через 2FA. AI исполняет — Совет контролирует.
 
@@ -28,8 +28,30 @@
 через `hitl_payout_gateway.create_hitl_payout_app`, использует общий
 `ServiceTemplateConfig`, tenant middleware и error envelope.
 
-## Модель данных (черновик)
-- **payouts** — `tenant_id`, `member_id`, `share`, `status`, `veto_until`, `audit_hash`, `created_at`
+## Компоненты реализации
+- `queue_manager` — tenant-scoped очередь выплат, статусная модель, расчёт
+  `veto_until`, `VETO_WINDOW_HOURS` и запрет исполнения до окна вето и 2FA.
+- `veto_manager` — решение Совета с причиной, перевод выплаты в `canceled`,
+  audit record `payout.vetoed` и событие `payout.vetoed`.
+- `confirmation_manager` — RBAC-проверка роли `council`, привязка TOTP 2FA к
+  операции `payout.confirm`, `tenant_id`, `subject`, `resource_id` и
+  `correlation_id`.
+- `execution_manager` — исполнение только после 2FA и окна вето, платёжный
+  коннектор, hash-only запись в blockchain audit, уведомление участника,
+  обработка retryable connector failures через `payout.failed`.
+- `api` — FastAPI REST-контур поверх shared tenant middleware, JWT/RBAC,
+  error envelope и in-memory wiring для E2E-тестов.
+
+## Модель данных
+- **payouts** — `tenant_id`, `member_id`, `member_hash`, `period`,
+  `payout_share`, `distribution_id`, `distribution_hash`, `status`,
+  `veto_until`, `confirmation_id`, `audit_hash`, `execution_ref_hash`,
+  `audit_chain_ref`, `notification_id`, `created_at`, `updated_at`
+- **veto_decisions** — `tenant_id`, `payout_id`, `actor_hash`, `reason_code`,
+  `reason_hash`, `audit_hash`, `decided_at`, `correlation_id`
+- **payout_confirmations** — `tenant_id`, `payout_id`, `actor_hash`,
+  `actor_role`, `two_factor_method`, `operation`, `audit_hash`, `confirmed_at`,
+  `correlation_id`
 
 ## Зависимости
 - Contribution Ledger (доли распределения)
@@ -67,4 +89,4 @@
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Черновик спецификации. Детализируется на этапе проектирования соответствующего модуля. Сгенерировано `experiments/gen_module_docs.py`.</sub>
+<sub>Спецификация синхронизирована с реализацией HITL Payout Gateway для этапа 2.</sub>
