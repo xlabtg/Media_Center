@@ -1,0 +1,39 @@
+{
+  "tenant_id": "00000000-0000-4000-8000-000000000001",
+  "tenant_slug": "nmc-pilot",
+  "participants": [
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000101",
+      "handle": "council-admin",
+      "role": "council"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000102",
+      "handle": "author-1",
+      "role": "member"
+    }
+  ],
+  "contribution_events": [
+    {
+      "contribution_id": "00000000-0000-4000-8000-000000000201",
+      "participant_id": "00000000-0000-4000-8000-000000000102",
+      "event_type": "content_publication",
+      "points": 25,
+      "source_ref": "fixture://content/nmc-pilot/post-001"
+    },
+    {
+      "contribution_id": "00000000-0000-4000-8000-000000000202",
+      "participant_id": "00000000-0000-4000-8000-000000000101",
+      "event_type": "governance_review",
+      "points": 10,
+      "source_ref": "fixture://governance/nmc-pilot/review-001"
+    }
+  ],
+  "minio": {
+    "bucket": "nmc-dev",
+    "example_prefixes": [
+      "tenants/nmc-pilot/content/",
+      "tenants/nmc-pilot/audit/"
+    ]
+  }
+}

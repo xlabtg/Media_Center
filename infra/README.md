@@ -1,6 +1,7 @@
 # Infra
 
-**Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов.
+**Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов и
+локальной docker-compose средой.
 
 ## Назначение
 
@@ -12,7 +13,7 @@
 
 | Каталог | Назначение |
 |---------|------------|
-| `local/` | Будущий docker-compose для локальной разработки и smoke-проверок. |
+| `local/` | docker-compose для локальной разработки и smoke-проверок. |
 | `deploy/` | Будущие deployment-манифесты и окружения. |
 | `observability/` | Будущие конфигурации Prometheus, Grafana, логов и трейсинга. |
 | `docker/` | Общие Dockerfile для CI-сборки сервисных образов. |
@@ -35,6 +36,21 @@ docker build \
   -t media-center-api-gateway:local \
   .
 ```
+
+## Локальная среда
+
+`infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
+ChromaDB и MinIO с фиксированными версиями из ADR-0006. Основной workflow:
+
+```bash
+make up
+make migrate
+make test
+make down
+```
+
+Подробности, порты, env-шаблон, миграции, сиды и фикстуры описаны в
+[local/README.md](local/README.md).
 
 ## Правила
 

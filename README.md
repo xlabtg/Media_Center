@@ -93,6 +93,24 @@ pytest
 bash experiments/validate_issue9_ci.sh
 ```
 
+## 🧰 Локальная разработка
+
+Для issue #10 добавлена воспроизводимая docker-compose среда:
+PostgreSQL, Redis, RabbitMQ, ChromaDB и MinIO. Стек запускается из корня
+репозитория:
+
+```bash
+make up
+make migrate
+make test
+make down
+```
+
+Команды используют `infra/local/.env.local.example`, применяют dev-миграцию и
+идемпотентные сиды без ПДн, токенов и денежных сумм. Подробности по портам,
+фикстурам и переопределению env-файла — в
+[infra/local/README.md](infra/local/README.md).
+
 ---
 
 ## 📁 Структура монорепозитория
