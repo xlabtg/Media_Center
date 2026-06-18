@@ -16,6 +16,7 @@ from libs.shared.models import (
     AuditHash,
     IdempotencyKey,
     JSONValue,
+    RoleName,
     SharedBaseModel,
     SubjectId,
     TenantId,
@@ -70,6 +71,11 @@ class PayoutQueueItem(SharedBaseModel):
     status: PayoutStatus
     veto_until: datetime
     requires_2fa: bool = True
+    confirmation_id: IdempotencyKey | None = None
+    confirmed_by: SubjectId | None = None
+    confirmed_by_hash: str | None = None
+    confirmed_by_role: RoleName | None = None
+    confirmed_at: datetime | None = None
     audit_hash: AuditHash
     created_by: SubjectId
     created_by_hash: str
@@ -80,6 +86,17 @@ class PayoutQueueItem(SharedBaseModel):
     @field_validator("veto_until", "created_at", "updated_at")
     @classmethod
     def _normalize_datetime_field(cls, value: datetime) -> datetime:
+        return _normalize_datetime(value)
+
+    @field_validator("confirmed_at")
+    @classmethod
+    def _normalize_optional_datetime_field(
+        cls,
+        value: datetime | None,
+    ) -> datetime | None:
+        if value is None:
+            return None
+
         return _normalize_datetime(value)
 
     def with_status(
@@ -99,6 +116,28 @@ class PayoutQueueItem(SharedBaseModel):
         if veto_decision_id is not None:
             updates["veto_decision_id"] = veto_decision_id
         return self.model_copy(update=updates)
+
+    def with_confirmation(
+        self,
+        *,
+        confirmation_id: str,
+        confirmed_by: str,
+        confirmed_by_hash: str,
+        confirmed_by_role: str,
+        confirmed_at: datetime,
+        audit_hash: str,
+    ) -> PayoutQueueItem:
+        return self.model_copy(
+            update={
+                "confirmation_id": confirmation_id,
+                "confirmed_by": confirmed_by,
+                "confirmed_by_hash": confirmed_by_hash,
+                "confirmed_by_role": confirmed_by_role,
+                "confirmed_at": _normalize_datetime(confirmed_at),
+                "audit_hash": audit_hash,
+                "updated_at": _normalize_datetime(confirmed_at),
+            }
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +235,9 @@ class PayoutQueueManager:
         requires_2fa: bool = True,
         metadata: Mapping[str, JSONValue] | None = None,
     ) -> PayoutQueueResult:
+        if not requires_2fa:
+            raise ValueError("Выплаты требуют 2FA; requires_2fa должен быть True")
+
         queued_at = _normalize_datetime(now or datetime.now(UTC))
         resolved_payout_id = payout_id or _new_id("payout")
         veto_until = queued_at + timedelta(hours=self.veto_window_hours)
@@ -280,6 +322,7 @@ class PayoutQueueManager:
         return (
             payout.status in {PayoutStatus.QUEUED, PayoutStatus.READY_TO_EXECUTE}
             and checked_at >= payout.veto_until
+            and payout.confirmation_id is not None
         )
 
     def mark_ready_for_execution(
@@ -297,10 +340,16 @@ class PayoutQueueManager:
             raise PayoutNotExecutableError("Отменённая выплата не может исполняться")
         if payout.status is PayoutStatus.EXECUTED:
             raise PayoutNotExecutableError("Уже исполненная выплата не меняет статус")
-        if not self.is_executable(payout, at=checked_at):
+        if checked_at < payout.veto_until:
             raise PayoutNotExecutableError(
                 "Выплата не может исполняться до истечения окна вето"
             )
+        if payout.confirmation_id is None:
+            raise PayoutNotExecutableError(
+                "Выплата не может исполняться без 2FA-подтверждения"
+            )
+        if not self.is_executable(payout, at=checked_at):
+            raise PayoutNotExecutableError("Выплата не может исполняться")
 
         return self.repository.update_payout(
             payout.with_status(
