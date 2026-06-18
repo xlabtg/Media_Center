@@ -1,7 +1,7 @@
 # HITL Payout Gateway
 
-**Статус:** доменный слой очереди, вето, 2FA и коннекторы исполнения
-реализован; REST API планируется отдельной задачей этапа 2.
+**Статус:** доменный слой очереди, вето, 2FA, коннекторы исполнения и REST API
+реализованы для in-memory сценариев этапа 2.
 
 ## Назначение
 
@@ -40,6 +40,32 @@ HITL Payout Gateway управляет очередью выплат, окном
   `payout.executed` и `payout.failed` по общему `EventEnvelope`-контракту.
 - Audit records не содержат денежных сумм и персональных данных: участники и
   причины решений представлены SHA256-хэшами и техническими метаданными.
+
+## REST API
+
+FastAPI-приложение создаётся через `hitl_payout_gateway.create_hitl_payout_app`
+или entrypoint `hitl_payout_gateway_app.main:app`. Все рабочие endpoint требуют
+JWT tenant context и роль `council`.
+
+- `POST /payouts/queue` ставит выплату в очередь и возвращает `PayoutQueueItem`.
+- `GET /payouts?status=` возвращает выплаты текущего tenant, опционально
+  отфильтрованные по `queued`, `ready_to_execute`, `canceled` или `executed`.
+- `GET /payouts/{payout_id}` возвращает одну выплату текущего tenant.
+- `POST /payouts/{payout_id}/veto` отменяет queued-выплату в открытом окне вето.
+- `POST /payouts/{payout_id}/confirm` проверяет TOTP-код для операции
+  `payout.confirm` по server-side in-memory registry секретов и сохраняет
+  2FA-подтверждение.
+- `POST /payouts/{payout_id}/execute` исполняет подтверждённую выплату после
+  закрытия окна вето через in-memory коннекторы.
+
+API возвращает общий error envelope. Ключевые доменные коды:
+`payout_not_found`, `veto_window_closed`, `payout_not_executable`,
+`payout_connector_failed`, `hitl_payout_error`.
+
+Для локального entrypoint in-memory TOTP registry можно задать через
+`HITL_TOTP_TENANT_ID`, `HITL_TOTP_SUBJECT` и `HITL_TOTP_SECRET`. В тестах и
+ручной сборке приложения тот же registry передаётся параметром `totp_secrets` в
+`create_hitl_payout_app`.
 
 ## Связанные документы
 
