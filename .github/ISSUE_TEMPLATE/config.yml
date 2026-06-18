@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🗺 Мастер-план разработки НМЦ
+    url: https://github.com/xlabtg/Media_Center/issues/104
+    about: Точка входа в план — этапы, эпики и задачи.
+  - name: 📋 Детальный план разработки
+    url: https://github.com/xlabtg/Media_Center/blob/main/docs/DEVELOPMENT_PLAN.md
+    about: Полная декомпозиция задач с номерами issue.
+  - name: 📖 Руководство для участников
+    url: https://github.com/xlabtg/Media_Center/blob/main/CONTRIBUTING.md
+    about: Как устроена работа над проектом.

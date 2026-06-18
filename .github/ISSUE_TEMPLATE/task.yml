@@ -1,0 +1,49 @@
+name: "🧱 Техническая задача"
+description: "Инфраструктурная или вспомогательная задача (chore, настройка, миграция)"
+title: "[Задача] "
+labels: ["type:task"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Описание
+      description: Что нужно сделать и зачем.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 🎯 Цель
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 📦 Объём работ
+      value: |
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: ✅ Критерии приёмки
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: deps
+    attributes:
+      label: 🧩 Зависимости
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Приоритет
+      options:
+        - "critical"
+        - "high"
+        - "medium"
+        - "low"
+    validations:
+      required: true

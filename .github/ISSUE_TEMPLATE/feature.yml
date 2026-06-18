@@ -1,0 +1,54 @@
+name: "✨ Функциональность / задача"
+description: "Новая функциональность или конкретная задача разработки"
+title: "[Задача] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Описание
+      description: Что нужно сделать и зачем.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 🎯 Цель
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 📦 Объём работ
+      value: |
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: ✅ Критерии приёмки
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: tech
+    attributes:
+      label: 🛠 Технические детали
+      description: Стек, формулы, ограничения, API.
+  - type: textarea
+    id: deps
+    attributes:
+      label: 🧩 Зависимости
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Приоритет
+      options:
+        - "critical"
+        - "high"
+        - "medium"
+        - "low"
+    validations:
+      required: true

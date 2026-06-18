@@ -1,0 +1,33 @@
+name: "🔬 Исследование / проектирование"
+description: "Spike, исследование, проектирование (ADR), правовой/UX-анализ"
+title: "[Исследование] "
+labels: ["type:research"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Вопрос / гипотеза
+      description: Что нужно выяснить или спроектировать.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 🎯 Цель
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 📦 Объём
+      value: |
+        -
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: ✅ Ожидаемый результат
+      description: Документ, ADR, прототип, решение.
+      value: |
+        - [ ]
+    validations:
+      required: true
