@@ -20,7 +20,7 @@
 
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
-- Telethon (Telegram), VK API, прокси-ротация
+- Telethon (Telegram), VK API, политики ретраев и резервные разрешенные каналы
 
 ## Безопасность и мультитенантность
 - Токены площадок шифруются (AES-256) и изолированы по `tenant_id`
@@ -32,7 +32,7 @@
 - [#46](https://github.com/xlabtg/Media_Center/issues/46) — Адаптеры Dzen, OK + трансформация и обрезка контента (`type:feature`)
 - [#47](https://github.com/xlabtg/Media_Center/issues/47) — Platform Registry + инъекция реферальных ссылок + тесты (`type:feature`)
 - [#48](https://github.com/xlabtg/Media_Center/issues/48) — 📤 Unified Messenger Adapter (`type:epic`)
-- [#71](https://github.com/xlabtg/Media_Center/issues/71) — Telegram-клиент (шифрование, прокси) (`type:feature`)
+- [#71](https://github.com/xlabtg/Media_Center/issues/71) — Telegram-клиент (шифрование, устойчивость доставки) (`type:feature`)
 - [#75](https://github.com/xlabtg/Media_Center/issues/75) — Интеграция Telegram (Telethon) (`type:feature`)
 - [#76](https://github.com/xlabtg/Media_Center/issues/76) — Интеграция VK API (`type:feature`)
 - [#77](https://github.com/xlabtg/Media_Center/issues/77) — Интеграции Dzen, OK и др. (top-10 РФ) (`type:feature`)

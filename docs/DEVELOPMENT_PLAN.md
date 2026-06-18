@@ -154,7 +154,7 @@
 
 ### 🧠 Neuro-Agent Orchestrator — [#58](https://github.com/xlabtg/Media_Center/issues/58)
 
-> Оркестратор автономных нейро-агентов под контролем порогов Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика и инфраструктура анонимности.
+> Оркестратор автономных нейро-агентов под контролем порогов Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика и устойчивость доставки.
 
 **Milestone:** [Этап 3 — Расширенные модули](https://github.com/xlabtg/Media_Center/milestone/4) · **Приоритет:** 🟡 `medium` · **Задач:** 3
 
@@ -162,7 +162,7 @@
 |-------|--------|-----|---------------------|
 | [#55](https://github.com/xlabtg/Media_Center/issues/55) | 🟡 Аудитория и парсинг + вовлечение и авто-ответы | `type:feature` | `area:ai-ml` · `neuro-agent` |
 | [#56](https://github.com/xlabtg/Media_Center/issues/56) | 🟡 Контент и гигиена + аналитика и оптимизация | `type:feature` | `area:ai-ml` · `neuro-agent` |
-| [#57](https://github.com/xlabtg/Media_Center/issues/57) | 🟠 Ротация прокси (HTTP/SOCKS5/MTProto) | `type:feature` | `area:devops` · `neuro-agent` |
+| [#57](https://github.com/xlabtg/Media_Center/issues/57) | 🟠 Резервные каналы и политики ретраев | `type:feature` | `area:devops` · `neuro-agent` |
 
 ---
 
@@ -178,7 +178,7 @@
 | [#68](https://github.com/xlabtg/Media_Center/issues/68) | 🔴 Панель Совета (HITL): вето, пороги, подтверждения | `type:feature` | `area:frontend` · `activity-center` |
 | [#69](https://github.com/xlabtg/Media_Center/issues/69) | 🟡 Дашборды аналитики и KPI | `type:feature` | `area:frontend` · `analytics` |
 | [#70](https://github.com/xlabtg/Media_Center/issues/70) | 🟠 Онбординг + AI-ассистент (12–36 ч) | `type:feature` | `area:ai-ml` · `web-cabinet` |
-| [#71](https://github.com/xlabtg/Media_Center/issues/71) | 🟡 Telegram-клиент (шифрование, прокси) | `type:feature` | `area:frontend` · `messenger-adapter` |
+| [#71](https://github.com/xlabtg/Media_Center/issues/71) | 🟡 Telegram-клиент (шифрование, устойчивость доставки) | `type:feature` | `area:frontend` · `messenger-adapter` |
 | [#72](https://github.com/xlabtg/Media_Center/issues/72) | 🟢 UI голосового ассистента | `type:feature` | `area:frontend` · `voice-to-chain` |
 | [#73](https://github.com/xlabtg/Media_Center/issues/73) | 🟡 Дизайн-система и UI-кит | `type:feature` | `area:design` |
 
@@ -186,7 +186,7 @@
 
 ## 🔌 Этап 5 — Интеграции — [#82](https://github.com/xlabtg/Media_Center/issues/82)
 
-> Подключение внешних систем: площадки РФ (Telegram, VK, Dzen, OK и др.), платёжные шлюзы, приватная блокчейн-сеть, реестр площадок и механизмы устойчивости к блокировкам.
+> Подключение внешних систем: площадки РФ (Telegram, VK, Dzen, OK и др.), платёжные шлюзы, приватная блокчейн-сеть, реестр площадок и разрешенные резервные каналы.
 
 **Milestone:** [Этап 5 — Интеграции](https://github.com/xlabtg/Media_Center/milestone/6) · **Приоритет:** 🟠 `high` · **Задач:** 7
 
@@ -198,7 +198,7 @@
 | [#78](https://github.com/xlabtg/Media_Center/issues/78) | 🟠 Платёжные шлюзы РФ | `type:feature` | `area:backend` · `wallet` |
 | [#79](https://github.com/xlabtg/Media_Center/issues/79) | 🟠 Развёртывание приватной блокчейн-сети | `type:feature` | `area:devops` · `blockchain-auditor` |
 | [#80](https://github.com/xlabtg/Media_Center/issues/80) | 🟡 Реестр 102 площадок и приоритизация | `type:feature` | `area:data` · `messenger-adapter` |
-| [#81](https://github.com/xlabtg/Media_Center/issues/81) | 🟠 Anti-blocking: прокси, IPFS/TON/Matrix fallback | `type:feature` | `area:devops` |
+| [#81](https://github.com/xlabtg/Media_Center/issues/81) | 🟠 Устойчивость каналов: разрешенные fallback и ретраи | `type:feature` | `area:devops` |
 
 ---
 
