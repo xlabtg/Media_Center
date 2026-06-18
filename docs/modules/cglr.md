@@ -1,6 +1,6 @@
 # Content Generator & Link Router (CGLR)
 
-**Статус:** 🟡 планируется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:cglr`
+**Статус:** 🟢 реализовано · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:cglr`
 
 Генерация публикуемого контента по шаблонам и маршрутизация многоуровневых реферальных ссылок (L1/L2/L3) с учётом вклада.
 
@@ -68,14 +68,19 @@ Contribution Ledger с `source_type=cglr_generation`.
   `record_contribution_event`, чтобы генерация сразу создавала
   `contribution.recorded` и `audit.record.requested`.
 
-## Модель данных (черновик)
-- **templates** — `tenant_id`, `name`, `body`, `version`
-- **generated_content** — `tenant_id`, `template_id`, `payload`, `links`, `created_at`
+## Модель данных
+- **generated_content** — tenant-scoped in-memory запись результата:
+  `tenant_id`, `template_id`, `content`, `content_with_links`, `links`,
+  `reward_distribution`, `contribution`, `created_at`.
+- **templates** — на текущем этапе передаются в `POST /generate` как
+  `template_id` и `template_body`; постоянное хранилище шаблонов остаётся
+  границей следующей итерации.
 
 ## Зависимости
 - Contribution Ledger & Weight Engine (логирование вклада)
 - Unified Messenger Adapter (инъекция ссылок при публикации)
-- Jinja2, PostgreSQL
+- Jinja2; PostgreSQL остаётся целевой persistence-зависимостью для следующего
+  производственного контура.
 
 ## Безопасность и мультитенантность
 - Шаблоны исполняются в песочнице Jinja2 (защита от инъекций)
@@ -93,4 +98,4 @@ Contribution Ledger с `source_type=cglr_generation`.
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Черновик спецификации. Детализируется на этапе проектирования соответствующего модуля. Сгенерировано `experiments/gen_module_docs.py`.</sub>
+<sub>Спецификация синхронизирована с базовой реализацией CGLR для этапа 2.</sub>
