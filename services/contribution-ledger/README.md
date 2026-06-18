@@ -1,6 +1,6 @@
 # Contribution Ledger & Weight Engine
 
-**Статус:** каркас сервиса, реализация запланирована в этапе 2.
+**Статус:** базовый REST API сервиса для этапа 2.
 
 ## Назначение
 
@@ -30,6 +30,28 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 - `contribution_ledger.contribution_events` — генерация audit hash вклада через
   общий `AuditLogger` и публикация `contribution.recorded` /
   `audit.record.requested` через общий RabbitMQ event contract.
+- `contribution_ledger.api` — FastAPI-приложение с Pydantic v2 схемами,
+  tenant middleware, OpenAPI, регистрацией вкладов, пересчётом весов и выдачей
+  payout distribution snapshot.
+
+## REST API
+
+Сервис создаётся через `create_contribution_ledger_app()` или entrypoint
+`contribution_ledger_app.main:app` и использует общий `create_service_app()`
+contract: `/health`, `/metrics`, `/docs`, `/openapi.json` доступны как
+публичные service endpoints, а доменные операции требуют Bearer JWT и
+проверенный tenant context.
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| `POST` | `/contributions` | Зарегистрировать вклад, начислить баллы и вернуть `audit_hash`. |
+| `GET` | `/weights?period=YYYY-MM` | Получить `kv_raw`, `kv_capped` и `payout_share` по участникам tenant. |
+| `POST` | `/weights/recalculate` | Пересчитать и сохранить snapshot весов за период. |
+| `GET` | `/payout-distribution?period=YYYY-MM` | Получить immutable snapshot долей для HITL Payout Gateway. |
+
+Для локальных unit/integration-тестов API использует in-memory repository и
+`InMemoryEventBus`. Production persistence поверх `contributions` и
+`tenant_weights` подключается отдельным адаптером без изменения публичных схем.
 
 ## Связанные документы
 
