@@ -49,6 +49,9 @@ extend-exclude = '''
 [tool.mypy]
 python_version = "3.13"
 strict = true
+mypy_path = [
+  "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
+]
 exclude = [
   "^experiments/",
 ]
@@ -59,6 +62,7 @@ testpaths = [
 ]
 pythonpath = [
   ".",
+  "services/contribution-ledger",
 ]
 addopts = [
   "--strict-config",

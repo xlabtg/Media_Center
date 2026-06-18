@@ -16,6 +16,12 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 - экспортирует распределение долей без прямого исполнения выплат;
 - отправляет audit-запросы только через Private Blockchain Auditor.
 
+## Реализованные модули
+
+- `contribution_ledger.points_calculator` — расчёт `final_points` по формуле
+  `round(base × platform_mult × reach_mult × amp_mult, 2)`, Pydantic v2
+  модели входа/выхода и таблицы `BASE_POINTS` / `PLATFORM_MULTIPLIERS`.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/contribution-ledger.md)
