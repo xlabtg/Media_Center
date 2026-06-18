@@ -1,6 +1,6 @@
 # API Gateway
 
-**Статус:** каркас сервиса + auth-core baseline для issue #17.
+**Статус:** каркас сервиса + shared gateway-core baseline для issue #19.
 
 ## Назначение
 
@@ -27,6 +27,23 @@ tenant-aware маршрутизацию, проверку JWT/RBAC, rate limitin
   просроченный код возвращает `401 unauthorized`.
 - `JWT_SECRET`, параметры TTL и TOTP issuer берутся из окружения или vault, а не
   из репозитория.
+
+## Gateway-core baseline
+
+- Внешняя цепочка middleware: `TenantContextASGIMiddleware` проверяет JWT и
+  запрет tenant override, `RBACASGIMiddleware` применяет endpoint policy,
+  `APIGatewayASGIMiddleware` маршрутизирует запрос к downstream-сервису.
+- Маршруты описываются через `GatewayRoute`: публичный prefix вида
+  `/contribution-ledger/...` проксируется в сервис с внутренним path без этого
+  prefix.
+- Gateway перезаписывает trusted headers для downstream: `X-Tenant-Id`,
+  `X-Subject-Id`, `X-Actor-Roles`, `X-Correlation-Id`, `X-Service-Name`,
+  `X-Forwarded-Prefix` и `X-Original-Path`.
+- Локальный `InMemoryRateLimiter` реализует fixed-window лимиты по ключу
+  `tenant_id + subject + service`; production-реализация должна заменить store
+  на Redis или другой общий backend.
+- Превышение лимита возвращает `429 rate_limited` с `Retry-After` и
+  `X-RateLimit-*` headers.
 
 ## Связанные документы
 
