@@ -210,8 +210,13 @@ tenant-aware FK `(tenant_id, member_id)` на `members`.
 
 **`payout_distributions`** - immutable snapshot долей, передаваемый в HITL.
 
-Ключевые поля: `id`, `tenant_id`, `period`, `status`, `total_kv`,
-`distribution_json`, `distribution_hash`, `created_by`, `created_at`.
+Ключевые поля: `id`, `tenant_id`, `period`, `status`, `total_kv_capped`,
+`total_payout_share`, `member_count`, `distribution_json`, `distribution_hash`,
+`created_by`, `created_at`.
+
+Ограничения: `ck_payout_distributions_values_non_negative`,
+`ck_payout_distributions_payout_share (total_payout_share <= 1)`,
+`uq_payout_distributions_tenant_hash (tenant_id, distribution_hash)`.
 
 Индексы: `idx_payout_distributions_tenant_period (tenant_id, period)`,
 `idx_payout_distributions_tenant_status (tenant_id, status)`,
