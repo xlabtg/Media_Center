@@ -15,6 +15,7 @@
 | [ADR-0004](0004-private-blockchain-audit.md) | Приватный audit-chain только для SHA256-хэшей и метаданных | Accepted | 2026-06-18 |
 | [ADR-0005](0005-hitl-for-sensitive-operations.md) | HITL-контур для выплат и чувствительных действий | Accepted | 2026-06-18 |
 | [ADR-0006](0006-technology-stack-and-versions.md) | Технологический стек и версии | Accepted | 2026-06-18 |
+| [ADR-0007](0007-data-model-and-tenant-storage.md) | Модель данных и tenant-aware стратегия хранения | Accepted | 2026-06-18 |
 
 ## Формат новых ADR
 
@@ -30,6 +31,7 @@
 ## Связанные документы
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [DATA_MODEL.md](../DATA_MODEL.md)
 - [contracts/README.md](../contracts/README.md)
 - [SECURITY.md](../SECURITY.md)
 - [GOVERNANCE.md](../GOVERNANCE.md)
