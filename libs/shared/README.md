@@ -74,6 +74,22 @@
   `tenant.isolation_violation` contract;
 - Alembic окружение и первая reversible migration находятся в `infra/db`.
 
+## Реализовано для issue #21
+
+- `CacheSettings`, `redis_url_from_env()` и `RedisTenantCache` задают единый
+  Redis-backed слой кэша с pinned `REDIS_URL=redis://...`;
+- `build_tenant_cache_key()` строит ключи вида
+  `nmc:tenant:<tenant_id>:<namespace>:<key>`, чтобы кэш, счётчики и locks не
+  пересекались между tenant;
+- `InMemoryTenantCache` реализует тот же контракт для unit-тестов: JSON cache,
+  namespace invalidation, counters и tenant-aware locks;
+- `RabbitMQSettings`, `EventEnvelope`, `RabbitMQEventBus` и `InMemoryEventBus`
+  фиксируют RabbitMQ топологию `nmc.events` / `nmc.commands` / `nmc.dlx`,
+  tenant-aware routing key `tenant.<tenant_id>.<event_type>` и JSON envelope;
+- `IdempotentEventProcessor` и `InMemoryEventIdempotencyStore` дают базовый
+  inbox/idempotency contract: повторно доставленное успешно обработанное
+  событие не запускает handler второй раз.
+
 ## Следующие области
 
 - audit utilities для SHA256-хэшей и correlation metadata;

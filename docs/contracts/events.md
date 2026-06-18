@@ -23,6 +23,10 @@ tenant.<tenant_id>.<domain>.<event_name>
 
 ## 2. Envelope события
 
+В коде baseline envelope представлен как `libs.shared.EventEnvelope`. Он
+сериализуется в JSON, публикуется в RabbitMQ через `RabbitMQEventBus` и
+проверяется unit-тестами без живого брокера через `InMemoryEventBus`.
+
 ```json
 {
   "event_id": "01HX0000000000000000000000",
@@ -109,6 +113,9 @@ tenant.<tenant_id>.<domain>.<event_name>
 ## 4. Доставка и ретраи
 
 - Consumers обязаны быть идемпотентными по `event_id`.
+- Shared contract для unit-тестов и первых сервисов: `IdempotentEventProcessor`
+  принимает `EventEnvelope`, вызывает handler один раз для нового `event_id` и
+  пропускает повторную доставку уже успешно завершённого события.
 - Ошибка обработки отправляет сообщение в retry queue с экспоненциальной
   задержкой; после исчерпания ретраев событие попадает в `nmc.dlx`.
 - События, влияющие на выплаты, аудит, политики и публикации, должны
