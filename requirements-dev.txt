@@ -9,3 +9,4 @@ asyncpg==0.31.0
 alembic==1.18.4
 redis==8.0.0
 aio-pika==9.6.2
+chromadb-client==1.5.9
