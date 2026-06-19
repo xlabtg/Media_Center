@@ -1,6 +1,6 @@
 # Unified Messenger Adapter
 
-**Статус:** базовые площадочные адаптеры этапа 2.
+**Статус:** реализован минимальный контур Unified Messenger Adapter этапа 2.
 
 ## Назначение
 
@@ -20,6 +20,10 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 Пакет `messenger_adapter` содержит фундамент для будущих площадочных
 интеграций:
 
+- `UnifiedMessengerAdapter` принимает единый `PublicationBatchRequest`,
+  выбирает активные площадки tenant'а из `Platform Registry` по приоритету,
+  резолвит `target_id` из запроса или `parameters.default_target_id` и
+  публикует материал через зарегистрированные площадочные адаптеры;
 - `BasePlatformAdapter` принимает единый `PublicationRequest`, получает токен
   tenant/platform из хранилища и вызывает конкретный `PlatformPublisher`;
 - `RetryPolicy` повторяет временные сбои с экспоненциальной задержкой и
