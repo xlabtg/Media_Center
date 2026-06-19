@@ -1,6 +1,6 @@
 # Neuro-Agent Orchestrator
 
-**Статус:** 🟢 реализовано для контура #55 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
+**Статус:** 🟢 реализовано для контуров #55 и #56 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
 
 Оркестрация автономных ИИ-агентов под порогами Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика, устойчивость доставки.
 
@@ -40,6 +40,26 @@
 - Авто-ответы и профили аудитории пишут hash-only audit records и события
   `neuro_agent.audience_profile.created`, `neuro_agent.auto_reply.sent` или
   `neuro_agent.auto_reply.escalated`.
+
+## Реализованный контур issue #56
+
+Контент-гигиена и аналитика публикаций расширяют тот же контракт `/agents/run`
+и `/agents/status` новыми типами задач:
+
+- `content_hygiene` принимает `ContentHygieneRequest`, рассчитывает качество и
+  safety risk, возвращает `ContentHygieneAssessment` с `content_hash`,
+  `author_ref_hash`, флагами и причинами политики без сырого текста публикации.
+  Небезопасный или некачественный материал получает статус
+  `needs_council_review` и событие `neuro_agent.content_hygiene.flagged`.
+- `publication_optimization` принимает метрики публикации, формирует
+  `PublicationAnalyticsReport` с engagement rate, CTR, conversion rate,
+  performance band и списком рекомендаций.
+- Рекомендации по оптимизации помечаются как `proposed` или
+  `needs_council_review`; поле `auto_applied` всегда `false`, а применение
+  требует человеческого подтверждения через `requires_human_approval=true`.
+- Порог `min_content_quality_score` входит в `CouncilThresholds`, а рисковые
+  рекомендации ограничиваются существующими `max_autonomous_risk_score` и
+  `min_agent_confidence`.
 
 ## Зависимости
 - Policy Manager (пороги и этические правила)
