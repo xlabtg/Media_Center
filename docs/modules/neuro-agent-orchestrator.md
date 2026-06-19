@@ -1,6 +1,6 @@
 # Neuro-Agent Orchestrator
 
-**Статус:** 🟡 планируется · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
+**Статус:** 🟢 реализовано для контура #55 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
 
 Оркестрация автономных ИИ-агентов под порогами Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика, устойчивость доставки.
 
@@ -14,6 +14,32 @@
 ## Основные интерфейсы
 - **POST** `/agents/run` — запустить задачу агента в рамках порогов
 - **GET** `/agents/status` — статус и результаты агентов
+- **GET/PUT** `/thresholds` — чтение и обновление порогов Совета для автономных
+  AI-действий
+
+## Реализованный контур issue #55
+
+Спецификация синхронизирована с реализацией Neuro-Agent Orchestrator:
+`create_neuro_agent_orchestrator_app`,
+`services/neuro-agent-orchestrator/neuro_agent_orchestrator/orchestrator.py` и
+`services/neuro-agent-orchestrator/neuro_agent_orchestrator/api.py`.
+
+- `AudienceSource` принимает только открытые источники с
+  `access_scope=public`, `tos_status=allowed`, допустимым правовым основанием и
+  пустым `personal_data_fields`; приватные импорты и источники с ПДн получают
+  ошибку `pdn_scope_violation`.
+- `AudienceProfile` агрегирует reach, engagement rate, topic tags, legal basis и
+  evidence hash без сырого handle, телефона, контакта или пользовательского
+  идентификатора.
+- `AutoReplyDecision` исполняет шаблонный авто-ответ только если
+  `risk_score`, `agent_confidence`, `estimated_recipients` и `template_key`
+  проходят текущие пороги Совета; иначе запуск получает
+  `needs_council_review`.
+- Пороги Совета версионируются tenant-scoped моделью `CouncilThresholds`, а
+  каждое изменение публикует `neuro_agent.thresholds.updated`.
+- Авто-ответы и профили аудитории пишут hash-only audit records и события
+  `neuro_agent.audience_profile.created`, `neuro_agent.auto_reply.sent` или
+  `neuro_agent.auto_reply.escalated`.
 
 ## Зависимости
 - Policy Manager (пороги и этические правила)
