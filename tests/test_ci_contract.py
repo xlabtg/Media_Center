@@ -8,6 +8,7 @@ EXPECTED_SERVICES = (
     "cglr",
     "hitl-payout-gateway",
     "messenger-adapter",
+    "notification-gateway",
     "blockchain-auditor",
     "voice-to-chain",
     "wallet",
