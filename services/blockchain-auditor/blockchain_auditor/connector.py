@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol, cast
@@ -17,7 +17,9 @@ from libs.shared import (
     SharedBaseModel,
     TenantId,
 )
+from libs.shared.tenant import TenantContext
 
+from .access_controller import BlockchainAuditAccessController
 from .settings import BlockchainAuditorSettings
 
 _CONNECTOR_NAME_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
@@ -52,6 +54,10 @@ class BlockchainAuditError(Exception):
 
 class AuditRecordConflictError(BlockchainAuditError):
     """Raised when an event id is reused with another audit hash."""
+
+
+class AuditBatchError(BlockchainAuditError):
+    """Raised when a batch write request cannot be prepared."""
 
 
 class AuditMetadataPolicyError(BlockchainAuditError):
@@ -107,6 +113,13 @@ class GrpcBlockchainAuditTransport(Protocol):
     ) -> AuditRecordReceipt:
         """Write a hash-only audit record through a gRPC backend."""
 
+    async def record_audit_hashes(
+        self,
+        endpoint_url: str,
+        commands: tuple[AuditRecordCommand, ...],
+    ) -> tuple[AuditRecordReceipt, ...]:
+        """Write a batch of hash-only audit records through a gRPC backend."""
+
     async def get_audit_record(
         self,
         endpoint_url: str,
@@ -121,17 +134,40 @@ class GrpcBlockchainAuditTransport(Protocol):
 class GrpcBlockchainAuditConnector:
     settings: BlockchainAuditorSettings
     transport: GrpcBlockchainAuditTransport
+    access_controller: BlockchainAuditAccessController = field(
+        default_factory=BlockchainAuditAccessController,
+    )
 
     async def record_audit_hash(
         self,
         command: AuditRecordCommand,
+        *,
+        context: TenantContext | None = None,
     ) -> AuditRecordReceipt:
-        safe_command = command.model_copy(
-            update={"metadata": validate_audit_metadata(command.metadata)}
+        self.access_controller.require_record_access(
+            tenant_id=command.tenant_id,
+            context=context,
         )
         return await self.transport.record_audit_hash(
             self.settings.blockchain_auditor_url,
-            safe_command,
+            _safe_command(command),
+        )
+
+    async def record_audit_hashes(
+        self,
+        commands: Iterable[AuditRecordCommand],
+        *,
+        context: TenantContext | None = None,
+    ) -> tuple[AuditRecordReceipt, ...]:
+        batch = _normalize_batch(commands)
+        self.access_controller.require_batch_record_access(
+            tenant_ids=(command.tenant_id for command in batch),
+            context=context,
+        )
+        safe_batch = tuple(_safe_command(command) for command in batch)
+        return await self.transport.record_audit_hashes(
+            self.settings.blockchain_auditor_url,
+            safe_batch,
         )
 
     async def get_audit_record(
@@ -139,7 +175,12 @@ class GrpcBlockchainAuditConnector:
         *,
         tenant_id: str,
         event_id: str,
+        context: TenantContext | None = None,
     ) -> AuditRecord | None:
+        self.access_controller.require_read_access(
+            tenant_id=tenant_id,
+            context=context,
+        )
         return await self.transport.get_audit_record(
             self.settings.blockchain_auditor_url,
             tenant_id=tenant_id,
@@ -158,10 +199,18 @@ class InMemoryGrpcBlockchainAuditTransport:
         default_factory=list,
         init=False,
     )
+    _batch_record_requests: list[tuple[AuditRecordCommand, ...]] = field(
+        default_factory=list,
+        init=False,
+    )
 
     @property
     def record_requests(self) -> tuple[AuditRecordCommand, ...]:
         return tuple(self._record_requests)
+
+    @property
+    def batch_record_requests(self) -> tuple[tuple[AuditRecordCommand, ...], ...]:
+        return tuple(self._batch_record_requests)
 
     async def record_audit_hash(
         self,
@@ -169,34 +218,39 @@ class InMemoryGrpcBlockchainAuditTransport:
         command: AuditRecordCommand,
     ) -> AuditRecordReceipt:
         self._record_requests.append(command)
-        key = command.tenant_id, command.event_id
-        existing = self._records.get(key)
-        if existing is not None:
-            if existing.audit_hash != command.audit_hash:
-                raise AuditRecordConflictError(
-                    "event_id уже записан с другим audit_hash"
-                )
-            return _receipt_from_record(existing)
+        return (await self._record_batch(endpoint_url, (command,)))[0]
 
-        recorded_at = command.occurred_at
-        record = AuditRecord(
-            tenant_id=command.tenant_id,
-            event_id=command.event_id,
-            event_type=command.event_type,
-            audit_hash=command.audit_hash,
-            block_ref=_block_ref(
+    async def record_audit_hashes(
+        self,
+        endpoint_url: str,
+        commands: tuple[AuditRecordCommand, ...],
+    ) -> tuple[AuditRecordReceipt, ...]:
+        self._batch_record_requests.append(commands)
+        return await self._record_batch(endpoint_url, commands)
+
+    async def _record_batch(
+        self,
+        endpoint_url: str,
+        commands: tuple[AuditRecordCommand, ...],
+    ) -> tuple[AuditRecordReceipt, ...]:
+        staged_records = dict(self._records)
+        new_records: dict[tuple[str, str], AuditRecord] = {}
+        receipts: list[AuditRecordReceipt] = []
+
+        for command in commands:
+            record = _record_for_command(
                 endpoint_url=endpoint_url,
-                tenant_id=command.tenant_id,
-                event_id=command.event_id,
-            ),
-            connector_name=self.connector_name,
-            occurred_at=command.occurred_at,
-            recorded_at=recorded_at,
-            correlation_id=command.correlation_id,
-            metadata=_clone_metadata(command.metadata),
-        )
-        self._records[key] = record
-        return _receipt_from_record(record)
+                connector_name=self.connector_name,
+                command=command,
+                staged_records=staged_records,
+            )
+            staged_records[(command.tenant_id, command.event_id)] = record
+            if (command.tenant_id, command.event_id) not in self._records:
+                new_records[(command.tenant_id, command.event_id)] = record
+            receipts.append(_receipt_from_record(record))
+
+        self._records.update(new_records)
+        return tuple(receipts)
 
     async def get_audit_record(
         self,
@@ -206,6 +260,39 @@ class InMemoryGrpcBlockchainAuditTransport:
         event_id: str,
     ) -> AuditRecord | None:
         return self._records.get((tenant_id, event_id))
+
+
+def _record_for_command(
+    *,
+    endpoint_url: str,
+    connector_name: str,
+    command: AuditRecordCommand,
+    staged_records: dict[tuple[str, str], AuditRecord],
+) -> AuditRecord:
+    key = command.tenant_id, command.event_id
+    existing = staged_records.get(key)
+    if existing is not None:
+        if existing.audit_hash != command.audit_hash:
+            raise AuditRecordConflictError("event_id уже записан с другим audit_hash")
+        return existing
+
+    recorded_at = command.occurred_at
+    return AuditRecord(
+        tenant_id=command.tenant_id,
+        event_id=command.event_id,
+        event_type=command.event_type,
+        audit_hash=command.audit_hash,
+        block_ref=_block_ref(
+            endpoint_url=endpoint_url,
+            tenant_id=command.tenant_id,
+            event_id=command.event_id,
+        ),
+        connector_name=connector_name,
+        occurred_at=command.occurred_at,
+        recorded_at=recorded_at,
+        correlation_id=command.correlation_id,
+        metadata=_clone_metadata(command.metadata),
+    )
 
 
 def validate_audit_metadata(
@@ -219,6 +306,22 @@ def validate_audit_metadata(
         )
 
     return cloned
+
+
+def _normalize_batch(
+    commands: Iterable[AuditRecordCommand],
+) -> tuple[AuditRecordCommand, ...]:
+    batch = tuple(commands)
+    if not batch:
+        raise AuditBatchError("batch должен содержать хотя бы одну audit-запись")
+
+    return batch
+
+
+def _safe_command(command: AuditRecordCommand) -> AuditRecordCommand:
+    return command.model_copy(
+        update={"metadata": validate_audit_metadata(command.metadata)}
+    )
 
 
 def _receipt_from_record(record: AuditRecord) -> AuditRecordReceipt:
