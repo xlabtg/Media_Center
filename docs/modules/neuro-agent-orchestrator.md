@@ -1,6 +1,6 @@
 # Neuro-Agent Orchestrator
 
-**Статус:** 🟢 реализовано для epic #58 и контуров #55, #56, #57, #64 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
+**Статус:** 🟢 реализовано для epic #58 и контуров #55, #56, #57, #64, #65 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
 
 Оркестрация автономных ИИ-агентов под порогами Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика, устойчивость доставки.
 
@@ -14,6 +14,7 @@
 ## Основные интерфейсы
 - **POST** `/agents/run` — запустить задачу агента в рамках порогов
 - **GET** `/agents/status` — статус и результаты агентов
+- **GET** `/agents/explanations` — XAI-журнал объяснений решений AI для Совета
 - **GET/PUT** `/thresholds` — чтение и обновление порогов Совета для автономных
   AI-действий
 - **POST** `/rag/documents` — добавить tenant-scoped документы в Agentic RAG
@@ -117,6 +118,28 @@ Neuro-Agent Orchestrator без отдельного сервиса.
   и `neuro_agent.content_agent.action_proposed` не содержат raw content, query,
   source refs или CUA target refs.
 
+## Реализованный контур issue #65
+
+XAI-аудит решений AI добавлен в Neuro-Agent Orchestrator как часть каждого
+`AgentRun`, без отдельного сервиса и без сырых ПДн/контента в audit/events.
+
+- `DecisionExplanation` сопровождает каждый запуск агента: хранит `run_id`,
+  `task_type`, `policy_decision`, `policy_revision`, краткое объяснение,
+  `reason_codes`, безопасные `input_facts`, `evidence_refs`, `action_refs`,
+  `explanation_hash` и `audit_hash`.
+- Объяснения привязаны к агентским действиям через `action_refs`: авто-ответы
+  ссылаются на `trigger_id`, контент-гигиена — на `content_id`, RAG — на
+  `query_id`, DeepResearch — на `research_id`, CUA — на `action_id`.
+- Совет, Президиум и Правление читают tenant-scoped журнал через
+  `GET /agents/explanations`; обычные участники не получают доступ к журналу.
+- Audit metadata каждого AI-решения содержит пространство
+  `neuro_agent.decision_explanation`, `decision_explanation_id`,
+  `decision_explanation_hash` и hash summary; события получают только id/hash
+  объяснения.
+- `input_facts` и `evidence_refs` используют агрегаты, reason codes и hash-ref:
+  raw recipient refs, content, source refs, workspace refs и target refs не
+  попадают в audit/events.
+
 ## Зависимости
 - Policy Manager (пороги и этические правила)
 - Agentic RAG/ChromaDB, инфраструктура резервных каналов
@@ -124,7 +147,7 @@ Neuro-Agent Orchestrator без отдельного сервиса.
 ## Безопасность и мультитенантность
 - Все автономные действия ограничены порогами Совета и логируются
 - Соблюдение ToS площадок и ФЗ обязательно (см. COMPLIANCE)
-- Решения AI сопровождаются объяснением (XAI) для проверки Советом
+- Решения AI сопровождаются `DecisionExplanation` (XAI) для проверки Советом
 
 ## Связанные задачи (issue)
 - [#55](https://github.com/xlabtg/Media_Center/issues/55) — Аудитория и парсинг + вовлечение и авто-ответы (`type:feature`)
@@ -141,4 +164,4 @@ Neuro-Agent Orchestrator без отдельного сервиса.
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Neuro-Agent Orchestrator для issue #58 и issue #64.</sub>
+<sub>Спецификация синхронизирована с реализацией Neuro-Agent Orchestrator для issue #58, issue #64 и issue #65.</sub>

@@ -51,6 +51,7 @@ from .orchestrator import (
     ContentAgentActionRequest,
     ContentHygieneRequest,
     CouncilThresholds,
+    DecisionExplanationListResponse,
     DeepResearchRequest,
     InMemoryNeuroAgentRepository,
     NeuroAgentOrchestrator,
@@ -102,6 +103,13 @@ AGENT_STATUS_POLICY = AccessPolicy.allow_roles(
     BOARD_ROLE,
     action="neuro_agent.status.read",
     resource_type="neuro_agent_orchestrator",
+)
+DECISION_EXPLANATION_READ_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="neuro_agent.decision_explanations.read",
+    resource_type="neuro_agent_decision_explanation",
 )
 THRESHOLD_READ_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -385,6 +393,25 @@ async def run_agent(
             content_agent_action=payload.content_agent_action,
             created_at=payload.created_at,
         ),
+    )
+
+
+@router.get(
+    "/agents/explanations",
+    response_model=DecisionExplanationListResponse,
+    summary="Получить XAI-журнал объяснений решений AI",
+)
+def agent_decision_explanations(
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    task_type: TaskTypeQuery = None,
+) -> DecisionExplanationListResponse:
+    require_access(DECISION_EXPLANATION_READ_POLICY, context=context)
+    return DecisionExplanationListResponse(
+        items=state.orchestrator.list_decision_explanations(
+            tenant_id=context.tenant_id,
+            task_type=task_type,
+        )
     )
 
 
