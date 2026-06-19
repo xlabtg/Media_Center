@@ -37,13 +37,13 @@ from libs.shared import ServiceTemplateConfig, encode_hs256_jwt
 ROOT = Path(__file__).resolve().parents[1]
 TENANT_ID = "tenant-a"
 
-POLICY_SECRET = "stage3-policy-secret"
-ACTIVITY_SECRET = "stage3-activity-secret"
-NEURO_SECRET = "stage3-neuro-agent-secret"
-VOICE_SECRET = "stage3-voice-secret"
-WALLET_SECRET = "stage3-wallet-secret"
-ANALYTICS_SECRET = "stage3-analytics-secret"
-NOTIFICATION_SECRET = "stage3-notification-secret"
+POLICY_JWT_VALUE = "stage3-policy-token-value"
+ACTIVITY_JWT_VALUE = "stage3-activity-token-value"
+NEURO_JWT_VALUE = "stage3-neuro-agent-token-value"
+VOICE_JWT_VALUE = "stage3-voice-token-value"
+WALLET_JWT_VALUE = "stage3-wallet-token-value"
+ANALYTICS_JWT_VALUE = "stage3-analytics-token-value"
+NOTIFICATION_JWT_VALUE = "stage3-notification-token-value"
 PERIOD = "2026-W25"
 
 
@@ -53,7 +53,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     policy_update = policy_client.put(
         "/policies/automation.max_autonomous_risk_score",
         headers=_headers(
-            jwt_secret=POLICY_SECRET,
+            jwt_value=POLICY_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-policy-update",
@@ -74,7 +74,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     policy_decision = policy_client.post(
         "/policies/apply",
         headers=_headers(
-            jwt_secret=POLICY_SECRET,
+            jwt_value=POLICY_JWT_VALUE,
             subject="agent-onboarding",
             roles=("member_full",),
             correlation_id="corr-stage3-policy-apply",
@@ -99,7 +99,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     thresholds = activity_client.put(
         "/thresholds",
         headers=_headers(
-            jwt_secret=ACTIVITY_SECRET,
+            jwt_value=ACTIVITY_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-activity-thresholds",
@@ -117,7 +117,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     onboarding_task = activity_client.post(
         "/tasks",
         headers=_headers(
-            jwt_secret=ACTIVITY_SECRET,
+            jwt_value=ACTIVITY_JWT_VALUE,
             subject="agent-onboarding",
             roles=("member_full",),
             correlation_id="corr-stage3-onboarding-task",
@@ -142,7 +142,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     activity_overview = activity_client.get(
         "/activity/overview",
         headers=_headers(
-            jwt_secret=ACTIVITY_SECRET,
+            jwt_value=ACTIVITY_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-activity-overview",
@@ -163,7 +163,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     neuro_thresholds = neuro_client.put(
         "/thresholds",
         headers=_headers(
-            jwt_secret=NEURO_SECRET,
+            jwt_value=NEURO_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-neuro-thresholds",
@@ -180,7 +180,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     auto_reply = neuro_client.post(
         "/agents/run",
         headers=_headers(
-            jwt_secret=NEURO_SECRET,
+            jwt_value=NEURO_JWT_VALUE,
             subject="agent-onboarding",
             roles=("member_full",),
             correlation_id="corr-stage3-neuro-reply",
@@ -219,7 +219,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     voice_receipt = voice_client.post(
         "/voice/transcribe",
         headers=_headers(
-            jwt_secret=VOICE_SECRET,
+            jwt_value=VOICE_JWT_VALUE,
             subject="member-onboarding",
             roles=("member_full",),
             correlation_id="corr-stage3-voice",
@@ -236,7 +236,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     voice_cleanup = voice_client.post(
         "/voice/retention/cleanup",
         headers=_headers(
-            jwt_secret=VOICE_SECRET,
+            jwt_value=VOICE_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-voice-cleanup",
@@ -263,7 +263,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     wallet_credit = wallet_client.post(
         "/wallet/operations",
         headers=_headers(
-            jwt_secret=WALLET_SECRET,
+            jwt_value=WALLET_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-wallet-credit",
@@ -284,7 +284,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     wallet_balance = wallet_client.get(
         "/wallet/balance",
         headers=_headers(
-            jwt_secret=WALLET_SECRET,
+            jwt_value=WALLET_JWT_VALUE,
             subject="member-onboarding",
             roles=("member_full",),
             correlation_id="corr-stage3-wallet-balance",
@@ -303,7 +303,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     kpi = analytics_client.get(
         "/analytics/kpi",
         headers=_headers(
-            jwt_secret=ANALYTICS_SECRET,
+            jwt_value=ANALYTICS_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-analytics-kpi",
@@ -328,7 +328,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     preferences = notification_client.put(
         "/notify/preferences",
         headers=_headers(
-            jwt_secret=NOTIFICATION_SECRET,
+            jwt_value=NOTIFICATION_JWT_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage3-notify-preferences",
@@ -345,7 +345,7 @@ def test_issue_66_stage3_extended_modules_acceptance_flow() -> None:
     notification = notification_client.post(
         "/notify",
         headers=_headers(
-            jwt_secret=NOTIFICATION_SECRET,
+            jwt_value=NOTIFICATION_JWT_VALUE,
             subject="board-1",
             roles=("board",),
             correlation_id="corr-stage3-notify",
@@ -474,18 +474,18 @@ def test_issue_66_stage3_acceptance_snapshot_covers_epic_criteria() -> None:
 
 
 def _policy_app() -> FastAPI:
-    return create_policy_manager_app(_config("policy-manager", POLICY_SECRET))
+    return create_policy_manager_app(_config("policy-manager", POLICY_JWT_VALUE))
 
 
 def _activity_app() -> FastAPI:
     return create_activity_command_center_app(
-        _config("activity-command-center", ACTIVITY_SECRET)
+        _config("activity-command-center", ACTIVITY_JWT_VALUE)
     )
 
 
 def _neuro_app() -> FastAPI:
     return create_neuro_agent_orchestrator_app(
-        _config("neuro-agent-orchestrator", NEURO_SECRET)
+        _config("neuro-agent-orchestrator", NEURO_JWT_VALUE)
     )
 
 
@@ -498,7 +498,7 @@ def _voice_app(*, transport: InMemoryGrpcBlockchainAuditTransport) -> FastAPI:
         completed_at=datetime(2026, 6, 19, 9, 20, tzinfo=UTC),
     )
     return create_voice_to_chain_app(
-        _config("voice-to-chain", VOICE_SECRET),
+        _config("voice-to-chain", VOICE_JWT_VALUE),
         transcriber=transcriber,
         blockchain_transport=transport,
         clock=lambda: datetime(2026, 6, 19, 9, 20, tzinfo=UTC),
@@ -506,24 +506,24 @@ def _voice_app(*, transport: InMemoryGrpcBlockchainAuditTransport) -> FastAPI:
 
 
 def _wallet_app() -> FastAPI:
-    return create_wallet_app(_config("wallet", WALLET_SECRET))
+    return create_wallet_app(_config("wallet", WALLET_JWT_VALUE))
 
 
 def _analytics_app() -> FastAPI:
-    return create_analytics_engine_app(_config("analytics-engine", ANALYTICS_SECRET))
+    return create_analytics_engine_app(_config("analytics-engine", ANALYTICS_JWT_VALUE))
 
 
 def _notification_app() -> FastAPI:
     return create_notification_gateway_app(
-        _config("notification-gateway", NOTIFICATION_SECRET)
+        _config("notification-gateway", NOTIFICATION_JWT_VALUE)
     )
 
 
-def _config(service_name: str, jwt_secret: str) -> ServiceTemplateConfig:
+def _config(service_name: str, jwt_value: str) -> ServiceTemplateConfig:
     return ServiceTemplateConfig(
         service_name=service_name,
         version="0.1.0",
-        jwt_secret=jwt_secret,
+        jwt_secret=jwt_value,
         prometheus_enabled=True,
     )
 
@@ -590,7 +590,7 @@ def _record_analytics_event(
     response = client.post(
         "/analytics/events",
         headers=_headers(
-            jwt_secret=ANALYTICS_SECRET,
+            jwt_value=ANALYTICS_JWT_VALUE,
             subject=subject,
             roles=roles,
             correlation_id=correlation_id,
@@ -602,7 +602,7 @@ def _record_analytics_event(
 
 def _headers(
     *,
-    jwt_secret: str,
+    jwt_value: str,
     subject: str,
     roles: tuple[str, ...],
     tenant_id: str = TENANT_ID,
@@ -615,7 +615,7 @@ def _headers(
             "sub": subject,
             "roles": list(roles),
         },
-        jwt_secret,
+        jwt_value,
     )
     headers = {
         "Authorization": f"Bearer {token}",
