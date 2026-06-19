@@ -13,6 +13,9 @@
 - **POST** `/analytics/events` — запись нормализованных KPI-событий tenant
 - **GET** `/analytics/kpi?period=` — значения KPI за период
 - **GET** `/analytics/aggregates?period=` — агрегаты по категориям
+- `build_analytics_kpi_response` и `build_analytics_aggregates_response` —
+  публичные builder-функции для клиентского дашборда #69 без дублирования
+  формул KPI вне Analytics Engine.
 
 ## Реализованный контракт #61
 - `create_analytics_engine_app` собирает FastAPI-сервис Analytics Engine.
@@ -23,6 +26,8 @@
   инициативы.
 - Агрегаты возвращаются по категориям `participation`, `content`,
   `engagement`, `actions`.
+- Публичные builder-функции переиспользуются Web Cabinet для дашборда #69:
+  JSON/HTML/CSV показывают те же KPI и агрегаты, что REST API Analytics Engine.
 - Сырой `member_id` не публикуется в событиях Analytics Engine; для уникальных
   участников используется `member_hash`.
 - tenant-isolation контракт #61: данные другого tenant не попадают в KPI и

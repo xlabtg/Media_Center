@@ -1,11 +1,15 @@
 # Web Cabinet
 
-**Статус:** 🟢 реализовано для #67 и #68 · **Этап:** Этап 4 — Клиентские приложения и UX · **Компонент:** `component:web-cabinet`
+**Статус:** 🟢 реализовано для #67, #68 и #69 · **Этап:** Этап 4 — Клиентские приложения и UX · **Компонент:** `component:web-cabinet`
 
 Личный кабинет пайщика показывает вклад, баланс МСЦ, историю операций, контент
 и реферальные ссылки в пределах tenant пользователя. Панель Совета собирает
 очередь HITL-выплат, окно вето, 2FA-подтверждение, политики и audit timeline в
-единый клиентский экран.
+единый клиентский экран. Дашборд KPI визуализирует метрики Analytics Engine,
+срезы по периодам и категориям, а также CSV-выгрузку отчёта для Совета и
+участников tenant.
+
+Базовые клиентские экраны реализовано для #67 и #68; дашборд KPI добавлен в #69.
 
 ## Зона ответственности
 
@@ -16,6 +20,8 @@
 - Адаптивный HTML-интерфейс для первого клиентского экрана.
 - Панель Совета для просмотра очереди HITL, наложения вето в окне,
   2FA-подтверждения выплат и изменения политик Policy Manager.
+- Дашборд KPI: tenant-scoped метрики, агрегаты активности/контента/
+  вовлечённости/действий, срезы по периодам и выгрузка CSV.
 
 ## Основные интерфейсы
 
@@ -31,6 +37,11 @@
   TOTP 2FA.
 - **PUT** `/council/policies/{key}` — изменить политику/порог tenant решением
   Совета.
+- **GET** `/analytics/dashboard/overview` — JSON-сводка KPI-дашборда за
+  `period=<YYYY-MM|YYYY-Www>` с опциональным `category`.
+- **GET** `/analytics/dashboard` — адаптивный HTML-дашборд KPI.
+- **GET** `/analytics/dashboard/export` — CSV-выгрузка KPI и агрегатов с теми
+  же фильтрами периода и категории.
 
 Оба endpoint личного кабинета принимают опциональный `member_id`: пайщик может
 читать только свой кабинет, а роли `council`, `presidium`, `board` — кабинет
@@ -48,6 +59,8 @@
   объяснение расчёта для карточки HITL-выплаты.
 - **CouncilPanelAuditRecord** — tenant-scoped timeline событий выплаты с
   `event_type`, `event_id`, `audit_hash` и временем события.
+- **AnalyticsDashboardOverviewResponse** — tenant-scoped dashboard projection:
+  KPI, агрегаты категорий, периодные срезы, ссылка на CSV export.
 - **WalletBalanceResponse / WalletOperationResponse** — используются напрямую
   из Wallet Module, чтобы баланс и история соответствовали backend.
 
@@ -62,6 +75,9 @@
   покрывает подмену `X-Tenant-Id` и отсутствие HITL/audit данных другого tenant.
 - Подтверждение выплат из панели требует TOTP-код и переиспользует контракт
   HITL Payout Gateway `payout.confirm`.
+- Дашборд KPI доступен ролям `council`, `presidium`, `board`, `member_full`,
+  `member_assoc`; tenant-isolation контракт #69 покрывает подмену
+  `X-Tenant-Id` и отсутствие метрик другого tenant в JSON, HTML и CSV.
 
 ## Реализация
 
@@ -74,12 +90,15 @@
   acceptance-тест #67.
 - [tests/test_council_panel_issue68_acceptance_contract.py](../../tests/test_council_panel_issue68_acceptance_contract.py) —
   acceptance-тест #68.
+- [tests/test_analytics_dashboard_issue69_acceptance_contract.py](../../tests/test_analytics_dashboard_issue69_acceptance_contract.py) —
+  acceptance-тест #69.
 
 ## Связанные задачи (issue)
 
 - [#67](https://github.com/xlabtg/Media_Center/issues/67) — Веб-кабинет пайщика (вклад, баланс, история)
 - [#68](https://github.com/xlabtg/Media_Center/issues/68) — Панель Совета (HITL): вето, пороги, подтверждения
+- [#69](https://github.com/xlabtg/Media_Center/issues/69) — Дашборды аналитики и KPI
 - [#60](https://github.com/xlabtg/Media_Center/issues/60) — Wallet Module: учёт МСЦ и операций
 
 ---
-<sub>Спецификация синхронизирована с реализацией Web Cabinet для issue #67 и #68.</sub>
+<sub>Спецификация синхронизирована с реализацией Web Cabinet для issue #67, #68 и #69.</sub>
