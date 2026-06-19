@@ -13,6 +13,9 @@
 - `GET /analytics/kpi?period=<YYYY-MM|YYYY-Www>` возвращает KPI за период.
 - `GET /analytics/aggregates?period=<YYYY-MM|YYYY-Www>` возвращает агрегаты по
   категориям.
+- `build_analytics_kpi_response` и `build_analytics_aggregates_response`
+  собирают те же ответы из набора событий для клиентских projections, включая
+  Web Cabinet дашборд #69.
 
 ## События
 

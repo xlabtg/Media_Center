@@ -1,8 +1,9 @@
 # Web Cabinet
 
-Сервис личного кабинета пайщика для #67 и панели Совета для #68. Он собирает
-tenant-scoped проекцию вклада, баланса МСЦ, истории операций, контента,
-реферальных ссылок и HITL-очереди в формат, удобный для клиентского веб-экрана.
+Сервис личного кабинета пайщика для #67, панели Совета для #68 и дашборда KPI
+для #69. Он собирает tenant-scoped проекцию вклада, баланса МСЦ, истории
+операций, контента, реферальных ссылок, HITL-очереди и метрик Analytics Engine
+в формат, удобный для клиентского веб-экрана.
 
 ## Интерфейсы
 
@@ -17,6 +18,12 @@ tenant-scoped проекцию вклада, баланса МСЦ, истори
 - `POST /council/payouts/{payout_id}/veto` накладывает вето в открытом окне.
 - `POST /council/payouts/{payout_id}/confirm` подтверждает выплату через TOTP.
 - `PUT /council/policies/{key}` меняет политику/порог tenant решением Совета.
+- `GET /analytics/dashboard/overview?period=<YYYY-MM|YYYY-Www>` возвращает
+  JSON-сводку "Дашборд KPI" с фильтром `category`.
+- `GET /analytics/dashboard?period=<YYYY-MM|YYYY-Www>` возвращает адаптивный
+  HTML-экран "Дашборд KPI".
+- `GET /analytics/dashboard/export?period=<YYYY-MM|YYYY-Www>` выгружает CSV
+  отчёт по KPI и агрегатам.
 
 ## Данные
 
@@ -30,6 +37,9 @@ tenant-scoped проекцию вклада, баланса МСЦ, истори
 - `InMemoryCouncilPanelRepository` хранит tenant-scoped аннотации выплат
   (`CouncilPanelPayoutAnnotation`) и audit timeline (`CouncilPanelAuditRecord`)
   для интерфейса Совета.
+- `InMemoryAnalyticsRepository` подключается из Analytics Engine и даёт
+  дашборду #69 те же KPI и агрегаты, что `GET /analytics/kpi` и
+  `GET /analytics/aggregates`.
 
 Баланс и история операций читаются из `InMemoryWalletRepository`, поэтому
 значения МСЦ в кабинете соответствуют контракту Wallet Module.
@@ -51,3 +61,8 @@ tenant-scoped проекцию вклада, баланса МСЦ, истори
   попадают в JSON и HTML.
 - Подтверждение выплат из панели требует 2FA-код и не принимает действие без
   `totp_code`.
+- Дашборд KPI доступен ролям `council`, `presidium`, `board`, `member_full`,
+  `member_assoc`.
+- Tenant-isolation контракт #69: подмена `X-Tenant-Id` возвращает
+  `403 tenant_isolation_violation`, а данные другого tenant не попадают в JSON,
+  HTML и CSV.

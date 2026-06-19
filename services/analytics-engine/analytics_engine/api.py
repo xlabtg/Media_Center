@@ -331,6 +331,14 @@ class InMemoryAnalyticsRepository:
             )
         )
 
+    def list_periods(
+        self,
+        *,
+        context: TenantContext,
+    ) -> tuple[str, ...]:
+        records = self._tenant_guard.list_for_tenant(self._events, context)
+        return tuple(sorted({event.period for event in records}, reverse=True))
+
 
 @dataclass(slots=True)
 class AnalyticsEngineAPIState:
@@ -451,14 +459,10 @@ def get_analytics_kpi(
     period: Annotated[str, Query(pattern=_PERIOD_PATTERN)],
 ) -> AnalyticsKPIResponse:
     require_access(ANALYTICS_READ_POLICY, context=context)
-    metrics = _build_kpi_metrics(
-        state.repository.list_events(context=context, period=period)
-    )
-    return AnalyticsKPIResponse(
+    return build_analytics_kpi_response(
         tenant_id=context.tenant_id,
         period=period,
-        metrics=metrics,
-        summary=_build_kpi_summary(metrics),
+        events=state.repository.list_events(context=context, period=period),
     )
 
 
@@ -473,12 +477,38 @@ def get_analytics_aggregates(
     period: Annotated[str, Query(pattern=_PERIOD_PATTERN)],
 ) -> AnalyticsAggregatesResponse:
     require_access(ANALYTICS_READ_POLICY, context=context)
-    return AnalyticsAggregatesResponse(
+    return build_analytics_aggregates_response(
         tenant_id=context.tenant_id,
         period=period,
-        categories=_build_category_aggregates(
-            state.repository.list_events(context=context, period=period)
-        ),
+        events=state.repository.list_events(context=context, period=period),
+    )
+
+
+def build_analytics_kpi_response(
+    *,
+    tenant_id: str,
+    period: str,
+    events: Iterable[AnalyticsEventRecord],
+) -> AnalyticsKPIResponse:
+    metrics = _build_kpi_metrics(events)
+    return AnalyticsKPIResponse(
+        tenant_id=tenant_id,
+        period=period,
+        metrics=metrics,
+        summary=_build_kpi_summary(metrics),
+    )
+
+
+def build_analytics_aggregates_response(
+    *,
+    tenant_id: str,
+    period: str,
+    events: Iterable[AnalyticsEventRecord],
+) -> AnalyticsAggregatesResponse:
+    return AnalyticsAggregatesResponse(
+        tenant_id=tenant_id,
+        period=period,
+        categories=_build_category_aggregates(events),
     )
 
 

@@ -18,6 +18,8 @@ from analytics_engine.api import (
     KPIMetric,
     KPIStatus,
     KPISummary,
+    build_analytics_aggregates_response,
+    build_analytics_kpi_response,
     create_analytics_engine_app,
     subject_ref_hash,
 )
@@ -40,6 +42,8 @@ __all__ = [
     "KPIMetric",
     "KPISummary",
     "KPIStatus",
+    "build_analytics_aggregates_response",
+    "build_analytics_kpi_response",
     "create_analytics_engine_app",
     "subject_ref_hash",
 ]

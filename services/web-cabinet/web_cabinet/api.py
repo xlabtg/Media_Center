@@ -1,16 +1,30 @@
 from __future__ import annotations
 
+import csv
 import html
+import io
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, cast
+from urllib.parse import urlencode
 
+from analytics_engine import (
+    AnalyticsCategory,
+    AnalyticsCategoryAggregate,
+    AnalyticsEventRecord,
+    InMemoryAnalyticsRepository,
+    KPIMetric,
+    KPIStatus,
+    KPISummary,
+    build_analytics_aggregates_response,
+    build_analytics_kpi_response,
+)
 from fastapi import APIRouter, Depends, FastAPI, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from hitl_payout_gateway import (
     PAYOUT_CONFIRM_OPERATION,
     ConfirmPayoutRequest,
@@ -74,6 +88,7 @@ from libs.shared import (
 WEB_CABINET_SERVICE_NAME = "web-cabinet"
 
 _PERIOD_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
+_ANALYTICS_PERIOD_PATTERN = r"^\d{4}-((0[1-9]|1[0-2])|W(0[1-9]|[1-4][0-9]|5[0-3]))$"
 _REFERRAL_LEVEL_PATTERN = r"^L[1-3]$"
 _PLATFORM_TARGET_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 
@@ -97,6 +112,15 @@ COUNCIL_PANEL_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
     action="council_panel.manage",
     resource_type="council_panel",
+)
+ANALYTICS_DASHBOARD_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    MEMBER_FULL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    action="analytics_dashboard.read",
+    resource_type="analytics_dashboard",
 )
 
 _RISK_LEVEL_ORDER = {
@@ -208,6 +232,27 @@ class CouncilPanelOverviewResponse(SharedBaseModel):
     two_factor: CouncilPanelTwoFactorStatus
     payouts: tuple[CouncilPanelPayoutItem, ...]
     policies: tuple[PolicyRecord, ...]
+    generated_at: datetime
+
+
+class AnalyticsDashboardPeriodSlice(SharedBaseModel):
+    period: str = Field(pattern=_ANALYTICS_PERIOD_PATTERN)
+    event_count: int = Field(ge=0)
+    unique_members: int = Field(ge=0)
+    metrics_on_track: int = Field(ge=0)
+    metrics_below_target: int = Field(ge=0)
+    metrics_above_target: int = Field(ge=0)
+
+
+class AnalyticsDashboardOverviewResponse(SharedBaseModel):
+    tenant_id: TenantId
+    period: str = Field(pattern=_ANALYTICS_PERIOD_PATTERN)
+    category: AnalyticsCategory | None = None
+    summary: KPISummary
+    metrics: tuple[KPIMetric, ...]
+    categories: tuple[AnalyticsCategoryAggregate, ...]
+    period_slices: tuple[AnalyticsDashboardPeriodSlice, ...]
+    export_url: str = Field(min_length=1, max_length=512)
     generated_at: datetime
 
 
@@ -406,6 +451,7 @@ class InMemoryCouncilPanelRepository:
 class WebCabinetAPIState:
     repository: InMemoryWebCabinetRepository
     wallet_repository: InMemoryWalletRepository
+    analytics_repository: InMemoryAnalyticsRepository
     tenant_audit_sink: InMemoryAuditSink
     payout_queue_manager: PayoutQueueManager
     veto_manager: VetoManager
@@ -423,6 +469,7 @@ def create_web_cabinet_app(
     *,
     repository: InMemoryWebCabinetRepository | None = None,
     wallet_repository: InMemoryWalletRepository | None = None,
+    analytics_repository: InMemoryAnalyticsRepository | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
     payout_queue_manager: PayoutQueueManager | None = None,
     veto_manager: VetoManager | None = None,
@@ -459,6 +506,7 @@ def create_web_cabinet_app(
     app.state.web_cabinet_api = WebCabinetAPIState(
         repository=repository or InMemoryWebCabinetRepository(),
         wallet_repository=wallet_repository or InMemoryWalletRepository(),
+        analytics_repository=analytics_repository or InMemoryAnalyticsRepository(),
         tenant_audit_sink=resolved_tenant_audit_sink,
         payout_queue_manager=resolved_payout_queue_manager,
         veto_manager=resolved_veto_manager,
@@ -568,6 +616,77 @@ def get_council_panel_page(
         now=now,
     )
     return HTMLResponse(_render_council_panel_html(overview))
+
+
+@router.get(
+    "/analytics/dashboard/overview",
+    response_model=AnalyticsDashboardOverviewResponse,
+    summary="Получить JSON-сводку дашборда KPI",
+)
+def get_analytics_dashboard_overview(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    period: Annotated[str, Query(pattern=_ANALYTICS_PERIOD_PATTERN)],
+    category: Annotated[AnalyticsCategory | None, Query()] = None,
+    period_limit: Annotated[int, Query(ge=1, le=12)] = 6,
+) -> AnalyticsDashboardOverviewResponse:
+    require_access(ANALYTICS_DASHBOARD_POLICY, context=context)
+    return _build_analytics_dashboard_overview(
+        state=state,
+        context=context,
+        period=period,
+        category=category,
+        period_limit=period_limit,
+    )
+
+
+@router.get(
+    "/analytics/dashboard",
+    response_class=HTMLResponse,
+    summary="Открыть адаптивный дашборд KPI",
+)
+def get_analytics_dashboard_page(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    period: Annotated[str, Query(pattern=_ANALYTICS_PERIOD_PATTERN)],
+    category: Annotated[AnalyticsCategory | None, Query()] = None,
+    period_limit: Annotated[int, Query(ge=1, le=12)] = 6,
+) -> HTMLResponse:
+    require_access(ANALYTICS_DASHBOARD_POLICY, context=context)
+    overview = _build_analytics_dashboard_overview(
+        state=state,
+        context=context,
+        period=period,
+        category=category,
+        period_limit=period_limit,
+    )
+    return HTMLResponse(_render_analytics_dashboard_html(overview))
+
+
+@router.get(
+    "/analytics/dashboard/export",
+    summary="Выгрузить CSV-отчёт дашборда KPI",
+)
+def export_analytics_dashboard_report(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    period: Annotated[str, Query(pattern=_ANALYTICS_PERIOD_PATTERN)],
+    category: Annotated[AnalyticsCategory | None, Query()] = None,
+) -> Response:
+    require_access(ANALYTICS_DASHBOARD_POLICY, context=context)
+    overview = _build_analytics_dashboard_overview(
+        state=state,
+        context=context,
+        period=period,
+        category=category,
+        period_limit=6,
+    )
+    filename = _dashboard_export_filename(period=period, category=category)
+    return Response(
+        content=_dashboard_csv(overview),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post(
@@ -758,6 +877,150 @@ def _build_council_panel_overview(
         payouts=payout_items,
         policies=policies,
         generated_at=generated_at,
+    )
+
+
+def _build_analytics_dashboard_overview(
+    *,
+    state: WebCabinetAPIState,
+    context: TenantContext,
+    period: str,
+    category: AnalyticsCategory | None,
+    period_limit: int,
+) -> AnalyticsDashboardOverviewResponse:
+    events = state.analytics_repository.list_events(context=context, period=period)
+    kpi = build_analytics_kpi_response(
+        tenant_id=context.tenant_id,
+        period=period,
+        events=events,
+    )
+    aggregates = build_analytics_aggregates_response(
+        tenant_id=context.tenant_id,
+        period=period,
+        events=events,
+    )
+    metrics = _filter_dashboard_metrics(kpi.metrics, category)
+    categories = _filter_dashboard_categories(aggregates.categories, category)
+    return AnalyticsDashboardOverviewResponse(
+        tenant_id=context.tenant_id,
+        period=period,
+        category=category,
+        summary=_dashboard_summary(metrics),
+        metrics=metrics,
+        categories=categories,
+        period_slices=_dashboard_period_slices(
+            state=state,
+            context=context,
+            current_period=period,
+            category=category,
+            period_limit=period_limit,
+        ),
+        export_url=_dashboard_export_url(period=period, category=category),
+        generated_at=datetime.now(UTC),
+    )
+
+
+def _dashboard_period_slices(
+    *,
+    state: WebCabinetAPIState,
+    context: TenantContext,
+    current_period: str,
+    category: AnalyticsCategory | None,
+    period_limit: int,
+) -> tuple[AnalyticsDashboardPeriodSlice, ...]:
+    slices: list[AnalyticsDashboardPeriodSlice] = []
+    for period in _dashboard_periods(
+        state=state,
+        context=context,
+        current_period=current_period,
+        period_limit=period_limit,
+    ):
+        events = state.analytics_repository.list_events(context=context, period=period)
+        kpi = build_analytics_kpi_response(
+            tenant_id=context.tenant_id,
+            period=period,
+            events=events,
+        )
+        metrics = _filter_dashboard_metrics(kpi.metrics, category)
+        filtered_events = _filter_dashboard_events(events, category)
+        summary = _dashboard_summary(metrics)
+        slices.append(
+            AnalyticsDashboardPeriodSlice(
+                period=period,
+                event_count=len(filtered_events),
+                unique_members=len(
+                    {
+                        event.member_hash
+                        for event in filtered_events
+                        if event.member_hash is not None
+                    }
+                ),
+                metrics_on_track=summary.metrics_on_track,
+                metrics_below_target=summary.metrics_below_target,
+                metrics_above_target=summary.metrics_above_target,
+            )
+        )
+
+    return tuple(slices)
+
+
+def _dashboard_periods(
+    *,
+    state: WebCabinetAPIState,
+    context: TenantContext,
+    current_period: str,
+    period_limit: int,
+) -> tuple[str, ...]:
+    periods = [current_period]
+    for period in state.analytics_repository.list_periods(context=context):
+        if period not in periods:
+            periods.append(period)
+
+    return tuple(periods[:period_limit])
+
+
+def _filter_dashboard_metrics(
+    metrics: tuple[KPIMetric, ...],
+    category: AnalyticsCategory | None,
+) -> tuple[KPIMetric, ...]:
+    if category is None:
+        return metrics
+
+    return tuple(metric for metric in metrics if metric.category == category)
+
+
+def _filter_dashboard_categories(
+    categories: tuple[AnalyticsCategoryAggregate, ...],
+    category: AnalyticsCategory | None,
+) -> tuple[AnalyticsCategoryAggregate, ...]:
+    if category is None:
+        return categories
+
+    return tuple(item for item in categories if item.category == category)
+
+
+def _filter_dashboard_events(
+    events: tuple[AnalyticsEventRecord, ...],
+    category: AnalyticsCategory | None,
+) -> tuple[AnalyticsEventRecord, ...]:
+    if category is None:
+        return events
+
+    return tuple(event for event in events if event.category == category.value)
+
+
+def _dashboard_summary(metrics: tuple[KPIMetric, ...]) -> KPISummary:
+    return KPISummary(
+        metrics_total=len(metrics),
+        metrics_on_track=sum(
+            1 for metric in metrics if metric.status == KPIStatus.ON_TRACK
+        ),
+        metrics_below_target=sum(
+            1 for metric in metrics if metric.status == KPIStatus.BELOW_TARGET
+        ),
+        metrics_above_target=sum(
+            1 for metric in metrics if metric.status == KPIStatus.ABOVE_TARGET
+        ),
     )
 
 
@@ -1035,6 +1298,375 @@ def _wallet_operation_response(
         created_by_hash=record.created_by_hash,
         created_at=record.created_at,
     )
+
+
+def _dashboard_csv(overview: AnalyticsDashboardOverviewResponse) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(("kind", "period", "category", "key", "label", "value", "status"))
+    for metric in overview.metrics:
+        writer.writerow(
+            (
+                "metric",
+                overview.period,
+                metric.category.value,
+                metric.key,
+                metric.label,
+                _format_csv_number(metric.value),
+                metric.status.value,
+            )
+        )
+    for category in overview.categories:
+        for key, value in category.totals.items():
+            writer.writerow(
+                (
+                    "aggregate",
+                    overview.period,
+                    category.category.value,
+                    key,
+                    key,
+                    _format_csv_number(value),
+                    "",
+                )
+            )
+
+    return output.getvalue()
+
+
+def _dashboard_export_url(
+    *,
+    period: str,
+    category: AnalyticsCategory | None,
+) -> str:
+    params = {"period": period}
+    if category is not None:
+        params["category"] = category.value
+
+    return f"/analytics/dashboard/export?{urlencode(params)}"
+
+
+def _dashboard_export_filename(
+    *,
+    period: str,
+    category: AnalyticsCategory | None,
+) -> str:
+    suffix = category.value if category is not None else "all"
+    return f"analytics-dashboard-{period}-{suffix}.csv"
+
+
+def _render_analytics_dashboard_html(
+    overview: AnalyticsDashboardOverviewResponse,
+) -> str:
+    identity = f"{_escape(overview.tenant_id)} · {_category_label(overview.category)}"
+    status_line = (
+        f"{_escape(overview.period)} · {_format_datetime(overview.generated_at)}"
+    )
+    metrics = _render_dashboard_metrics(overview.metrics)
+    categories = _render_dashboard_categories(overview.categories)
+    periods = _render_dashboard_periods(overview.period_slices)
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Дашборд KPI</title>
+  <style>
+    :root {{
+      --page: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #17191f;
+      --muted: #5d6675;
+      --line: #d9dde5;
+      --accent: #146c62;
+      --accent-soft: #e6f1ee;
+      --danger: #9f2f24;
+      --danger-soft: #f8e8e5;
+      --warning: #8a5a00;
+      --warning-soft: #fff2cc;
+      --info: #315078;
+      --info-soft: #e8eef8;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }}
+    main {{
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }}
+    h1, h2, h3, p {{ margin: 0; }}
+    header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 16px;
+    }}
+    h1 {{ font-size: 28px; line-height: 1.15; }}
+    h2 {{ font-size: 17px; margin-bottom: 10px; }}
+    h3 {{ font-size: 15px; margin-bottom: 4px; }}
+    .muted {{ color: var(--muted); }}
+    .status-line {{
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }}
+    .summary-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }}
+    .metric, .panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(23, 25, 31, 0.04);
+    }}
+    .metric {{ min-height: 112px; padding: 12px; }}
+    .metric-label {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }}
+    .metric-value {{
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }}
+    .metric-note {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }}
+    .dashboard-shell {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+      gap: 14px;
+      align-items: start;
+    }}
+    .stack {{ display: grid; gap: 14px; }}
+    .panel {{ padding: 14px; }}
+    .dashboard-section {{
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }}
+    .dashboard-section h2 {{ margin-bottom: 0; }}
+    .status {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 10px;
+    }}
+    .status-on_track {{
+      background: var(--accent-soft);
+      color: var(--accent);
+    }}
+    .status-below_target {{
+      background: var(--danger-soft);
+      color: var(--danger);
+    }}
+    .status-above_target {{
+      background: var(--warning-soft);
+      color: var(--warning);
+    }}
+    .export {{
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      padding: 0 12px;
+      background: var(--accent);
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }}
+    th, td {{
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }}
+    th {{ color: var(--muted); font-weight: 600; }}
+    tr:last-child td {{ border-bottom: 0; }}
+    .period-list {{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }}
+    .period-item {{
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 12px;
+    }}
+    .period-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }}
+    .period-grid strong {{
+      display: block;
+      color: var(--ink);
+      font-size: 16px;
+    }}
+    @media (max-width: 760px) {{
+      main {{ width: min(100% - 20px, 1240px); padding-top: 18px; }}
+      header {{ display: grid; align-items: start; }}
+      .status-line {{ text-align: left; }}
+      .summary-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .dashboard-shell, .period-grid {{ grid-template-columns: 1fr; }}
+      th:nth-child(3), td:nth-child(3) {{ display: none; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Дашборд KPI</h1>
+        <p class="muted">{identity}</p>
+      </div>
+      <p class="status-line">{status_line}</p>
+    </header>
+    <section class="summary-grid" aria-label="Сводка KPI">
+      <article class="metric">
+        <p class="metric-label">Всего KPI</p>
+        <p class="metric-value">{overview.summary.metrics_total}</p>
+        <p class="metric-note">показателей в срезе</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">В норме</p>
+        <p class="metric-value">{overview.summary.metrics_on_track}</p>
+        <p class="metric-note">on track</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Ниже цели</p>
+        <p class="metric-value">{overview.summary.metrics_below_target}</p>
+        <p class="metric-note">below target</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Выше цели</p>
+        <p class="metric-value">{overview.summary.metrics_above_target}</p>
+        <p class="metric-note">above target</p>
+      </article>
+    </section>
+    <section class="dashboard-shell">
+      <div class="stack">
+        <section class="dashboard-section">
+          <h2>KPI</h2>
+          <section class="summary-grid" aria-label="Метрики KPI">
+            {metrics}
+          </section>
+        </section>
+        <section class="dashboard-section">
+          <h2>Категории</h2>
+          {categories}
+        </section>
+      </div>
+      <aside class="dashboard-section">
+        <a class="export" href="{_escape(overview.export_url)}">Экспорт CSV</a>
+        <h2>Периоды</h2>
+        {periods}
+      </aside>
+    </section>
+  </main>
+</body>
+</html>"""
+
+
+def _render_dashboard_metrics(metrics: tuple[KPIMetric, ...]) -> str:
+    if not metrics:
+        return '<p class="muted">KPI нет</p>'
+
+    cards = []
+    for metric in metrics:
+        cards.append(
+            '<article class="metric">'
+            f'<p class="metric-label">{_escape(_category_label(metric.category))}</p>'
+            f'<p class="metric-value">{_format_float(metric.value)}</p>'
+            f"<h3>{_escape(metric.label)}</h3>"
+            f'<p class="metric-note">{_escape(_metric_target_label(metric))}</p>'
+            f'<span class="status status-{_escape(metric.status.value)}">'
+            f"{_escape(metric.status.value)}</span>"
+            "</article>"
+        )
+
+    return "".join(cards)
+
+
+def _render_dashboard_categories(
+    categories: tuple[AnalyticsCategoryAggregate, ...],
+) -> str:
+    rows = []
+    for category in categories:
+        totals = ", ".join(
+            f"{_escape(key)}: {_format_float(value)}"
+            for key, value in category.totals.items()
+        )
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(_category_label(category.category))}</td>"
+            f"<td>{category.event_count}</td>"
+            f"<td>{category.unique_members}</td>"
+            f"<td>{totals or '0'}</td>"
+            "</tr>"
+        )
+
+    return (
+        "<table>"
+        "<thead><tr><th>Категория</th><th>События</th><th>Участники</th>"
+        "<th>Агрегаты</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table>"
+    )
+
+
+def _render_dashboard_periods(
+    periods: tuple[AnalyticsDashboardPeriodSlice, ...],
+) -> str:
+    if not periods:
+        return '<p class="muted">Периодов нет</p>'
+
+    items = []
+    for period in periods:
+        items.append(
+            '<li class="period-item">'
+            f"<h3>{_escape(period.period)}</h3>"
+            '<div class="period-grid">'
+            f"<p>События<strong>{period.event_count}</strong></p>"
+            f"<p>Участники<strong>{period.unique_members}</strong></p>"
+            f"<p>В норме<strong>{period.metrics_on_track}</strong></p>"
+            "</div>"
+            "</li>"
+        )
+
+    return f'<ul class="period-list">{"".join(items)}</ul>'
 
 
 def _render_cabinet_html(overview: WebCabinetOverviewResponse) -> str:
@@ -1671,6 +2303,30 @@ def _operation_type_label(operation_type: WalletOperationType) -> str:
     return labels[operation_type]
 
 
+def _category_label(category: AnalyticsCategory | None) -> str:
+    labels = {
+        AnalyticsCategory.PARTICIPATION: "Участие",
+        AnalyticsCategory.CONTENT: "Контент",
+        AnalyticsCategory.ENGAGEMENT: "Вовлечённость",
+        AnalyticsCategory.ACTIONS: "Действия",
+    }
+    if category is None:
+        return "Все категории"
+
+    return labels[category]
+
+
+def _metric_target_label(metric: KPIMetric) -> str:
+    if metric.target_min is None and metric.target_max is None:
+        return metric.target_window
+    if metric.target_min is None:
+        return f"цель до {_format_float(metric.target_max or 0)}"
+    if metric.target_max is None:
+        return f"цель от {_format_float(metric.target_min)}"
+
+    return f"цель {_format_float(metric.target_min)}-{_format_float(metric.target_max)}"
+
+
 def _format_mcv(value: Decimal) -> str:
     return f"{value:.2f}"
 
@@ -1686,6 +2342,13 @@ def _format_float(value: float) -> str:
 
 def _format_share(value: float) -> str:
     return f"{value * 100:.1f}%"
+
+
+def _format_csv_number(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+
+    return _format_float(value)
 
 
 def _normalize_datetime(value: datetime) -> datetime:
