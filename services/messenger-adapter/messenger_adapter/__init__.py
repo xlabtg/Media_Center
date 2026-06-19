@@ -51,6 +51,13 @@ from messenger_adapter.referral_links import (
     content_with_referral_links,
 )
 from messenger_adapter.telegram_adapter import TelegramBotApiPublisher
+from messenger_adapter.unified_adapter import (
+    PublicationBatchFailure,
+    PublicationBatchRequest,
+    PublicationBatchResult,
+    UnifiedMessengerAdapter,
+    UnifiedMessengerAdapterError,
+)
 from messenger_adapter.vk_adapter import VKWallPublisher
 
 __all__ = [
@@ -66,6 +73,9 @@ __all__ = [
     "InMemoryPlatformRegistry",
     "InMemoryPlatformTokenStore",
     "OKMediatopicPublisher",
+    "PublicationBatchFailure",
+    "PublicationBatchRequest",
+    "PublicationBatchResult",
     "PlatformContentLimits",
     "PlatformContentTransformer",
     "PlatformKey",
@@ -94,6 +104,8 @@ __all__ = [
     "TelegramBotApiPublisher",
     "TransformedContent",
     "VKWallPublisher",
+    "UnifiedMessengerAdapter",
+    "UnifiedMessengerAdapterError",
     "content_with_referral_links",
     "limit_media_items",
     "media_items_from_metadata",
