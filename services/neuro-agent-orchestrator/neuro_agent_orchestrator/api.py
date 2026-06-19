@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Annotated, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
 from fastapi import status as http_status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -54,10 +54,32 @@ from .orchestrator import (
     PublicationOptimizationRequest,
     ThresholdUpdateInput,
 )
+from .proxy_rotation import (
+    InMemoryProxyPoolRepository,
+    ProxyEndpointConfig,
+    ProxyHealthCheckResult,
+    ProxyHealthSignal,
+    ProxyLease,
+    ProxyPoolNotFoundError,
+    ProxyPoolState,
+    ProxyRotationError,
+    ProxyRotationManager,
+    ProxyRotationStrategy,
+    ProxyUnavailableError,
+)
 
 NEURO_AGENT_ORCHESTRATOR_SERVICE_NAME = "neuro-agent-orchestrator"
 
 TaskTypeQuery = Annotated[AgentTaskType | None, Query(alias="task_type")]
+ProxyPoolPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+    ),
+]
+_PLATFORM_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 
 AGENT_RUN_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -87,6 +109,35 @@ THRESHOLD_UPDATE_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
     action="neuro_agent.thresholds.update",
     resource_type="neuro_agent_orchestrator",
+)
+PROXY_POOL_READ_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    MEMBER_FULL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    action="neuro_agent.proxy_pool.read",
+    resource_type="neuro_agent_proxy_pool",
+)
+PROXY_POOL_MANAGE_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    action="neuro_agent.proxy_pool.manage",
+    resource_type="neuro_agent_proxy_pool",
+)
+PROXY_HEALTH_CHECK_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    action="neuro_agent.proxy_pool.health_check",
+    resource_type="neuro_agent_proxy_pool",
+)
+PROXY_LEASE_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    MEMBER_FULL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    action="neuro_agent.proxy_pool.lease",
+    resource_type="neuro_agent_proxy_pool",
 )
 
 
@@ -154,11 +205,32 @@ class RunAgentRequest(SharedBaseModel):
         return self
 
 
+class UpsertProxyPoolRequest(SharedBaseModel):
+    platform: str = Field(pattern=_PLATFORM_PATTERN)
+    proxies: tuple[ProxyEndpointConfig, ...] = Field(min_length=1)
+    rotation_strategy: ProxyRotationStrategy = ProxyRotationStrategy.ROUND_ROBIN
+    updated_at: datetime | None = None
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+
+class LeaseProxyRequest(SharedBaseModel):
+    selected_at: datetime | None = None
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class CheckProxyHealthRequest(SharedBaseModel):
+    checks: tuple[ProxyHealthSignal, ...] = Field(min_length=1)
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 @dataclass(slots=True)
 class NeuroAgentOrchestratorAPIState:
     orchestrator: NeuroAgentOrchestrator
+    proxy_rotation: ProxyRotationManager
     publisher: InMemoryEventBus
     repository: InMemoryNeuroAgentRepository
+    proxy_repository: InMemoryProxyPoolRepository
     audit_log_sink: InMemoryAuditLogSink
     tenant_audit_sink: InMemoryAuditSink
 
@@ -170,16 +242,23 @@ def create_neuro_agent_orchestrator_app(
     config: ServiceTemplateConfig,
     *,
     repository: InMemoryNeuroAgentRepository | None = None,
+    proxy_repository: InMemoryProxyPoolRepository | None = None,
     publisher: InMemoryEventBus | None = None,
     audit_log_sink: InMemoryAuditLogSink | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
 ) -> FastAPI:
     resolved_repository = repository or InMemoryNeuroAgentRepository()
+    resolved_proxy_repository = proxy_repository or InMemoryProxyPoolRepository()
     resolved_publisher = publisher or InMemoryEventBus()
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
     orchestrator = NeuroAgentOrchestrator(
         repository=resolved_repository,
+        publisher=resolved_publisher,
+        audit_logger=AuditLogger(sink=resolved_audit_log_sink),
+    )
+    proxy_rotation = ProxyRotationManager(
+        repository=resolved_proxy_repository,
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
     )
@@ -190,8 +269,10 @@ def create_neuro_agent_orchestrator_app(
     )
     app.state.neuro_agent_api = NeuroAgentOrchestratorAPIState(
         orchestrator=orchestrator,
+        proxy_rotation=proxy_rotation,
         publisher=resolved_publisher,
         repository=resolved_repository,
+        proxy_repository=resolved_proxy_repository,
         audit_log_sink=resolved_audit_log_sink,
         tenant_audit_sink=resolved_tenant_audit_sink,
     )
@@ -207,6 +288,9 @@ def create_neuro_agent_orchestrator_app(
         NeuroAgentOrchestratorError,
         _neuro_agent_error_handler,
     )
+    app.add_exception_handler(ProxyPoolNotFoundError, _proxy_pool_not_found_handler)
+    app.add_exception_handler(ProxyUnavailableError, _proxy_unavailable_handler)
+    app.add_exception_handler(ProxyRotationError, _proxy_rotation_error_handler)
     app.add_exception_handler(ValueError, _value_error_handler)
     app.include_router(router)
     return app
@@ -297,6 +381,94 @@ async def update_thresholds(
             metadata=payload.metadata,
         ),
         updated_at=payload.updated_at,
+        event_id=payload.event_id,
+    )
+
+
+@router.put(
+    "/proxy-pools/{pool_id}",
+    response_model=ProxyPoolState,
+    summary="Создать или заменить tenant-scoped пул прокси",
+)
+async def upsert_proxy_pool(
+    pool_id: ProxyPoolPath,
+    payload: UpsertProxyPoolRequest,
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> ProxyPoolState:
+    actor_context = require_access(PROXY_POOL_MANAGE_POLICY, context=context)
+    return await state.proxy_rotation.upsert_pool(
+        tenant_id=context.tenant_id,
+        pool_id=pool_id,
+        platform=payload.platform,
+        proxies=payload.proxies,
+        rotation_strategy=payload.rotation_strategy,
+        updated_by=_subject(actor_context),
+        correlation_id=_correlation_id(context),
+        metadata=payload.metadata,
+        updated_at=payload.updated_at,
+        event_id=payload.event_id,
+    )
+
+
+@router.get(
+    "/proxy-pools/{pool_id}",
+    response_model=ProxyPoolState,
+    summary="Получить состояние tenant-scoped пула прокси",
+)
+def get_proxy_pool(
+    pool_id: ProxyPoolPath,
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> ProxyPoolState:
+    require_access(PROXY_POOL_READ_POLICY, context=context)
+    return state.proxy_rotation.get_pool(
+        tenant_id=context.tenant_id,
+        pool_id=pool_id,
+    )
+
+
+@router.post(
+    "/proxy-pools/{pool_id}/lease",
+    response_model=ProxyLease,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Выдать следующий живой прокси из tenant-scoped пула",
+)
+async def lease_proxy(
+    pool_id: ProxyPoolPath,
+    payload: LeaseProxyRequest,
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> ProxyLease:
+    actor_context = require_access(PROXY_LEASE_POLICY, context=context)
+    return await state.proxy_rotation.lease_proxy(
+        tenant_id=context.tenant_id,
+        pool_id=pool_id,
+        leased_by=_subject(actor_context),
+        correlation_id=_correlation_id(context),
+        selected_at=payload.selected_at,
+        event_id=payload.event_id,
+    )
+
+
+@router.post(
+    "/proxy-pools/{pool_id}/health-checks",
+    response_model=ProxyHealthCheckResult,
+    summary="Зафиксировать результаты проверки живости прокси",
+)
+async def check_proxy_health(
+    pool_id: ProxyPoolPath,
+    payload: CheckProxyHealthRequest,
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> ProxyHealthCheckResult:
+    actor_context = require_access(PROXY_HEALTH_CHECK_POLICY, context=context)
+    return await state.proxy_rotation.check_pool_health(
+        tenant_id=context.tenant_id,
+        pool_id=pool_id,
+        checks=payload.checks,
+        checked_by=_subject(actor_context),
+        correlation_id=_correlation_id(context),
         event_id=payload.event_id,
     )
 
@@ -399,6 +571,45 @@ async def _neuro_agent_error_handler(
         status_code=400,
         content=error_response_body(
             code="neuro_agent_orchestrator_error",
+            message=str(exc),
+        ),
+    )
+
+
+async def _proxy_pool_not_found_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content=error_response_body(
+            code="proxy_pool_not_found",
+            message=str(exc),
+        ),
+    )
+
+
+async def _proxy_unavailable_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=error_response_body(
+            code="proxy_unavailable",
+            message=str(exc),
+        ),
+    )
+
+
+async def _proxy_rotation_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content=error_response_body(
+            code="proxy_rotation_error",
             message=str(exc),
         ),
     )
