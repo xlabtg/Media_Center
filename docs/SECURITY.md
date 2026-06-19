@@ -76,6 +76,23 @@ Gateway и HITL Payout Gateway:
 - **Блокчейн:** только хэши и метаданные, без сумм и ПДн.
 - **Согласия и удаление:** API управления согласиями и удалением данных (ФЗ-152, см. [COMPLIANCE.md](COMPLIANCE.md)).
 
+### 4.1. Прокси-ротация
+
+Прокси-ротация для issue #57 реализуется как tenant-scoped proxy pools:
+
+- каждый пул прокси принадлежит одному `tenant_id`, а одинаковый `pool_id` у
+  разных tenant хранит независимые endpoint, health state и rotation cursor;
+- поддержанные протоколы — HTTP, SOCKS5 и MTProto; схема endpoint должна
+  соответствовать выбранному протоколу;
+- credentials запрещено передавать в proxy URL; секреты задаются только через
+  `secret_ref`, а публичные модели и audit/events возвращают только
+  `secret_ref_hash`;
+- audit/events прокси-ротации содержат `proxy_id`, protocol, counts и hash
+  endpoint, но не raw URL, userinfo, token, MTProto secret или содержимое
+  secret store;
+- health-check помечает неживые proxy как `unhealthy`, после чего lease выдаёт
+  только живые endpoint до следующей успешной проверки.
+
 ---
 
 ## 5. Детальная модель угроз STRIDE

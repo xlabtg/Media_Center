@@ -1,6 +1,6 @@
 # Neuro-Agent Orchestrator
 
-**Статус:** 🟢 реализовано для контуров #55 и #56 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
+**Статус:** 🟢 реализовано для контуров #55, #56 и #57 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
 
 Оркестрация автономных ИИ-агентов под порогами Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика, устойчивость доставки.
 
@@ -16,6 +16,9 @@
 - **GET** `/agents/status` — статус и результаты агентов
 - **GET/PUT** `/thresholds` — чтение и обновление порогов Совета для автономных
   AI-действий
+- **PUT/GET** `/proxy-pools/{pool_id}` — управление tenant-scoped прокси-пулом
+- **POST** `/proxy-pools/{pool_id}/lease` — выдача следующего живого прокси
+- **POST** `/proxy-pools/{pool_id}/health-checks` — фиксация проверки живости
 
 ## Реализованный контур issue #55
 
@@ -61,6 +64,30 @@
   рекомендации ограничиваются существующими `max_autonomous_risk_score` и
   `min_agent_confidence`.
 
+## Реализованный контур issue #57
+
+Прокси-ротация добавляет инфраструктурный контур устойчивого доступа к
+площадкам через HTTP/SOCKS5/MTProto proxy endpoint без хранения секретов в
+публичных моделях ответа.
+
+- `ProxyProtocol` фиксирует поддержанные типы: `http`, `socks5`, `mtproto`;
+  схема `url` валидируется по выбранному протоколу, а credentials в URL
+  запрещены — для них используется `secret_ref`.
+- `ProxyPoolState` хранит tenant-scoped состояние пула: `pool_id`, platform,
+  revision, rotation cursor, counts живых/неживых/disabled proxy и список
+  `ProxyEndpointState` с `redacted_url`, `url_hash` и `secret_ref_hash`.
+- `ProxyRotationManager` выдаёт lease через round-robin только по живым proxy;
+  если health-check пометил endpoint как `unhealthy`, он исключается из
+  `/proxy-pools/{pool_id}/lease` до следующей успешной проверки.
+- `ProxyHealthSignal` обновляет живость endpoint через
+  `/proxy-pools/{pool_id}/health-checks`; failures увеличивают
+  `consecutive_failures`, successes сбрасывают счётчик отказов.
+- Одинаковые `pool_id` у разных tenant изолированы по `tenant_id`, поэтому
+  tenant A не видит proxy endpoint, cursor и health state tenant B.
+- Audit/events `neuro_agent.proxy_pool.updated`,
+  `neuro_agent.proxy_health.checked` и `neuro_agent.proxy.leased` содержат
+  только `proxy_id`, protocol, counts и hash-ссылки, без raw URL и `secret_ref`.
+
 ## Зависимости
 - Policy Manager (пороги и этические правила)
 - Agentic RAG/ChromaDB, инфраструктура резервных каналов
@@ -73,7 +100,7 @@
 ## Связанные задачи (issue)
 - [#55](https://github.com/xlabtg/Media_Center/issues/55) — Аудитория и парсинг + вовлечение и авто-ответы (`type:feature`)
 - [#56](https://github.com/xlabtg/Media_Center/issues/56) — Контент и гигиена + аналитика и оптимизация (`type:feature`)
-- [#57](https://github.com/xlabtg/Media_Center/issues/57) — Резервные каналы и политики ретраев (`type:feature`)
+- [#57](https://github.com/xlabtg/Media_Center/issues/57) — Ротация прокси (HTTP/SOCKS5/MTProto) (`type:feature`)
 - [#58](https://github.com/xlabtg/Media_Center/issues/58) — 🧠 Neuro-Agent Orchestrator (`type:epic`)
 - [#64](https://github.com/xlabtg/Media_Center/issues/64) — Agentic RAG / DeepResearch / Content Agent (CUA) (`type:feature`)
 - [#65](https://github.com/xlabtg/Media_Center/issues/65) — XAI-аудит решений AI (объяснимость) (`type:feature`)
