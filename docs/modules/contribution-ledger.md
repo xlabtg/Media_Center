@@ -1,6 +1,6 @@
 # Contribution Ledger & Weight Engine
 
-**Статус:** 🟢 базовая реализация · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:contribution-ledger`
+**Статус:** 🟢 реализовано · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:contribution-ledger`
 
 Учёт вклада участников в баллах, расчёт коэффициента влияния Кв с потолком и формирование долей распределения с неизменяемым аудитом.
 
@@ -19,7 +19,24 @@
 ## Основные интерфейсы
 - **POST** `/contributions` — зарегистрировать вклад (возвращает баллы и audit_hash)
 - **GET** `/weights?period=` — веса Кв (raw/capped) по участникам тенанта
+- **POST** `/weights/recalculate` — пересчитать и сохранить snapshot весов
 - **GET** `/payout-distribution?period=` — доли распределения для выплат
+
+Все доменные endpoints требуют Bearer JWT, `X-Tenant-Id`,
+`X-Correlation-Id`, а mutating operations используют `Idempotency-Key` там,
+где результат должен быть воспроизводимым.
+
+## Компоненты реализации
+- `points_calculator` — расчёт баллов по таблицам `BASE_POINTS` и
+  `PLATFORM_MULTIPLIERS` с reach/amplification multipliers.
+- `weight_engine` — расчёт `kv_raw`, `kv_capped`, нормализация
+  `payout_share` и защита потолком `COUNCIL_CAP_KV = 0.10`.
+- `payout_exporter` — immutable snapshot распределения для HITL,
+  `distribution_hash` и событие `payout.distribution_ready`.
+- `contribution_events` — публикация `contribution.recorded` и
+  `audit.record.requested` с SHA256 `audit_hash`.
+- `api` — FastAPI REST-слой с tenant middleware, idempotency,
+  validation/error envelope и in-memory repository для тестового контура.
 
 ## Модель данных (черновик)
 - **contributions** — `tenant_id`, `member_id`, `event_type`, `source_ref`,
@@ -63,4 +80,4 @@
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Черновик спецификации. Детализируется на этапе проектирования соответствующего модуля. Сгенерировано `experiments/gen_module_docs.py`.</sub>
+<sub>Спецификация синхронизирована с реализацией Contribution Ledger & Weight Engine для этапа 2.</sub>
