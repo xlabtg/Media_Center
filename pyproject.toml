@@ -61,6 +61,7 @@ mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/messenger-adapter",
   "$MYPY_CONFIG_FILE_DIR/services/neuro-agent-orchestrator",
   "$MYPY_CONFIG_FILE_DIR/services/notification-gateway",
+  "$MYPY_CONFIG_FILE_DIR/services/policy-manager",
   "$MYPY_CONFIG_FILE_DIR/services/voice-to-chain",
   "$MYPY_CONFIG_FILE_DIR/services/wallet",
 ]
@@ -83,6 +84,7 @@ pythonpath = [
   "services/messenger-adapter",
   "services/neuro-agent-orchestrator",
   "services/notification-gateway",
+  "services/policy-manager",
   "services/voice-to-chain",
   "services/wallet",
 ]
