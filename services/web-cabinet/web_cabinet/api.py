@@ -5,7 +5,7 @@ import html
 import io
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, cast
 from urllib.parse import urlencode
@@ -62,6 +62,7 @@ from wallet import (
 )
 
 from libs.shared import (
+    AUDIENCE_ROLE,
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
@@ -91,6 +92,8 @@ _PERIOD_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 _ANALYTICS_PERIOD_PATTERN = r"^\d{4}-((0[1-9]|1[0-2])|W(0[1-9]|[1-4][0-9]|5[0-3]))$"
 _REFERRAL_LEVEL_PATTERN = r"^L[1-3]$"
 _PLATFORM_TARGET_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
+_ONBOARDING_STEP_STATUS_PATTERN = r"^(available|in_progress|completed|blocked)$"
+_ONBOARDING_READINESS_STATUS_PATTERN = r"^(in_progress|ready_for_review)$"
 
 WEB_CABINET_READ_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -121,6 +124,23 @@ ANALYTICS_DASHBOARD_POLICY = AccessPolicy.allow_roles(
     MEMBER_ASSOC_ROLE,
     action="analytics_dashboard.read",
     resource_type="analytics_dashboard",
+)
+ONBOARDING_READ_POLICY = AccessPolicy.allow_roles(
+    AUDIENCE_ROLE,
+    MEMBER_ASSOC_ROLE,
+    MEMBER_FULL_ROLE,
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="onboarding.read",
+    resource_type="onboarding",
+)
+ONBOARDING_GOVERNANCE_READ_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="onboarding.member.read",
+    resource_type="onboarding",
 )
 
 _RISK_LEVEL_ORDER = {
@@ -256,6 +276,80 @@ class AnalyticsDashboardOverviewResponse(SharedBaseModel):
     generated_at: datetime
 
 
+class OnboardingStepItem(SharedBaseModel):
+    step_id: str = Field(min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=256)
+    description: str = Field(min_length=1, max_length=512)
+    order: int = Field(ge=1)
+    required: bool
+    status: str = Field(pattern=_ONBOARDING_STEP_STATUS_PATTERN)
+    completed_at: datetime | None = None
+
+
+class OnboardingConsentItem(SharedBaseModel):
+    key: str = Field(min_length=1, max_length=128)
+    label: str = Field(min_length=1, max_length=256)
+    required: bool
+    granted: bool
+    granted_at: datetime | None = None
+
+
+class OnboardingAssistantQuestionItem(SharedBaseModel):
+    question_id: str = Field(min_length=1, max_length=128)
+    question: str = Field(min_length=1, max_length=512)
+    answer: str = Field(min_length=1, max_length=1200)
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    source_refs: tuple[str, ...] = Field(default_factory=tuple)
+    escalation_available: bool
+
+
+class OnboardingAssistantSummary(SharedBaseModel):
+    enabled: bool
+    answered_questions: int = Field(ge=0)
+    suggested_questions: tuple[OnboardingAssistantQuestionItem, ...]
+
+
+class OnboardingReadiness(SharedBaseModel):
+    required_steps_total: int = Field(ge=0)
+    completed_required_steps: int = Field(ge=0)
+    required_consents_total: int = Field(ge=0)
+    granted_required_consents: int = Field(ge=0)
+    ready_for_review: bool
+    status: str = Field(pattern=_ONBOARDING_READINESS_STATUS_PATTERN)
+    blockers: tuple[str, ...] = Field(default_factory=tuple)
+    recommendation: str = Field(min_length=1, max_length=512)
+
+
+class OnboardingOverviewResponse(SharedBaseModel):
+    tenant_id: TenantId
+    member_id: SubjectId
+    target_window_hours: int = Field(ge=12, le=36)
+    started_at: datetime
+    target_finish_at: datetime
+    progress_percent: int = Field(ge=0, le=100)
+    status_recommendation: str = Field(min_length=1, max_length=128)
+    steps: tuple[OnboardingStepItem, ...]
+    consents: tuple[OnboardingConsentItem, ...]
+    assistant: OnboardingAssistantSummary
+    readiness: OnboardingReadiness
+    generated_at: datetime
+
+
+class OnboardingAssistantQuestionRequest(SharedBaseModel):
+    question: str = Field(min_length=1, max_length=512)
+    member_id: SubjectId | None = None
+
+
+class OnboardingAssistantAnswerResponse(SharedBaseModel):
+    matched_question_id: str = Field(min_length=1, max_length=128)
+    question: str = Field(min_length=1, max_length=512)
+    answer: str = Field(min_length=1, max_length=1200)
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    source_refs: tuple[str, ...] = Field(default_factory=tuple)
+    escalation_available: bool
+    generated_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class CabinetContributionRecord:
     tenant_id: str
@@ -285,6 +379,51 @@ class CabinetContentRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class OnboardingProfileRecord:
+    tenant_id: str
+    member_id: str
+    started_at: datetime
+    target_window_hours: int
+    status_recommendation: str
+
+
+@dataclass(frozen=True, slots=True)
+class OnboardingStepRecord:
+    tenant_id: str
+    member_id: str
+    step_id: str
+    title: str
+    description: str
+    order: int
+    required: bool
+    status: str
+    completed_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OnboardingConsentRecord:
+    tenant_id: str
+    member_id: str
+    key: str
+    label: str
+    required: bool
+    granted: bool
+    granted_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OnboardingAssistantAnswerRecord:
+    tenant_id: str
+    question_id: str
+    question: str
+    answer: str
+    confidence: float
+    source_refs: tuple[str, ...]
+    topic_tags: tuple[str, ...] = ()
+    escalation_available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class CouncilPanelPayoutAnnotation:
     tenant_id: str
     payout_id: str
@@ -311,12 +450,32 @@ class InMemoryWebCabinetRepository:
         default_factory=dict
     )
     _content: list[CabinetContentRecord] = field(default_factory=list)
+    _onboarding_profiles: dict[tuple[str, str], OnboardingProfileRecord] = field(
+        default_factory=dict
+    )
+    _onboarding_steps: list[OnboardingStepRecord] = field(default_factory=list)
+    _onboarding_consents: list[OnboardingConsentRecord] = field(default_factory=list)
+    _onboarding_answers: list[OnboardingAssistantAnswerRecord] = field(
+        default_factory=list
+    )
     _contribution_guard: TenantScopedRepository[CabinetContributionRecord] = field(
         default_factory=lambda: TenantScopedRepository("cabinet_contributions")
     )
     _content_guard: TenantScopedRepository[CabinetContentRecord] = field(
         default_factory=lambda: TenantScopedRepository("cabinet_content")
     )
+    _onboarding_profile_guard: TenantScopedRepository[OnboardingProfileRecord] = field(
+        default_factory=lambda: TenantScopedRepository("onboarding_profiles")
+    )
+    _onboarding_step_guard: TenantScopedRepository[OnboardingStepRecord] = field(
+        default_factory=lambda: TenantScopedRepository("onboarding_steps")
+    )
+    _onboarding_consent_guard: TenantScopedRepository[OnboardingConsentRecord] = field(
+        default_factory=lambda: TenantScopedRepository("onboarding_consents")
+    )
+    _onboarding_answer_guard: TenantScopedRepository[
+        OnboardingAssistantAnswerRecord
+    ] = field(default_factory=lambda: TenantScopedRepository("onboarding_answers"))
 
     def save_contribution(
         self,
@@ -386,6 +545,147 @@ class InMemoryWebCabinetRepository:
                 links.append(link)
 
         return tuple(links)
+
+    def save_onboarding_profile(
+        self,
+        record: OnboardingProfileRecord,
+    ) -> OnboardingProfileRecord:
+        self._onboarding_profiles[(record.tenant_id, record.member_id)] = record
+        return record
+
+    def get_onboarding_profile(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+    ) -> OnboardingProfileRecord | None:
+        records = self._onboarding_profile_guard.list_for_tenant(
+            self._onboarding_profiles.values(),
+            context,
+        )
+        for record in records:
+            if record.member_id == member_id:
+                return record
+
+        return None
+
+    def save_onboarding_step(
+        self,
+        record: OnboardingStepRecord,
+    ) -> OnboardingStepRecord:
+        self._onboarding_steps = [
+            item
+            for item in self._onboarding_steps
+            if not (
+                item.tenant_id == record.tenant_id
+                and item.member_id == record.member_id
+                and item.step_id == record.step_id
+            )
+        ]
+        self._onboarding_steps.append(record)
+        return record
+
+    def list_onboarding_steps(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+    ) -> tuple[OnboardingStepRecord, ...]:
+        records = self._onboarding_step_guard.list_for_tenant(
+            self._onboarding_steps,
+            context,
+        )
+        filtered = (record for record in records if record.member_id == member_id)
+        return tuple(
+            sorted(filtered, key=lambda record: (record.order, record.step_id))
+        )
+
+    def save_onboarding_consent(
+        self,
+        record: OnboardingConsentRecord,
+    ) -> OnboardingConsentRecord:
+        self._onboarding_consents = [
+            item
+            for item in self._onboarding_consents
+            if not (
+                item.tenant_id == record.tenant_id
+                and item.member_id == record.member_id
+                and item.key == record.key
+            )
+        ]
+        self._onboarding_consents.append(record)
+        return record
+
+    def list_onboarding_consents(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+    ) -> tuple[OnboardingConsentRecord, ...]:
+        records = self._onboarding_consent_guard.list_for_tenant(
+            self._onboarding_consents,
+            context,
+        )
+        filtered = (record for record in records if record.member_id == member_id)
+        return tuple(filtered)
+
+    def save_onboarding_assistant_answer(
+        self,
+        record: OnboardingAssistantAnswerRecord,
+    ) -> OnboardingAssistantAnswerRecord:
+        self._onboarding_answers = [
+            item
+            for item in self._onboarding_answers
+            if not (
+                item.tenant_id == record.tenant_id
+                and item.question_id == record.question_id
+            )
+        ]
+        self._onboarding_answers.append(record)
+        return record
+
+    def list_onboarding_assistant_answers(
+        self,
+        *,
+        context: TenantContext,
+        limit: int = 10,
+    ) -> tuple[OnboardingAssistantAnswerRecord, ...]:
+        records = self._onboarding_answer_guard.list_for_tenant(
+            self._onboarding_answers,
+            context,
+        )
+        sorted_records = sorted(records, key=lambda record: record.question_id)
+        return tuple(sorted_records[:limit])
+
+    def find_onboarding_assistant_answer(
+        self,
+        *,
+        context: TenantContext,
+        question: str,
+    ) -> OnboardingAssistantAnswerRecord | None:
+        answers = self.list_onboarding_assistant_answers(context=context, limit=100)
+        normalized_question = _normalize_onboarding_question(question)
+        for answer in answers:
+            if _normalize_onboarding_question(answer.question) == normalized_question:
+                return answer
+
+        question_terms = set(normalized_question.split())
+        ranked: list[tuple[int, OnboardingAssistantAnswerRecord]] = []
+        for answer in answers:
+            answer_terms = set(_normalize_onboarding_question(answer.question).split())
+            tag_terms = {
+                _normalize_onboarding_question(tag)
+                for tag in answer.topic_tags
+                if tag.strip() != ""
+            }
+            overlap = len(question_terms.intersection(answer_terms | tag_terms))
+            if overlap > 0:
+                ranked.append((overlap, answer))
+
+        if not ranked:
+            return None
+
+        return max(ranked, key=lambda item: (item[0], item[1].confidence))[1]
 
 
 @dataclass(slots=True)
@@ -579,6 +879,67 @@ def get_cabinet_page(
         content_limit=content_limit,
     )
     return HTMLResponse(_render_cabinet_html(overview))
+
+
+@router.get(
+    "/onboarding/overview",
+    response_model=OnboardingOverviewResponse,
+    summary="Получить JSON-сводку онбординга участника",
+)
+def get_onboarding_overview(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    member_id: Annotated[SubjectId | None, Query()] = None,
+) -> OnboardingOverviewResponse:
+    target_member_id = _target_onboarding_member_id(context, member_id)
+    _ensure_onboarding_read_allowed(context, target_member_id)
+    return _build_onboarding_overview(
+        state=state,
+        context=context,
+        member_id=target_member_id,
+    )
+
+
+@router.get(
+    "/onboarding",
+    response_class=HTMLResponse,
+    summary="Открыть адаптивный онбординг участника",
+)
+def get_onboarding_page(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    member_id: Annotated[SubjectId | None, Query()] = None,
+) -> HTMLResponse:
+    target_member_id = _target_onboarding_member_id(context, member_id)
+    _ensure_onboarding_read_allowed(context, target_member_id)
+    overview = _build_onboarding_overview(
+        state=state,
+        context=context,
+        member_id=target_member_id,
+    )
+    return HTMLResponse(_render_onboarding_html(overview))
+
+
+@router.post(
+    "/onboarding/assistant/answer",
+    response_model=OnboardingAssistantAnswerResponse,
+    summary="Получить ответ AI-ассистента на типовой вопрос онбординга",
+)
+def answer_onboarding_question(
+    payload: OnboardingAssistantQuestionRequest,
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> OnboardingAssistantAnswerResponse:
+    target_member_id = _target_onboarding_member_id(context, payload.member_id)
+    _ensure_onboarding_read_allowed(context, target_member_id)
+    answer = state.repository.find_onboarding_assistant_answer(
+        context=context,
+        question=payload.question,
+    )
+    return _onboarding_assistant_answer_response(
+        question=payload.question,
+        answer=answer,
+    )
 
 
 @router.get(
@@ -818,6 +1179,67 @@ def _build_overview(
         operations=tuple(_wallet_operation_response(record) for record in operations),
         content=tuple(_content_item(record) for record in content),
         referral_links=referral_links,
+        generated_at=datetime.now(UTC),
+    )
+
+
+def _build_onboarding_overview(
+    *,
+    state: WebCabinetAPIState,
+    context: TenantContext,
+    member_id: str,
+) -> OnboardingOverviewResponse:
+    profile = state.repository.get_onboarding_profile(
+        context=context,
+        member_id=member_id,
+    )
+    if profile is None:
+        profile = OnboardingProfileRecord(
+            tenant_id=context.tenant_id,
+            member_id=member_id,
+            started_at=datetime.now(UTC),
+            target_window_hours=36,
+            status_recommendation=MEMBER_ASSOC_ROLE,
+        )
+    steps = tuple(
+        _onboarding_step_item(record)
+        for record in state.repository.list_onboarding_steps(
+            context=context,
+            member_id=member_id,
+        )
+    )
+    consents = tuple(
+        _onboarding_consent_item(record)
+        for record in state.repository.list_onboarding_consents(
+            context=context,
+            member_id=member_id,
+        )
+    )
+    answers = tuple(
+        _onboarding_assistant_question_item(record)
+        for record in state.repository.list_onboarding_assistant_answers(
+            context=context,
+            limit=10,
+        )
+    )
+    readiness = _onboarding_readiness(steps=steps, consents=consents)
+    return OnboardingOverviewResponse(
+        tenant_id=context.tenant_id,
+        member_id=member_id,
+        target_window_hours=profile.target_window_hours,
+        started_at=profile.started_at,
+        target_finish_at=profile.started_at
+        + timedelta(hours=profile.target_window_hours),
+        progress_percent=_onboarding_progress_percent(readiness),
+        status_recommendation=profile.status_recommendation,
+        steps=steps,
+        consents=consents,
+        assistant=OnboardingAssistantSummary(
+            enabled=len(answers) > 0,
+            answered_questions=len(answers),
+            suggested_questions=answers,
+        ),
+        readiness=readiness,
         generated_at=datetime.now(UTC),
     )
 
@@ -1183,6 +1605,23 @@ def _target_member_id(context: TenantContext, member_id: str | None) -> str:
     return context.subject
 
 
+def _target_onboarding_member_id(
+    context: TenantContext,
+    member_id: str | None,
+) -> str:
+    if member_id is not None:
+        return member_id
+    if context.subject is None or context.subject.strip() == "":
+        raise SharedError(
+            status_code=400,
+            error_code="actor_required",
+            message="Онбординг требует subject в tenant context",
+            correlation_id=context.correlation_id,
+        )
+
+    return context.subject
+
+
 def _subject(context: TenantContext) -> SubjectId:
     if context.subject is None or context.subject.strip() == "":
         raise SharedError(
@@ -1219,6 +1658,14 @@ def _ensure_cabinet_read_allowed(context: TenantContext, member_id: str) -> None
         return
 
     require_access(WEB_CABINET_GOVERNANCE_READ_POLICY, context=context)
+
+
+def _ensure_onboarding_read_allowed(context: TenantContext, member_id: str) -> None:
+    require_access(ONBOARDING_READ_POLICY, context=context)
+    if context.subject == member_id:
+        return
+
+    require_access(ONBOARDING_GOVERNANCE_READ_POLICY, context=context)
 
 
 def _contribution_summary(
@@ -1262,6 +1709,121 @@ def _content_item(record: CabinetContentRecord) -> CabinetContentItem:
         points_awarded=record.points_awarded,
         created_at=record.created_at,
     )
+
+
+def _onboarding_step_item(record: OnboardingStepRecord) -> OnboardingStepItem:
+    return OnboardingStepItem(
+        step_id=record.step_id,
+        title=record.title,
+        description=record.description,
+        order=record.order,
+        required=record.required,
+        status=record.status,
+        completed_at=record.completed_at,
+    )
+
+
+def _onboarding_consent_item(
+    record: OnboardingConsentRecord,
+) -> OnboardingConsentItem:
+    return OnboardingConsentItem(
+        key=record.key,
+        label=record.label,
+        required=record.required,
+        granted=record.granted,
+        granted_at=record.granted_at,
+    )
+
+
+def _onboarding_assistant_question_item(
+    record: OnboardingAssistantAnswerRecord,
+) -> OnboardingAssistantQuestionItem:
+    return OnboardingAssistantQuestionItem(
+        question_id=record.question_id,
+        question=record.question,
+        answer=record.answer,
+        confidence=record.confidence,
+        source_refs=record.source_refs,
+        escalation_available=record.escalation_available,
+    )
+
+
+def _onboarding_assistant_answer_response(
+    *,
+    question: str,
+    answer: OnboardingAssistantAnswerRecord | None,
+) -> OnboardingAssistantAnswerResponse:
+    if answer is None:
+        return OnboardingAssistantAnswerResponse(
+            matched_question_id="fallback",
+            question=question,
+            answer=(
+                "Я не нашёл точный ответ в базе онбординга. Передайте вопрос "
+                "Совету или куратору tenant для ручной проверки."
+            ),
+            confidence=0.0,
+            source_refs=(),
+            escalation_available=True,
+            generated_at=datetime.now(UTC),
+        )
+
+    return OnboardingAssistantAnswerResponse(
+        matched_question_id=answer.question_id,
+        question=question,
+        answer=answer.answer,
+        confidence=answer.confidence,
+        source_refs=answer.source_refs,
+        escalation_available=answer.escalation_available,
+        generated_at=datetime.now(UTC),
+    )
+
+
+def _onboarding_readiness(
+    *,
+    steps: tuple[OnboardingStepItem, ...],
+    consents: tuple[OnboardingConsentItem, ...],
+) -> OnboardingReadiness:
+    required_steps = tuple(step for step in steps if step.required)
+    completed_required_steps = sum(
+        1 for step in required_steps if step.status == "completed"
+    )
+    required_consents = tuple(consent for consent in consents if consent.required)
+    granted_required_consents = sum(
+        1 for consent in required_consents if consent.granted
+    )
+    blockers: list[str] = []
+    if completed_required_steps < len(required_steps):
+        blockers.append("Есть незавершённые обязательные шаги")
+    if granted_required_consents < len(required_consents):
+        blockers.append("Не все обязательные согласия подтверждены")
+
+    has_required_scope = len(required_steps) > 0 or len(required_consents) > 0
+    ready_for_review = has_required_scope and not blockers
+    return OnboardingReadiness(
+        required_steps_total=len(required_steps),
+        completed_required_steps=completed_required_steps,
+        required_consents_total=len(required_consents),
+        granted_required_consents=granted_required_consents,
+        ready_for_review=ready_for_review,
+        status="ready_for_review" if ready_for_review else "in_progress",
+        blockers=tuple(blockers),
+        recommendation=(
+            "Передать анкету в Совет для проверки статуса"
+            if ready_for_review
+            else "Продолжить обязательные шаги онбординга"
+        ),
+    )
+
+
+def _onboarding_progress_percent(readiness: OnboardingReadiness) -> int:
+    total_required = readiness.required_steps_total + readiness.required_consents_total
+    if total_required == 0:
+        return 0
+
+    completed_required = (
+        readiness.completed_required_steps + readiness.granted_required_consents
+    )
+    return round(completed_required / total_required * 100)
 
 
 def _wallet_balance_response(balance: WalletBalance) -> WalletBalanceResponse:
@@ -1667,6 +2229,350 @@ def _render_dashboard_periods(
         )
 
     return f'<ul class="period-list">{"".join(items)}</ul>'
+
+
+def _render_onboarding_html(overview: OnboardingOverviewResponse) -> str:
+    identity = f"{_escape(overview.member_id)} · {_escape(overview.tenant_id)}"
+    status_line = (
+        f"до {_escape(_format_datetime(overview.target_finish_at))} · "
+        f"{overview.target_window_hours} ч"
+    )
+    readiness_label = (
+        "Готов к проверке"
+        if overview.readiness.ready_for_review
+        else "Онбординг продолжается"
+    )
+    steps = _render_onboarding_steps(overview.steps)
+    consents = _render_onboarding_consents(overview.consents)
+    assistant = _render_onboarding_assistant(overview.assistant)
+    blockers = _render_onboarding_blockers(overview.readiness.blockers)
+    steps_ratio = (
+        f"{overview.readiness.completed_required_steps}/"
+        f"{overview.readiness.required_steps_total}"
+    )
+    consents_ratio = (
+        f"{overview.readiness.granted_required_consents}/"
+        f"{overview.readiness.required_consents_total}"
+    )
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Онбординг участника</title>
+  <style>
+    :root {{
+      --page: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #17191f;
+      --muted: #5d6675;
+      --line: #d9dde5;
+      --accent: #146c62;
+      --accent-soft: #e6f1ee;
+      --warning: #8a5a00;
+      --warning-soft: #fff2cc;
+      --info: #315078;
+      --info-soft: #e8eef8;
+      --danger: #9f2f24;
+      --danger-soft: #f8e8e5;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }}
+    main {{
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }}
+    h1, h2, h3, p {{ margin: 0; }}
+    header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 16px;
+    }}
+    h1 {{ font-size: 28px; line-height: 1.15; }}
+    h2 {{ font-size: 17px; margin-bottom: 10px; }}
+    h3 {{ font-size: 15px; margin-bottom: 4px; }}
+    .muted {{ color: var(--muted); }}
+    .status-line {{
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }}
+    .summary-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }}
+    .metric, .panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(23, 25, 31, 0.04);
+    }}
+    .metric {{ min-height: 106px; padding: 12px; }}
+    .metric-label {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }}
+    .metric-value {{
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }}
+    .metric-note {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }}
+    .onboarding-shell {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+      gap: 14px;
+      align-items: start;
+    }}
+    .stack {{ display: grid; gap: 14px; }}
+    .panel {{ padding: 14px; }}
+    .step-list, .consent-list, .assistant-list, .blocker-list {{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }}
+    .step-item, .consent-item, .assistant-item, .blocker-item {{
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 12px;
+    }}
+    .item-top {{
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 6px;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }}
+    .badge-completed, .badge-granted, .badge-ready_for_review {{
+      background: var(--accent-soft);
+      color: var(--accent);
+    }}
+    .badge-available, .badge-in_progress {{
+      background: var(--info-soft);
+      color: var(--info);
+    }}
+    .badge-blocked, .badge-revoked {{
+      background: var(--danger-soft);
+      color: var(--danger);
+    }}
+    .badge-required {{
+      background: var(--warning-soft);
+      color: var(--warning);
+    }}
+    .progress-track {{
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e3e7ee;
+      overflow: hidden;
+      margin-top: 10px;
+    }}
+    .progress-fill {{
+      height: 100%;
+      width: {overview.progress_percent}%;
+      background: var(--accent);
+    }}
+    .assistant-answer {{
+      color: var(--muted);
+      margin-top: 6px;
+    }}
+    .source-list {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }}
+    .source {{
+      background: var(--info-soft);
+      color: var(--info);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    @media (max-width: 760px) {{
+      main {{ width: min(100% - 20px, 1240px); padding-top: 18px; }}
+      header {{ display: grid; align-items: start; }}
+      .status-line {{ text-align: left; }}
+      .summary-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .onboarding-shell {{ grid-template-columns: 1fr; }}
+      .item-top {{ align-items: start; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Онбординг участника</h1>
+        <p class="muted">{identity}</p>
+      </div>
+      <p class="status-line">{status_line}</p>
+    </header>
+    <section class="summary-grid" aria-label="Сводка онбординга">
+      <article class="metric">
+        <p class="metric-label">Прогресс</p>
+        <p class="metric-value">{overview.progress_percent}%</p>
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill"></div>
+        </div>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Готовность</p>
+        <p class="metric-value">{readiness_label}</p>
+        <p class="metric-note">{_escape(overview.readiness.recommendation)}</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Шаги</p>
+        <p class="metric-value">{steps_ratio}</p>
+        <p class="metric-note">обязательных завершено</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Согласия</p>
+        <p class="metric-value">{consents_ratio}</p>
+        <p class="metric-note">обязательных подтверждено</p>
+      </article>
+    </section>
+    <section class="onboarding-shell">
+      <div class="stack">
+        <article class="panel">
+          <h2>Шаги</h2>
+          {steps}
+        </article>
+        <article class="panel">
+          <h2>Согласия</h2>
+          {consents}
+        </article>
+      </div>
+      <aside class="stack">
+        <article class="panel">
+          <h2>AI-ассистент</h2>
+          {assistant}
+        </article>
+        <article class="panel">
+          <h2>Проверка готовности</h2>
+          <p class="muted">{_escape(overview.readiness.recommendation)}</p>
+          {blockers}
+        </article>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>"""
+
+
+def _render_onboarding_steps(steps: tuple[OnboardingStepItem, ...]) -> str:
+    if not steps:
+        return '<p class="muted">Шаги онбординга ещё не назначены</p>'
+
+    items = []
+    for step in steps:
+        requirement = "обязательный" if step.required else "дополнительный"
+        items.append(
+            '<li class="step-item">'
+            '<div class="item-top">'
+            f"<h3>{_escape(step.title)}</h3>"
+            f'<span class="badge badge-{_escape(step.status)}">'
+            f"{_escape(_onboarding_status_label(step.status))}</span>"
+            "</div>"
+            f'<p class="muted">{_escape(step.description)}</p>'
+            f'<p class="metric-note">{_escape(requirement)} · шаг {step.order}</p>'
+            "</li>"
+        )
+
+    return f'<ul class="step-list">{"".join(items)}</ul>'
+
+
+def _render_onboarding_consents(
+    consents: tuple[OnboardingConsentItem, ...],
+) -> str:
+    if not consents:
+        return '<p class="muted">Согласия ещё не запрошены</p>'
+
+    items = []
+    for consent in consents:
+        status = "granted" if consent.granted else "revoked"
+        status_label = "подтверждено" if consent.granted else "отозвано"
+        requirement = "обязательное" if consent.required else "опциональное"
+        note = f"{_escape(requirement)} · {_escape(consent.key)}"
+        items.append(
+            '<li class="consent-item">'
+            '<div class="item-top">'
+            f"<h3>{_escape(consent.label)}</h3>"
+            f'<span class="badge badge-{status}">{_escape(status_label)}</span>'
+            "</div>"
+            f'<p class="metric-note">{note}</p>'
+            "</li>"
+        )
+
+    return f'<ul class="consent-list">{"".join(items)}</ul>'
+
+
+def _render_onboarding_assistant(summary: OnboardingAssistantSummary) -> str:
+    if not summary.suggested_questions:
+        return '<p class="muted">AI-ассистент ожидает базу типовых вопросов</p>'
+
+    items = []
+    for item in summary.suggested_questions:
+        confidence = _format_float(item.confidence)
+        sources = "".join(
+            f'<span class="source">{_escape(source)}</span>'
+            for source in item.source_refs
+        )
+        items.append(
+            '<li class="assistant-item">'
+            '<div class="item-top">'
+            f"<h3>{_escape(item.question)}</h3>"
+            f'<span class="badge badge-available">{confidence}</span>'
+            "</div>"
+            f'<p class="assistant-answer">{_escape(item.answer)}</p>'
+            f'<div class="source-list">{sources}</div>'
+            "</li>"
+        )
+
+    return f'<ul class="assistant-list">{"".join(items)}</ul>'
+
+
+def _render_onboarding_blockers(blockers: tuple[str, ...]) -> str:
+    if not blockers:
+        return '<p class="metric-note">Блокеров нет</p>'
+
+    items = [
+        f'<li class="blocker-item">{_escape(blocker)}</li>' for blocker in blockers
+    ]
+    return f'<ul class="blocker-list">{"".join(items)}</ul>'
 
 
 def _render_cabinet_html(overview: WebCabinetOverviewResponse) -> str:
@@ -2303,6 +3209,16 @@ def _operation_type_label(operation_type: WalletOperationType) -> str:
     return labels[operation_type]
 
 
+def _onboarding_status_label(status: str) -> str:
+    labels = {
+        "available": "доступно",
+        "in_progress": "в работе",
+        "completed": "готово",
+        "blocked": "блокер",
+    }
+    return labels.get(status, status)
+
+
 def _category_label(category: AnalyticsCategory | None) -> str:
     labels = {
         AnalyticsCategory.PARTICIPATION: "Участие",
@@ -2349,6 +3265,15 @@ def _format_csv_number(value: float) -> str:
         return str(int(value))
 
     return _format_float(value)
+
+
+def _normalize_onboarding_question(value: str) -> str:
+    lowered = value.casefold()
+    punctuation = "?!.,:;()[]{}«»\"'"
+    for mark in punctuation:
+        lowered = lowered.replace(mark, " ")
+
+    return " ".join(lowered.split())
 
 
 def _normalize_datetime(value: datetime) -> datetime:
