@@ -1,6 +1,6 @@
 # Private Blockchain Auditor
 
-**Статус:** 🟡 планируется · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
+**Статус:** 🟡 baseline коннектора · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
 
 Неизменяемый аудит ключевых событий в приватной блокчейн-сети: только SHA256-хэши и метаданные, доступ только для Совета.
 
@@ -13,6 +13,16 @@
 ## Основные интерфейсы
 - **POST** `/audit/record` — записать хэш события (batch-агрегация)
 - **GET** `/audit/verify?hash=` — проверить соответствие события записи
+
+## Реализовано в issue #49
+- `hash_generator` формирует детерминированный SHA256 по canonical JSON
+  (`sort_keys=True`) и возвращает canonical payload для проверки.
+- `GrpcBlockchainAuditConnector` использует `BLOCKCHAIN_AUDITOR_URL` и gRPC
+  transport protocol для записи/чтения hash-only audit records.
+- До generated proto/stub используется `InMemoryGrpcBlockchainAuditTransport`
+  в unit-тестах, чтобы зафиксировать контракт записи и чтения.
+- Metadata перед записью проверяются на отсутствие ПДн, сумм, токенов, сырого
+  контента, голоса и transcript.
 
 ## Модель данных (черновик)
 - **audit_records** — `tenant_id`, `event_type`, `hash`, `metadata`, `block_ref`, `created_at`
