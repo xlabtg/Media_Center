@@ -16,5 +16,6 @@ tenant middleware, DB settings и структурой миграций.
 | [activity-command-center](activity-command-center/) | Пороги Совета, очереди задач и контуры обратной связи. |
 | [analytics-engine](analytics-engine/) | KPI пилота и агрегаты активности, контента, вовлечённости и действий. |
 | [messenger-adapter](messenger-adapter/) | Публикация и трансформация контента для площадок. |
+| [notification-gateway](notification-gateway/) | Уведомления участников и Совета по событиям, каналам и шаблонам. |
 | [blockchain-auditor](blockchain-auditor/) | Неизменяемый аудит SHA256-хэшей и метаданных. |
 | [wallet](wallet/) | Внутренний учёт МСЦ, балансов и операций участника. |

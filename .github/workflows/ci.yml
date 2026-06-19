@@ -121,6 +121,8 @@ jobs:
             path: services/hitl-payout-gateway
           - service: messenger-adapter
             path: services/messenger-adapter
+          - service: notification-gateway
+            path: services/notification-gateway
           - service: blockchain-auditor
             path: services/blockchain-auditor
           - service: voice-to-chain

@@ -26,6 +26,7 @@
 | `services/hitl-payout-gateway/` | Очередь выплат, окно вето, 2FA, коннекторы исполнения | [docs/modules/hitl-payout-gateway.md](modules/hitl-payout-gateway.md) |
 | `services/activity-command-center/` | Пороги Совета, tenant-scoped очереди задач и контуры обратной связи | [docs/modules/activity-command-center.md](modules/activity-command-center.md) |
 | `services/messenger-adapter/` | Единый интерфейс публикации на площадках и реестр площадок | [docs/modules/messenger-adapter.md](modules/messenger-adapter.md) |
+| `services/notification-gateway/` | Уведомления участников и Совета по событиям, каналам и шаблонам | [docs/modules/notification-gateway.md](modules/notification-gateway.md) |
 | `services/blockchain-auditor/` | Запись и проверка SHA256-хэшей в приватной audit-chain | [docs/modules/blockchain-auditor.md](modules/blockchain-auditor.md) |
 | `services/voice-to-chain/` | Локальная транскрипция голоса, hash-only фиксация transcript и TTL-удаление исходного аудио | [docs/modules/voice-to-chain.md](modules/voice-to-chain.md) |
 | `services/wallet/` | Внутренний учёт МСЦ, балансов и операций участника | [docs/modules/wallet.md](modules/wallet.md) |
