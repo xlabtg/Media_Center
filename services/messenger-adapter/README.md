@@ -1,6 +1,6 @@
 # Unified Messenger Adapter
 
-**Статус:** каркас сервиса, реализация запланирована в этапе 2.
+**Статус:** базовые площадочные адаптеры этапа 2.
 
 ## Назначение
 
@@ -42,6 +42,20 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - Оба publisher-а используются через `BasePlatformAdapter`, поэтому шифрование
   токенов, tenant isolation, retry policy, события и audit остаются едиными для
   всех площадок.
+
+## Трансформация контента и адаптеры Dzen/OK
+
+- `PlatformContentTransformer` обрезает текст и список медиа по лимитам
+  площадки, ограничивает количество ссылок и добавляет служебную метку
+  `content_transform` в metadata без сырого токена.
+- `BasePlatformAdapter` может принимать `content_transformer`, поэтому
+  площадочные publisher-ы получают уже адаптированный `PublicationRequest`.
+- `DzenPostPublisher` публикует материал в Dzen endpoint с OAuth-заголовком,
+  передаёт `channel_id`, текст, title/tags и media из metadata, нормализует
+  `429`, auth/access и временные сбои в общий `PlatformPublicationError`.
+- `OKMediatopicPublisher` публикует OK `mediatopic.post`, собирает attachment
+  из текста и media, поддерживает подпись `sig` через application secret и
+  мапит rate limit/auth/access/server ошибки в единый контракт адаптера.
 
 ## Связанные документы
 
