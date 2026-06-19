@@ -9,6 +9,7 @@ EXPECTED_SERVICES = (
     "hitl-payout-gateway",
     "messenger-adapter",
     "blockchain-auditor",
+    "voice-to-chain",
 )
 
 
