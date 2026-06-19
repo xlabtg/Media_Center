@@ -64,6 +64,7 @@ mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/policy-manager",
   "$MYPY_CONFIG_FILE_DIR/services/voice-to-chain",
   "$MYPY_CONFIG_FILE_DIR/services/wallet",
+  "$MYPY_CONFIG_FILE_DIR/services/web-cabinet",
 ]
 exclude = [
   "^experiments/",
@@ -87,6 +88,7 @@ pythonpath = [
   "services/policy-manager",
   "services/voice-to-chain",
   "services/wallet",
+  "services/web-cabinet",
 ]
 addopts = [
   "--strict-config",

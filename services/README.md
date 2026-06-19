@@ -20,3 +20,4 @@ tenant middleware, DB settings и структурой миграций.
 | [notification-gateway](notification-gateway/) | Уведомления участников и Совета по событиям, каналам и шаблонам. |
 | [blockchain-auditor](blockchain-auditor/) | Неизменяемый аудит SHA256-хэшей и метаданных. |
 | [wallet](wallet/) | Внутренний учёт МСЦ, балансов и операций участника. |
+| [web-cabinet](web-cabinet/) | Личный кабинет пайщика: вклад, баланс МСЦ, история, контент и ссылки. |
