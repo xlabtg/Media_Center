@@ -129,6 +129,8 @@ jobs:
             path: services/voice-to-chain
           - service: wallet
             path: services/wallet
+          - service: web-cabinet
+            path: services/web-cabinet
 
     steps:
       - name: Checkout

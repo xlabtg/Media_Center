@@ -12,6 +12,7 @@ EXPECTED_SERVICES = (
     "blockchain-auditor",
     "voice-to-chain",
     "wallet",
+    "web-cabinet",
 )
 
 
