@@ -31,6 +31,18 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - события и audit metadata содержат только служебные идентификаторы, хэши
   внешних ссылок и количество попыток, без raw platform token.
 
+## Адаптеры Telegram и VK
+
+- `TelegramBotApiPublisher` публикует текстовые материалы через Telegram Bot
+  API `sendMessage`, нормализует `429`/`parameters.retry_after` в
+  `rate_limited` и возвращает platform reference вида `chat_id:message_id`.
+- `VKWallPublisher` публикует материалы через VK API `wall.post`, передаёт
+  токен в form body, нормализует ошибки VK `6`/`9` как `rate_limited`, а
+  ошибки авторизации и доступа как неретраемые `auth_failed`/`access_denied`.
+- Оба publisher-а используются через `BasePlatformAdapter`, поэтому шифрование
+  токенов, tenant isolation, retry policy, события и audit остаются едиными для
+  всех площадок.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/messenger-adapter.md)

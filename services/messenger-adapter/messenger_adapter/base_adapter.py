@@ -81,13 +81,17 @@ class PlatformPublicationError(RuntimeError):
         retryable: bool = True,
         attempt_count: int = 0,
         audit_hash: str | None = None,
+        retry_after_seconds: float | None = None,
     ) -> None:
         super().__init__(message)
+        if retry_after_seconds is not None and retry_after_seconds < 0:
+            raise ValueError("retry_after_seconds не может быть отрицательным")
         self.platform = platform
         self.error_code = error_code
         self.retryable = retryable
         self.attempt_count = attempt_count
         self.audit_hash = audit_hash
+        self.retry_after_seconds = retry_after_seconds
 
     def with_context(
         self,
@@ -489,7 +493,10 @@ class BasePlatformAdapter:
                         audit_hash=failure_audit_hash,
                     ) from error
 
-                delay = self.retry_policy.delay_after(attempt)
+                delay = max(
+                    self.retry_policy.delay_after(attempt),
+                    publication_error.retry_after_seconds or 0,
+                )
                 self.logger.warning(
                     "Сбой публикации, будет повтор по retry policy",
                     extra={
@@ -499,6 +506,7 @@ class BasePlatformAdapter:
                         "error_code": publication_error.error_code,
                         "attempt": attempt,
                         "delay_seconds": delay,
+                        "retry_after_seconds": publication_error.retry_after_seconds,
                         "correlation_id": request.correlation_id,
                     },
                 )
