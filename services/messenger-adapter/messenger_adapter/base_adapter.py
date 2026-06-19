@@ -28,6 +28,7 @@ from libs.shared.models import (
     TenantId,
 )
 from libs.shared.tenant import TenantIsolationError
+from messenger_adapter.content_transformer import TransformedContent
 
 MESSENGER_ADAPTER_SOURCE = "messenger-adapter"
 MESSENGER_ADAPTER_SCHEMA_VERSION = "1.0"
@@ -244,6 +245,17 @@ class PlatformTokenRepository(Protocol):
         """Decrypt a token only for the tenant that owns it."""
 
 
+class ContentTransformer(Protocol):
+    def transform(
+        self,
+        *,
+        platform: str,
+        content: str,
+        metadata: dict[str, JSONValue],
+    ) -> TransformedContent:
+        """Adapt content and metadata to platform limits before publication."""
+
+
 class PlatformTokenCipher:
     def __init__(self, encryption_key: str | bytes) -> None:
         self._key = _decode_aes256_key(encryption_key)
@@ -430,6 +442,7 @@ class BasePlatformAdapter:
     audit_logger: AuditLogger = field(default_factory=AuditLogger)
     sleeper: DelaySleeper = _default_sleep
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger(__name__))
+    content_transformer: ContentTransformer | None = None
 
     def __post_init__(self) -> None:
         self.platform = _normalize_platform(self.platform)
@@ -451,15 +464,16 @@ class BasePlatformAdapter:
                 retryable=False,
             )
 
+        publication_request = self._transform_request(request)
         requested_at = _normalize_datetime(now or datetime.now(UTC))
         token_record = self.token_store.require_token(
-            tenant_id=request.tenant_id,
-            platform=request.platform,
+            tenant_id=publication_request.tenant_id,
+            platform=publication_request.platform,
             token_id=token_id,
         )
         access_token = self.token_store.decrypt_token(
             token_record,
-            tenant_id=request.tenant_id,
+            tenant_id=publication_request.tenant_id,
         )
 
         last_error: PlatformPublicationError | None = None
@@ -467,7 +481,7 @@ class BasePlatformAdapter:
             try:
                 platform_result = await self.publisher.publish(
                     PlatformPublishCommand(
-                        **request.model_dump(mode="python"),
+                        **publication_request.model_dump(mode="python"),
                         access_token=access_token,
                         attempt=attempt,
                         requested_at=requested_at,
@@ -484,7 +498,7 @@ class BasePlatformAdapter:
                     or not self.retry_policy.should_retry_after(attempt)
                 ):
                     failure_audit_hash = await self._record_failure(
-                        request=request,
+                        request=publication_request,
                         error=publication_error,
                         failure_event_id=failure_event_id,
                     )
@@ -500,21 +514,21 @@ class BasePlatformAdapter:
                 self.logger.warning(
                     "Сбой публикации, будет повтор по retry policy",
                     extra={
-                        "tenant_id": request.tenant_id,
-                        "publication_id": request.publication_id,
-                        "platform": request.platform,
+                        "tenant_id": publication_request.tenant_id,
+                        "publication_id": publication_request.publication_id,
+                        "platform": publication_request.platform,
                         "error_code": publication_error.error_code,
                         "attempt": attempt,
                         "delay_seconds": delay,
                         "retry_after_seconds": publication_error.retry_after_seconds,
-                        "correlation_id": request.correlation_id,
+                        "correlation_id": publication_request.correlation_id,
                     },
                 )
                 await self._sleep(delay)
                 continue
 
             return await self._record_success(
-                request=request,
+                request=publication_request,
                 platform_result=platform_result,
                 attempt_count=attempt,
                 event_id=event_id,
@@ -528,6 +542,20 @@ class BasePlatformAdapter:
             error_code="publication_not_attempted",
             retryable=False,
         )
+
+    def _transform_request(self, request: PublicationRequest) -> PublicationRequest:
+        if self.content_transformer is None:
+            return request
+
+        transformed = self.content_transformer.transform(
+            platform=request.platform,
+            content=request.content,
+            metadata=request.metadata,
+        )
+        data = request.model_dump(mode="python")
+        data["content"] = transformed.content
+        data["metadata"] = transformed.metadata
+        return PublicationRequest(**data)
 
     async def _sleep(self, delay_seconds: float) -> None:
         sleep_result = self.sleeper(delay_seconds)
