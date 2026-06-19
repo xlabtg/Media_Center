@@ -123,6 +123,8 @@ jobs:
             path: services/messenger-adapter
           - service: blockchain-auditor
             path: services/blockchain-auditor
+          - service: voice-to-chain
+            path: services/voice-to-chain
 
     steps:
       - name: Checkout
