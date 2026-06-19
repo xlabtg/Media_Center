@@ -15,6 +15,7 @@ tenant middleware, DB settings и структурой миграций.
 | [hitl-payout-gateway](hitl-payout-gateway/) | Выплаты под контролем человека: вето, 2FA, коннекторы. |
 | [activity-command-center](activity-command-center/) | Пороги Совета, очереди задач и контуры обратной связи. |
 | [analytics-engine](analytics-engine/) | KPI пилота и агрегаты активности, контента, вовлечённости и действий. |
+| [policy-manager](policy-manager/) | Централизованные политики, пороги Совета и применение актуальных правил. |
 | [messenger-adapter](messenger-adapter/) | Публикация и трансформация контента для площадок. |
 | [notification-gateway](notification-gateway/) | Уведомления участников и Совета по событиям, каналам и шаблонам. |
 | [blockchain-auditor](blockchain-auditor/) | Неизменяемый аудит SHA256-хэшей и метаданных. |
