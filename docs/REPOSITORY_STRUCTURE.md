@@ -28,6 +28,7 @@
 | `services/messenger-adapter/` | Единый интерфейс публикации на площадках и реестр площадок | [docs/modules/messenger-adapter.md](modules/messenger-adapter.md) |
 | `services/blockchain-auditor/` | Запись и проверка SHA256-хэшей в приватной audit-chain | [docs/modules/blockchain-auditor.md](modules/blockchain-auditor.md) |
 | `services/voice-to-chain/` | Локальная транскрипция голоса, hash-only фиксация transcript и TTL-удаление исходного аудио | [docs/modules/voice-to-chain.md](modules/voice-to-chain.md) |
+| `services/wallet/` | Внутренний учёт МСЦ, балансов и операций участника | [docs/modules/wallet.md](modules/wallet.md) |
 
 ## Правила размещения кода
 

@@ -38,6 +38,28 @@ CREATE TABLE IF NOT EXISTS nmc_dev.audit_hashes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS nmc_dev.wallet_operations (
+    operation_id TEXT PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES nmc_dev.tenants (tenant_id),
+    participant_id UUID NOT NULL REFERENCES nmc_dev.participants (participant_id),
+    amount_mcv NUMERIC(14, 2) NOT NULL CHECK (amount_mcv <> 0),
+    balance_after_mcv NUMERIC(14, 2) NOT NULL,
+    type TEXT NOT NULL,
+    ref_type TEXT NOT NULL,
+    ref_id TEXT NOT NULL,
+    period TEXT,
+    distribution_hash CHAR(64),
+    payout_share NUMERIC(12, 10) CHECK (
+        payout_share IS NULL OR (payout_share >= 0 AND payout_share <= 1)
+    ),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    audit_hash CHAR(64) NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, idempotency_key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nmc_dev_participants_tenant
     ON nmc_dev.participants (tenant_id);
 
@@ -46,3 +68,9 @@ CREATE INDEX IF NOT EXISTS idx_nmc_dev_contribution_events_tenant
 
 CREATE INDEX IF NOT EXISTS idx_nmc_dev_audit_hashes_tenant
     ON nmc_dev.audit_hashes (tenant_id, entity_type);
+
+CREATE INDEX IF NOT EXISTS idx_nmc_dev_wallet_operations_tenant_member
+    ON nmc_dev.wallet_operations (tenant_id, participant_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_nmc_dev_wallet_operations_tenant_ref
+    ON nmc_dev.wallet_operations (tenant_id, ref_type, ref_id);

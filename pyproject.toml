@@ -60,6 +60,7 @@ mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/messenger-adapter",
   "$MYPY_CONFIG_FILE_DIR/services/neuro-agent-orchestrator",
   "$MYPY_CONFIG_FILE_DIR/services/voice-to-chain",
+  "$MYPY_CONFIG_FILE_DIR/services/wallet",
 ]
 exclude = [
   "^experiments/",
@@ -79,6 +80,7 @@ pythonpath = [
   "services/messenger-adapter",
   "services/neuro-agent-orchestrator",
   "services/voice-to-chain",
+  "services/wallet",
 ]
 addopts = [
   "--strict-config",

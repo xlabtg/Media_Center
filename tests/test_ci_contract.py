@@ -10,6 +10,7 @@ EXPECTED_SERVICES = (
     "messenger-adapter",
     "blockchain-auditor",
     "voice-to-chain",
+    "wallet",
 )
 
 

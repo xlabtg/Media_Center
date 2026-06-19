@@ -148,7 +148,12 @@ def test_repository_denies_cross_tenant_records_with_audit_event() -> None:
 
 
 def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
-    from libs.shared import Contribution, PayoutDistribution, TenantWeight
+    from libs.shared import (
+        Contribution,
+        PayoutDistribution,
+        TenantWeight,
+        WalletOperation,
+    )
 
     context = TenantContext(
         tenant_id="tenant-a",
@@ -168,6 +173,10 @@ def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
         PayoutDistribution,
         resource_type="payout_distributions",
     )
+    wallet_repository = TenantScopedSQLAlchemyRepository(
+        WalletOperation,
+        resource_type="wallet_operations",
+    )
 
     contribution_sql = str(
         contribution_repository.statement_for_tenant(context).compile(
@@ -184,10 +193,16 @@ def test_contribution_ledger_models_build_tenant_scoped_queries() -> None:
             compile_kwargs={"literal_binds": True}
         )
     )
+    wallet_sql = str(
+        wallet_repository.statement_for_tenant(context).compile(
+            compile_kwargs={"literal_binds": True}
+        )
+    )
 
     assert "contributions.tenant_id = 'tenant-a'" in contribution_sql
     assert "tenant_weights.tenant_id = 'tenant-a'" in weight_sql
     assert "payout_distributions.tenant_id = 'tenant-a'" in payout_sql
+    assert "wallet_operations.tenant_id = 'tenant-a'" in wallet_sql
 
 
 def test_tenant_foundation_migration_upgrades_and_downgrades() -> None:
@@ -430,6 +445,105 @@ def test_payout_distribution_migration_upgrades_and_downgrades() -> None:
             assert "tenant_weights" in downgraded_tables
             assert "tenants" in downgraded_tables
         finally:
+            payout_module.op = original_payout_op
+            ledger_module.op = original_ledger_op
+            foundation_module.op = original_foundation_op
+
+
+def test_wallet_operations_migration_upgrades_and_downgrades() -> None:
+    foundation_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.tenant_foundation_0001"),
+    )
+    ledger_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.contribution_ledger_0002"),
+    )
+    payout_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.payout_distributions_0003"),
+    )
+    wallet_module = cast(
+        _MigrationModule,
+        importlib.import_module("infra.db.alembic.versions.wallet_operations_0004"),
+    )
+    engine = create_engine("sqlite:///:memory:")
+
+    with engine.begin() as connection:
+        context = MigrationContext.configure(connection)
+        operations = Operations(context)
+        original_foundation_op = foundation_module.op
+        original_ledger_op = ledger_module.op
+        original_payout_op = payout_module.op
+        original_wallet_op = wallet_module.op
+        foundation_module.op = operations
+        ledger_module.op = operations
+        payout_module.op = operations
+        wallet_module.op = operations
+        try:
+            foundation_module.upgrade()
+            ledger_module.upgrade()
+            payout_module.upgrade()
+            wallet_module.upgrade()
+            inspector = inspect(connection)
+            upgraded_tables = set(inspector.get_table_names())
+            assert "wallet_operations" in upgraded_tables
+
+            wallet_columns = {
+                column["name"]: column
+                for column in inspector.get_columns("wallet_operations")
+            }
+            assert {
+                "id",
+                "tenant_id",
+                "member_id",
+                "amount_mcv",
+                "balance_after_mcv",
+                "type",
+                "ref_type",
+                "ref_id",
+                "period",
+                "distribution_hash",
+                "payout_share",
+                "metadata",
+                "audit_hash",
+                "idempotency_key",
+                "created_by",
+                "created_at",
+            }.issubset(wallet_columns)
+            assert wallet_columns["tenant_id"]["nullable"] is False
+
+            wallet_indexes = {
+                index["name"] for index in inspector.get_indexes("wallet_operations")
+            }
+            assert {
+                "idx_wallet_operations_tenant_member_created",
+                "idx_wallet_operations_tenant_ref",
+                "idx_wallet_operations_audit_hash",
+            }.issubset(wallet_indexes)
+
+            wallet_uniques = {
+                constraint["name"]
+                for constraint in inspector.get_unique_constraints("wallet_operations")
+            }
+            assert "uq_wallet_operations_tenant_idempotency" in wallet_uniques
+
+            wallet_checks = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints("wallet_operations")
+            }
+            assert "ck_wallet_operations_amount_mcv_non_zero" in wallet_checks
+            assert "ck_wallet_operations_payout_share_range" in wallet_checks
+
+            wallet_module.downgrade()
+            downgraded_tables = set(inspect(connection).get_table_names())
+            assert "wallet_operations" not in downgraded_tables
+            assert "payout_distributions" in downgraded_tables
+            assert "contributions" in downgraded_tables
+            assert "tenant_weights" in downgraded_tables
+            assert "tenants" in downgraded_tables
+        finally:
+            wallet_module.op = original_wallet_op
             payout_module.op = original_payout_op
             ledger_module.op = original_ledger_op
             foundation_module.op = original_foundation_op
