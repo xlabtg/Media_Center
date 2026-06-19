@@ -45,11 +45,13 @@ from .orchestrator import (
     AgentTaskType,
     AudienceSource,
     AutoReplyRequest,
+    ContentHygieneRequest,
     CouncilThresholds,
     InMemoryNeuroAgentRepository,
     NeuroAgentOrchestrator,
     NeuroAgentOrchestratorError,
     PdnScopeViolationError,
+    PublicationOptimizationRequest,
     ThresholdUpdateInput,
 )
 
@@ -102,6 +104,12 @@ class UpdateThresholdsRequest(SharedBaseModel):
         allow_inf_nan=False,
     )
     max_autonomous_recipients: int | None = Field(default=None, ge=1, le=10_000)
+    min_content_quality_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        allow_inf_nan=False,
+    )
     allowed_template_keys: tuple[str, ...] | None = None
     updated_at: datetime | None = None
     event_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -114,6 +122,8 @@ class RunAgentRequest(SharedBaseModel):
     task_type: AgentTaskType
     audience_sources: tuple[AudienceSource, ...] = Field(default_factory=tuple)
     auto_reply: AutoReplyRequest | None = None
+    content_hygiene: ContentHygieneRequest | None = None
+    publication_optimization: PublicationOptimizationRequest | None = None
     created_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -128,6 +138,18 @@ class RunAgentRequest(SharedBaseModel):
             and self.auto_reply is None
         ):
             raise ValueError("auto_reply обязателен для engagement_auto_reply")
+        if (
+            self.task_type is AgentTaskType.CONTENT_HYGIENE
+            and self.content_hygiene is None
+        ):
+            raise ValueError("content_hygiene обязателен для content_hygiene")
+        if (
+            self.task_type is AgentTaskType.PUBLICATION_OPTIMIZATION
+            and self.publication_optimization is None
+        ):
+            raise ValueError(
+                "publication_optimization обязателен для publication_optimization"
+            )
 
         return self
 
@@ -212,6 +234,8 @@ async def run_agent(
             task_type=payload.task_type,
             audience_sources=payload.audience_sources,
             auto_reply=payload.auto_reply,
+            content_hygiene=payload.content_hygiene,
+            publication_optimization=payload.publication_optimization,
             created_at=payload.created_at,
         ),
     )
@@ -268,6 +292,7 @@ async def update_thresholds(
             max_autonomous_risk_score=payload.max_autonomous_risk_score,
             min_agent_confidence=payload.min_agent_confidence,
             max_autonomous_recipients=payload.max_autonomous_recipients,
+            min_content_quality_score=payload.min_content_quality_score,
             allowed_template_keys=payload.allowed_template_keys,
             metadata=payload.metadata,
         ),

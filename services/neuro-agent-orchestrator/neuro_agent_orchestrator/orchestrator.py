@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -27,16 +28,33 @@ THRESHOLDS_UPDATED_EVENT = "neuro_agent.thresholds.updated"
 AUDIENCE_PROFILE_CREATED_EVENT = "neuro_agent.audience_profile.created"
 AUTO_REPLY_SENT_EVENT = "neuro_agent.auto_reply.sent"
 AUTO_REPLY_ESCALATED_EVENT = "neuro_agent.auto_reply.escalated"
+CONTENT_HYGIENE_PASSED_EVENT = "neuro_agent.content_hygiene.passed"
+CONTENT_HYGIENE_FLAGGED_EVENT = "neuro_agent.content_hygiene.flagged"
+PUBLICATION_ANALYTICS_CREATED_EVENT = "neuro_agent.publication_analytics.created"
 
 DEFAULT_MAX_AUTONOMOUS_RISK_SCORE = 0.45
 DEFAULT_MIN_AGENT_CONFIDENCE = 0.75
 DEFAULT_MAX_AUTONOMOUS_RECIPIENTS = 5
+DEFAULT_MIN_CONTENT_QUALITY_SCORE = 0.7
 DEFAULT_ALLOWED_TEMPLATE_KEYS = ("welcome", "faq_basic", "participation_rules")
 DEFAULT_THRESHOLD_AUDIT_HASH = "0" * 64
 
 _TEMPLATE_KEY_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
 _PLATFORM_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 _BLOCKED_META_PLATFORMS = frozenset({"facebook", "instagram"})
+_UNSAFE_CONTENT_KEYWORDS = frozenset(
+    {
+        "18+",
+        "казино",
+        "наркот",
+        "мошен",
+        "насили",
+        "экстрем",
+        "ставк",
+    }
+)
+_WORD_RE = re.compile(r"[\wА-Яа-яЁё]+", flags=re.UNICODE)
+_REPEATED_PUNCTUATION_RE = re.compile(r"[!?]{3,}")
 
 
 class NeuroAgentOrchestratorError(RuntimeError):
@@ -58,6 +76,8 @@ class PdnScopeViolationError(NeuroAgentOrchestratorError):
 class AgentTaskType(StrEnum):
     AUDIENCE_ANALYSIS = "audience_analysis"
     ENGAGEMENT_AUTO_REPLY = "engagement_auto_reply"
+    CONTENT_HYGIENE = "content_hygiene"
+    PUBLICATION_OPTIMIZATION = "publication_optimization"
 
 
 class AgentRunStatus(StrEnum):
@@ -93,6 +113,16 @@ class LegalBasis(StrEnum):
 
 class AutoReplyStatus(StrEnum):
     SENT = "sent"
+    NEEDS_COUNCIL_REVIEW = "needs_council_review"
+
+
+class ContentHygieneStatus(StrEnum):
+    PASSED = "passed"
+    FLAGGED = "flagged"
+
+
+class OptimizationRecommendationStatus(StrEnum):
+    PROPOSED = "proposed"
     NEEDS_COUNCIL_REVIEW = "needs_council_review"
 
 
@@ -224,6 +254,160 @@ class AutoReplyDecision(SharedBaseModel):
         return normalize_datetime(value)
 
 
+class ContentHygieneRequest(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    content_id: IdempotencyKey
+    platform: str = Field(pattern=_PLATFORM_PATTERN)
+    content_text: str = Field(min_length=1, max_length=20_000)
+    author_ref: str | None = Field(default=None, min_length=1, max_length=256)
+    created_at: datetime | None = None
+    context: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+
+class ContentHygieneAssessment(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    content_id: IdempotencyKey
+    platform: str
+    content_hash: str
+    author_ref_hash: str | None = None
+    status: ContentHygieneStatus
+    quality_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    safety_risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    flags: tuple[str, ...] = Field(default_factory=tuple)
+    policy_reasons: tuple[str, ...] = Field(default_factory=tuple)
+    evidence_hash: AuditHash
+    assessed_at: datetime
+
+    @field_validator("assessed_at")
+    @classmethod
+    def _normalize_assessed_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
+class PublicationMetrics(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    impressions: int = Field(default=0, ge=0)
+    reach: int = Field(default=0, ge=0)
+    clicks: int = Field(default=0, ge=0)
+    reactions: int = Field(default=0, ge=0)
+    comments: int = Field(default=0, ge=0)
+    shares: int = Field(default=0, ge=0)
+    conversions: int = Field(default=0, ge=0)
+
+    def engagement_count(self) -> int:
+        return self.reactions + self.comments + self.shares
+
+    def engagement_base(self) -> int:
+        return self.reach if self.reach > 0 else self.impressions
+
+
+class PublicationOptimizationRequest(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    publication_id: IdempotencyKey
+    platform: str = Field(pattern=_PLATFORM_PATTERN)
+    published_at: datetime
+    metrics: PublicationMetrics
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    agent_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    recommendation_risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    created_at: datetime | None = None
+
+    @field_validator("published_at")
+    @classmethod
+    def _normalize_published_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+    @field_validator("topic_tags")
+    @classmethod
+    def _validate_topic_tags(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return normalize_token_tuple(value)
+
+
+class OptimizationRecommendation(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    recommendation_id: IdempotencyKey
+    action: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    rationale_code: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    expected_metric: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    status: OptimizationRecommendationStatus
+    auto_applied: bool = False
+    requires_human_approval: bool = True
+    policy_reasons: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class PublicationAnalyticsReport(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    publication_id: IdempotencyKey
+    platform: str
+    published_at: datetime
+    impressions: int = Field(ge=0)
+    reach: int = Field(ge=0)
+    engagement_rate: float = Field(ge=0, allow_inf_nan=False)
+    click_through_rate: float = Field(ge=0, allow_inf_nan=False)
+    conversion_rate: float = Field(ge=0, allow_inf_nan=False)
+    share_rate: float = Field(ge=0, allow_inf_nan=False)
+    performance_band: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    recommendations: tuple[OptimizationRecommendation, ...] = Field(
+        default_factory=tuple
+    )
+    evidence_hash: AuditHash
+    created_at: datetime
+
+    @field_validator("published_at", "created_at")
+    @classmethod
+    def _normalize_datetime_field(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
 class CouncilThresholds(SharedBaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -236,6 +420,7 @@ class CouncilThresholds(SharedBaseModel):
     max_autonomous_risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
     min_agent_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
     max_autonomous_recipients: int = Field(ge=1, le=10_000)
+    min_content_quality_score: float = Field(ge=0, le=1, allow_inf_nan=False)
     allowed_template_keys: tuple[str, ...] = Field(default_factory=tuple)
     updated_by: SubjectId | None = None
     updated_at: datetime
@@ -275,6 +460,8 @@ class AgentRun(SharedBaseModel):
     policy_reasons: tuple[str, ...] = Field(default_factory=tuple)
     audience_profile: AudienceProfile | None = None
     auto_reply: AutoReplyDecision | None = None
+    content_hygiene: ContentHygieneAssessment | None = None
+    publication_analytics: PublicationAnalyticsReport | None = None
     audit_hash: AuditHash
     created_by: SubjectId
     created_at: datetime
@@ -295,6 +482,7 @@ class ThresholdUpdateInput:
     max_autonomous_risk_score: float | None = None
     min_agent_confidence: float | None = None
     max_autonomous_recipients: int | None = None
+    min_content_quality_score: float | None = None
     allowed_template_keys: tuple[str, ...] | None = None
     metadata: Mapping[str, JSONValue] | None = None
 
@@ -306,6 +494,8 @@ class AgentRunInput:
     event_id: str | None = None
     audience_sources: tuple[AudienceSource, ...] = ()
     auto_reply: AutoReplyRequest | None = None
+    content_hygiene: ContentHygieneRequest | None = None
+    publication_optimization: PublicationOptimizationRequest | None = None
     created_at: datetime | str | None = None
 
 
@@ -325,6 +515,7 @@ class InMemoryNeuroAgentRepository:
             max_autonomous_risk_score=DEFAULT_MAX_AUTONOMOUS_RISK_SCORE,
             min_agent_confidence=DEFAULT_MIN_AGENT_CONFIDENCE,
             max_autonomous_recipients=DEFAULT_MAX_AUTONOMOUS_RECIPIENTS,
+            min_content_quality_score=DEFAULT_MIN_CONTENT_QUALITY_SCORE,
             allowed_template_keys=DEFAULT_ALLOWED_TEMPLATE_KEYS,
             updated_at=datetime(1970, 1, 1, tzinfo=UTC),
             metadata={"source": "default"},
@@ -403,6 +594,10 @@ class NeuroAgentOrchestrator:
                 update.max_autonomous_recipients,
                 existing.max_autonomous_recipients,
             ),
+            min_content_quality_score=_coalesce(
+                update.min_content_quality_score,
+                existing.min_content_quality_score,
+            ),
             allowed_template_keys=allowed_template_keys,
             updated_by=updated_by,
             updated_at=changed_at,
@@ -416,6 +611,7 @@ class NeuroAgentOrchestrator:
                 "max_autonomous_risk_score": thresholds.max_autonomous_risk_score,
                 "min_agent_confidence": thresholds.min_agent_confidence,
                 "max_autonomous_recipients": thresholds.max_autonomous_recipients,
+                "min_content_quality_score": thresholds.min_content_quality_score,
                 "allowed_template_keys": list(thresholds.allowed_template_keys),
                 "metadata": thresholds.metadata,
             },
@@ -444,6 +640,7 @@ class NeuroAgentOrchestrator:
                     "max_autonomous_risk_score": (thresholds.max_autonomous_risk_score),
                     "min_agent_confidence": thresholds.min_agent_confidence,
                     "max_autonomous_recipients": (thresholds.max_autonomous_recipients),
+                    "min_content_quality_score": (thresholds.min_content_quality_score),
                 },
             )
         )
@@ -482,6 +679,34 @@ class NeuroAgentOrchestrator:
                 run_id=resolved_run_id,
                 event_id=run.event_id,
                 request=run.auto_reply,
+                thresholds=thresholds,
+                created_at=created_at,
+            )
+        elif run.task_type is AgentTaskType.CONTENT_HYGIENE:
+            if run.content_hygiene is None:
+                raise ValueError("content_hygiene обязателен для content_hygiene")
+            created_run = await self._run_content_hygiene(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                run_id=resolved_run_id,
+                event_id=run.event_id,
+                request=run.content_hygiene,
+                thresholds=thresholds,
+                created_at=created_at,
+            )
+        elif run.task_type is AgentTaskType.PUBLICATION_OPTIMIZATION:
+            if run.publication_optimization is None:
+                raise ValueError(
+                    "publication_optimization обязателен для publication_optimization"
+                )
+            created_run = await self._run_publication_optimization(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                run_id=resolved_run_id,
+                event_id=run.event_id,
+                request=run.publication_optimization,
                 thresholds=thresholds,
                 created_at=created_at,
             )
@@ -685,6 +910,194 @@ class NeuroAgentOrchestrator:
         )
         return agent_run
 
+    async def _run_content_hygiene(
+        self,
+        *,
+        tenant_id: str,
+        created_by: str,
+        correlation_id: str,
+        run_id: str,
+        event_id: str | None,
+        request: ContentHygieneRequest,
+        thresholds: CouncilThresholds,
+        created_at: datetime,
+    ) -> AgentRun:
+        assessed_at = normalize_datetime(request.created_at or created_at)
+        assessment = assess_content_hygiene(
+            tenant_id=tenant_id,
+            request=request,
+            thresholds=thresholds,
+            assessed_at=assessed_at,
+        )
+        policy_decision = (
+            PolicyDecision.ESCALATE
+            if assessment.policy_reasons
+            else PolicyDecision.ALLOW
+        )
+        run_status = (
+            AgentRunStatus.NEEDS_COUNCIL_REVIEW
+            if policy_decision is PolicyDecision.ESCALATE
+            else AgentRunStatus.COMPLETED
+        )
+        event_type = (
+            CONTENT_HYGIENE_FLAGGED_EVENT
+            if assessment.status is ContentHygieneStatus.FLAGGED
+            else CONTENT_HYGIENE_PASSED_EVENT
+        )
+        audit_record = self.audit_logger.record(
+            event_type=event_type,
+            tenant_id=tenant_id,
+            metadata={
+                "run_id": run_id,
+                "content_id": request.content_id,
+                "platform": request.platform,
+                "content_hash": assessment.content_hash,
+                "author_ref_hash": assessment.author_ref_hash,
+                "status": assessment.status.value,
+                "quality_score": assessment.quality_score,
+                "safety_risk_score": assessment.safety_risk_score,
+                "flags": list(assessment.flags),
+                "policy_decision": policy_decision.value,
+                "policy_revision": thresholds.revision,
+                "policy_reasons": list(assessment.policy_reasons),
+                "evidence_hash": assessment.evidence_hash,
+                "context_keys": ",".join(sorted(request.context)),
+            },
+            timestamp=assessment.assessed_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        agent_run = AgentRun(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            task_type=AgentTaskType.CONTENT_HYGIENE,
+            status=run_status,
+            policy_decision=policy_decision,
+            policy_revision=thresholds.revision,
+            policy_reasons=assessment.policy_reasons,
+            content_hygiene=assessment,
+            audit_hash=audit_record.audit_hash,
+            created_by=created_by,
+            created_at=assessment.assessed_at,
+            updated_at=assessment.assessed_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-content-hygiene"),
+                type=event_type,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=assessment.assessed_at,
+                payload={
+                    "run_id": agent_run.run_id,
+                    "content_id": request.content_id,
+                    "content_hash": assessment.content_hash,
+                    "status": assessment.status.value,
+                    "quality_score": assessment.quality_score,
+                    "safety_risk_score": assessment.safety_risk_score,
+                    "flags": list(assessment.flags),
+                    "policy_decision": policy_decision.value,
+                    "policy_revision": thresholds.revision,
+                    "policy_reasons": list(assessment.policy_reasons),
+                    "audit_hash": agent_run.audit_hash,
+                },
+            )
+        )
+        return agent_run
+
+    async def _run_publication_optimization(
+        self,
+        *,
+        tenant_id: str,
+        created_by: str,
+        correlation_id: str,
+        run_id: str,
+        event_id: str | None,
+        request: PublicationOptimizationRequest,
+        thresholds: CouncilThresholds,
+        created_at: datetime,
+    ) -> AgentRun:
+        reported_at = normalize_datetime(request.created_at or created_at)
+        report = build_publication_analytics_report(
+            tenant_id=tenant_id,
+            request=request,
+            thresholds=thresholds,
+            created_at=reported_at,
+        )
+        reasons = recommendation_policy_reasons(report.recommendations)
+        policy_decision = PolicyDecision.ESCALATE if reasons else PolicyDecision.ALLOW
+        run_status = (
+            AgentRunStatus.NEEDS_COUNCIL_REVIEW
+            if policy_decision is PolicyDecision.ESCALATE
+            else AgentRunStatus.COMPLETED
+        )
+        audit_record = self.audit_logger.record(
+            event_type=PUBLICATION_ANALYTICS_CREATED_EVENT,
+            tenant_id=tenant_id,
+            metadata={
+                "run_id": run_id,
+                "publication_id": request.publication_id,
+                "platform": request.platform,
+                "impressions": report.impressions,
+                "reach": report.reach,
+                "engagement_rate": report.engagement_rate,
+                "click_through_rate": report.click_through_rate,
+                "conversion_rate": report.conversion_rate,
+                "performance_band": report.performance_band,
+                "recommendation_count": len(report.recommendations),
+                "recommendation_actions": [
+                    recommendation.action for recommendation in report.recommendations
+                ],
+                "policy_decision": policy_decision.value,
+                "policy_revision": thresholds.revision,
+                "policy_reasons": list(reasons),
+                "evidence_hash": report.evidence_hash,
+            },
+            timestamp=report.created_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        agent_run = AgentRun(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            task_type=AgentTaskType.PUBLICATION_OPTIMIZATION,
+            status=run_status,
+            policy_decision=policy_decision,
+            policy_revision=thresholds.revision,
+            policy_reasons=reasons,
+            publication_analytics=report,
+            audit_hash=audit_record.audit_hash,
+            created_by=created_by,
+            created_at=report.created_at,
+            updated_at=report.created_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-publication-analytics"),
+                type=PUBLICATION_ANALYTICS_CREATED_EVENT,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=report.created_at,
+                payload={
+                    "run_id": agent_run.run_id,
+                    "publication_id": request.publication_id,
+                    "performance_band": report.performance_band,
+                    "recommendation_count": len(report.recommendations),
+                    "policy_decision": policy_decision.value,
+                    "policy_revision": thresholds.revision,
+                    "policy_reasons": list(reasons),
+                    "audit_hash": agent_run.audit_hash,
+                },
+            )
+        )
+        return agent_run
+
 
 def build_audience_profile(
     *,
@@ -731,6 +1144,281 @@ def build_audience_profile(
         personal_data_fields=(),
         evidence_hash=evidence_hash,
         created_at=created_at,
+    )
+
+
+def assess_content_hygiene(
+    *,
+    tenant_id: str,
+    request: ContentHygieneRequest,
+    thresholds: CouncilThresholds,
+    assessed_at: datetime,
+) -> ContentHygieneAssessment:
+    flags = content_hygiene_flags(request.content_text)
+    quality_score = content_quality_score(request.content_text)
+    safety_risk_score = content_safety_risk_score(flags)
+    reasons = content_hygiene_policy_reasons(
+        quality_score=quality_score,
+        safety_risk_score=safety_risk_score,
+        thresholds=thresholds,
+    )
+    content_hash = scoped_ref_hash(
+        tenant_id=tenant_id,
+        namespace="content",
+        value=request.content_text,
+    )
+    author_ref_hash = (
+        scoped_ref_hash(
+            tenant_id=tenant_id,
+            namespace="author",
+            value=request.author_ref,
+        )
+        if request.author_ref is not None
+        else None
+    )
+    evidence_hash = _hash_json(
+        {
+            "tenant_id": tenant_id,
+            "content_id": request.content_id,
+            "platform": request.platform,
+            "content_hash": content_hash,
+            "author_ref_hash": author_ref_hash,
+            "quality_score": quality_score,
+            "safety_risk_score": safety_risk_score,
+            "flags": list(flags),
+            "policy_reasons": list(reasons),
+        }
+    )
+    status = ContentHygieneStatus.FLAGGED if reasons else ContentHygieneStatus.PASSED
+    return ContentHygieneAssessment(
+        content_id=request.content_id,
+        platform=request.platform,
+        content_hash=content_hash,
+        author_ref_hash=author_ref_hash,
+        status=status,
+        quality_score=quality_score,
+        safety_risk_score=safety_risk_score,
+        flags=flags,
+        policy_reasons=reasons,
+        evidence_hash=evidence_hash,
+        assessed_at=assessed_at,
+    )
+
+
+def content_hygiene_flags(content_text: str) -> tuple[str, ...]:
+    normalized_text = content_text.strip()
+    lowered_text = normalized_text.lower()
+    words = _word_tokens(normalized_text)
+    flags: list[str] = []
+
+    if any(keyword in lowered_text for keyword in _UNSAFE_CONTENT_KEYWORDS):
+        flags.append("unsafe_keyword")
+    if len(words) < 8:
+        flags.append("too_short")
+    if _REPEATED_PUNCTUATION_RE.search(normalized_text):
+        flags.append("excessive_punctuation")
+    if uppercase_ratio(normalized_text) > 0.45:
+        flags.append("excessive_caps")
+    if len(words) >= 8 and unique_word_ratio(words) < 0.45:
+        flags.append("repetitive_text")
+
+    return tuple(dict.fromkeys(flags))
+
+
+def content_quality_score(content_text: str) -> float:
+    normalized_text = content_text.strip()
+    words = _word_tokens(normalized_text)
+    score = 1.0
+
+    if len(words) < 20:
+        score -= 0.3
+    if len(normalized_text) < 160:
+        score -= 0.2
+    if _REPEATED_PUNCTUATION_RE.search(normalized_text):
+        score -= 0.1
+    if uppercase_ratio(normalized_text) > 0.45:
+        score -= 0.1
+    if len(words) >= 8 and unique_word_ratio(words) < 0.45:
+        score -= 0.15
+
+    return round(min(1.0, max(0.0, score)), 4)
+
+
+def content_safety_risk_score(flags: tuple[str, ...]) -> float:
+    score = 0.05
+    if "unsafe_keyword" in flags:
+        score += 0.5
+    if "repetitive_text" in flags:
+        score += 0.2
+    if "excessive_caps" in flags:
+        score += 0.1
+    if "excessive_punctuation" in flags:
+        score += 0.1
+
+    return round(min(1.0, score), 4)
+
+
+def content_hygiene_policy_reasons(
+    *,
+    quality_score: float,
+    safety_risk_score: float,
+    thresholds: CouncilThresholds,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if safety_risk_score > thresholds.max_autonomous_risk_score:
+        reasons.append("content_safety_risk_above_threshold")
+    if quality_score < thresholds.min_content_quality_score:
+        reasons.append("content_quality_below_threshold")
+
+    return tuple(reasons)
+
+
+def build_publication_analytics_report(
+    *,
+    tenant_id: str,
+    request: PublicationOptimizationRequest,
+    thresholds: CouncilThresholds,
+    created_at: datetime,
+) -> PublicationAnalyticsReport:
+    metrics = request.metrics
+    engagement_rate = safe_rate(
+        metrics.engagement_count(),
+        metrics.engagement_base(),
+    )
+    click_through_rate = safe_rate(metrics.clicks, metrics.impressions)
+    conversion_rate = safe_rate(metrics.conversions, metrics.clicks)
+    share_rate = safe_rate(metrics.shares, metrics.engagement_base())
+    recommendations = build_optimization_recommendations(
+        publication_id=request.publication_id,
+        engagement_rate=engagement_rate,
+        click_through_rate=click_through_rate,
+        share_rate=share_rate,
+        agent_confidence=request.agent_confidence,
+        recommendation_risk_score=request.recommendation_risk_score,
+        thresholds=thresholds,
+    )
+    evidence_hash = _hash_json(
+        {
+            "tenant_id": tenant_id,
+            "publication_id": request.publication_id,
+            "platform": request.platform,
+            "published_at": format_datetime(request.published_at),
+            "metrics": metrics.model_dump(mode="json"),
+            "topic_tags": list(request.topic_tags),
+            "recommendations": [
+                recommendation.model_dump(mode="json")
+                for recommendation in recommendations
+            ],
+        }
+    )
+    return PublicationAnalyticsReport(
+        publication_id=request.publication_id,
+        platform=request.platform,
+        published_at=request.published_at,
+        impressions=metrics.impressions,
+        reach=metrics.reach,
+        engagement_rate=engagement_rate,
+        click_through_rate=click_through_rate,
+        conversion_rate=conversion_rate,
+        share_rate=share_rate,
+        performance_band=publication_performance_band(
+            engagement_rate=engagement_rate,
+            click_through_rate=click_through_rate,
+        ),
+        topic_tags=request.topic_tags,
+        recommendations=recommendations,
+        evidence_hash=evidence_hash,
+        created_at=created_at,
+    )
+
+
+def build_optimization_recommendations(
+    *,
+    publication_id: str,
+    engagement_rate: float,
+    click_through_rate: float,
+    share_rate: float,
+    agent_confidence: float,
+    recommendation_risk_score: float,
+    thresholds: CouncilThresholds,
+) -> tuple[OptimizationRecommendation, ...]:
+    candidates: list[tuple[str, str, str]] = []
+    if engagement_rate < 0.03:
+        candidates.append(
+            (
+                "rewrite_opening_hook",
+                "engagement_below_target",
+                "engagement_rate",
+            )
+        )
+    if click_through_rate < 0.01:
+        candidates.append(
+            (
+                "strengthen_call_to_action",
+                "ctr_below_target",
+                "click_through_rate",
+            )
+        )
+    if share_rate < 0.01:
+        candidates.append(
+            (
+                "test_publication_window",
+                "share_rate_below_target",
+                "share_rate",
+            )
+        )
+
+    policy_reasons = optimization_policy_reasons(
+        agent_confidence=agent_confidence,
+        recommendation_risk_score=recommendation_risk_score,
+        thresholds=thresholds,
+    )
+    status = (
+        OptimizationRecommendationStatus.NEEDS_COUNCIL_REVIEW
+        if policy_reasons
+        else OptimizationRecommendationStatus.PROPOSED
+    )
+    return tuple(
+        OptimizationRecommendation(
+            recommendation_id=f"{publication_id}-{action}",
+            action=action,
+            rationale_code=rationale_code,
+            expected_metric=expected_metric,
+            confidence=agent_confidence,
+            risk_score=recommendation_risk_score,
+            status=status,
+            auto_applied=False,
+            requires_human_approval=True,
+            policy_reasons=policy_reasons,
+        )
+        for action, rationale_code, expected_metric in candidates
+    )
+
+
+def optimization_policy_reasons(
+    *,
+    agent_confidence: float,
+    recommendation_risk_score: float,
+    thresholds: CouncilThresholds,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if recommendation_risk_score > thresholds.max_autonomous_risk_score:
+        reasons.append("risk_score_above_threshold")
+    if agent_confidence < thresholds.min_agent_confidence:
+        reasons.append("confidence_below_threshold")
+
+    return tuple(reasons)
+
+
+def recommendation_policy_reasons(
+    recommendations: tuple[OptimizationRecommendation, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            reason
+            for recommendation in recommendations
+            for reason in recommendation.policy_reasons
+        )
     )
 
 
@@ -795,8 +1483,65 @@ def render_auto_reply(*, template_key: str, context: Mapping[str, JSONValue]) ->
     )
 
 
+def normalize_token_tuple(value: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for item in value:
+        token = item.strip()
+        if token == "":
+            raise ValueError("Список не должен содержать пустые значения")
+        normalized.append(token)
+
+    return tuple(normalized)
+
+
+def safe_rate(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+
+    return round(numerator / denominator, 4)
+
+
+def publication_performance_band(
+    *,
+    engagement_rate: float,
+    click_through_rate: float,
+) -> str:
+    if engagement_rate >= 0.08 or click_through_rate >= 0.03:
+        return "high"
+    if engagement_rate >= 0.03 or click_through_rate >= 0.01:
+        return "medium"
+
+    return "low"
+
+
+def uppercase_ratio(value: str) -> float:
+    letters = [character for character in value if character.isalpha()]
+    if not letters:
+        return 0.0
+
+    uppercase_count = sum(1 for character in letters if character.isupper())
+    return uppercase_count / len(letters)
+
+
+def unique_word_ratio(words: tuple[str, ...]) -> float:
+    if not words:
+        return 1.0
+
+    return len(set(words)) / len(words)
+
+
+def _word_tokens(value: str) -> tuple[str, ...]:
+    return tuple(match.group(0).lower() for match in _WORD_RE.finditer(value))
+
+
+def scoped_ref_hash(*, tenant_id: str, namespace: str, value: str) -> str:
+    payload = f"{tenant_id}:{namespace}:{value}".encode()
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
 def subject_ref_hash(*, tenant_id: str, subject_id: str) -> str:
-    return "sha256:" + hashlib.sha256(f"{tenant_id}:{subject_id}".encode()).hexdigest()
+    payload = f"{tenant_id}:{subject_id}".encode()
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 def normalize_datetime(value: datetime | str) -> datetime:
