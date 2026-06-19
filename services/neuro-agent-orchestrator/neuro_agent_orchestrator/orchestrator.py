@@ -21,6 +21,13 @@ from libs.shared.models import (
     SubjectId,
     TenantId,
 )
+from libs.shared.tenant import TenantContext
+from libs.shared.vector import (
+    InMemoryTenantVectorStore,
+    TenantVectorStore,
+    VectorRecord,
+    VectorSearchResult,
+)
 
 NEURO_AGENT_SOURCE = "neuro-agent-orchestrator"
 NEURO_AGENT_SCHEMA_VERSION = "1.0"
@@ -31,6 +38,10 @@ AUTO_REPLY_ESCALATED_EVENT = "neuro_agent.auto_reply.escalated"
 CONTENT_HYGIENE_PASSED_EVENT = "neuro_agent.content_hygiene.passed"
 CONTENT_HYGIENE_FLAGGED_EVENT = "neuro_agent.content_hygiene.flagged"
 PUBLICATION_ANALYTICS_CREATED_EVENT = "neuro_agent.publication_analytics.created"
+RAG_DOCUMENTS_UPSERTED_EVENT = "neuro_agent.rag.documents.upserted"
+RAG_QUERY_COMPLETED_EVENT = "neuro_agent.rag.query.completed"
+DEEP_RESEARCH_DRAFT_CREATED_EVENT = "neuro_agent.deep_research.draft.created"
+CONTENT_AGENT_ACTION_PROPOSED_EVENT = "neuro_agent.content_agent.action_proposed"
 
 DEFAULT_MAX_AUTONOMOUS_RISK_SCORE = 0.45
 DEFAULT_MIN_AGENT_CONFIDENCE = 0.75
@@ -38,6 +49,8 @@ DEFAULT_MAX_AUTONOMOUS_RECIPIENTS = 5
 DEFAULT_MIN_CONTENT_QUALITY_SCORE = 0.7
 DEFAULT_ALLOWED_TEMPLATE_KEYS = ("welcome", "faq_basic", "participation_rules")
 DEFAULT_THRESHOLD_AUDIT_HASH = "0" * 64
+RAG_VECTOR_DOMAIN = "agentic_rag"
+RAG_EMBEDDING_DIMENSIONS = 32
 
 _TEMPLATE_KEY_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
 _PLATFORM_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
@@ -78,6 +91,9 @@ class AgentTaskType(StrEnum):
     ENGAGEMENT_AUTO_REPLY = "engagement_auto_reply"
     CONTENT_HYGIENE = "content_hygiene"
     PUBLICATION_OPTIMIZATION = "publication_optimization"
+    AGENTIC_RAG = "agentic_rag"
+    DEEP_RESEARCH = "deep_research"
+    CONTENT_AGENT_ACTION = "content_agent_action"
 
 
 class AgentRunStatus(StrEnum):
@@ -124,6 +140,14 @@ class ContentHygieneStatus(StrEnum):
 class OptimizationRecommendationStatus(StrEnum):
     PROPOSED = "proposed"
     NEEDS_COUNCIL_REVIEW = "needs_council_review"
+
+
+class DeepResearchDraftStatus(StrEnum):
+    DRAFTED = "drafted"
+
+
+class ContentAgentApprovalStatus(StrEnum):
+    AWAITING_HUMAN_APPROVAL = "awaiting_human_approval"
 
 
 class AudienceMetrics(SharedBaseModel):
@@ -408,6 +432,284 @@ class PublicationAnalyticsReport(SharedBaseModel):
         return normalize_datetime(value)
 
 
+class RagDocumentInput(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    document_id: IdempotencyKey
+    content: str = Field(min_length=1, max_length=40_000)
+    source_type: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    source_ref: str | None = Field(default=None, min_length=1, max_length=512)
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    created_at: datetime | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+    @field_validator("topic_tags")
+    @classmethod
+    def _validate_topic_tags(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return normalize_token_tuple(value)
+
+
+class RagDocumentReference(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    document_id: IdempotencyKey
+    source_type: str
+    source_ref_hash: str | None = None
+    content_hash: str
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
+class RagDocumentsUpsertResult(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    tenant_id: TenantId
+    upserted_count: int = Field(ge=1)
+    documents: tuple[RagDocumentReference, ...]
+    audit_hash: AuditHash
+    updated_at: datetime
+
+    @field_validator("updated_at")
+    @classmethod
+    def _normalize_updated_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
+class AgenticRagQueryRequest(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    query_id: IdempotencyKey
+    query_text: str = Field(min_length=1, max_length=4_000)
+    limit: int = Field(default=5, ge=1, le=10)
+    source_type: str | None = Field(default=None, pattern=_TEMPLATE_KEY_PATTERN)
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    created_at: datetime | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+    @field_validator("topic_tags")
+    @classmethod
+    def _validate_topic_tags(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return normalize_token_tuple(value)
+
+
+class AgenticRagContextItem(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    document_id: IdempotencyKey
+    source_type: str
+    source_ref_hash: str | None = None
+    content_hash: str
+    excerpt: str
+    distance: float = Field(ge=0, allow_inf_nan=False)
+    relevance_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class AgenticRagAnswer(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    query_id: IdempotencyKey
+    tenant_id: TenantId
+    query_hash: str
+    answer_text: str
+    context_items: tuple[AgenticRagContextItem, ...]
+    retrieval_count: int = Field(ge=0)
+    evidence_hash: AuditHash
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
+class DeepResearchRequest(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    research_id: IdempotencyKey
+    question: str = Field(min_length=1, max_length=4_000)
+    query_text: str | None = Field(default=None, min_length=1, max_length=4_000)
+    limit: int = Field(default=5, ge=1, le=10)
+    topic_tags: tuple[str, ...] = Field(default_factory=tuple)
+    created_at: datetime | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+    @field_validator("topic_tags")
+    @classmethod
+    def _validate_topic_tags(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return normalize_token_tuple(value)
+
+
+class DeepResearchCitation(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    document_id: IdempotencyKey
+    source_type: str
+    source_ref_hash: str | None = None
+    content_hash: str
+    excerpt: str
+
+
+class DeepResearchDraft(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    research_id: IdempotencyKey
+    question_hash: str
+    title: str
+    draft_text: str
+    outline: tuple[str, ...]
+    citations: tuple[DeepResearchCitation, ...]
+    citation_count: int = Field(ge=0)
+    draft_status: DeepResearchDraftStatus
+    requires_human_review: bool = True
+    evidence_hash: AuditHash
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
+class ContentAgentProposedActionInput(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    action_type: str = Field(pattern=_TEMPLATE_KEY_PATTERN)
+    target_ref: str = Field(min_length=1, max_length=512)
+    summary: str = Field(min_length=1, max_length=512)
+
+
+class ContentAgentActionRequest(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    action_id: IdempotencyKey
+    workspace_ref: str = Field(min_length=1, max_length=512)
+    goal: str = Field(min_length=1, max_length=2_000)
+    proposed_actions: tuple[ContentAgentProposedActionInput, ...] = Field(
+        min_length=1,
+        max_length=20,
+    )
+    risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    agent_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    created_at: datetime | None = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+
+        return normalize_datetime(value)
+
+
+class ContentAgentActionStep(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    action_type: str
+    target_ref_hash: str
+    summary: str
+
+
+class ContentAgentActionPlan(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    action_id: IdempotencyKey
+    workspace_ref_hash: str
+    goal: str
+    actions: tuple[ContentAgentActionStep, ...]
+    risk_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    agent_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    approval_status: ContentAgentApprovalStatus
+    requires_human_approval: bool = True
+    auto_executed: bool = False
+    policy_reasons: tuple[str, ...] = Field(default_factory=tuple)
+    evidence_hash: AuditHash
+    proposed_at: datetime
+
+    @field_validator("proposed_at")
+    @classmethod
+    def _normalize_proposed_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
 class CouncilThresholds(SharedBaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -462,6 +764,9 @@ class AgentRun(SharedBaseModel):
     auto_reply: AutoReplyDecision | None = None
     content_hygiene: ContentHygieneAssessment | None = None
     publication_analytics: PublicationAnalyticsReport | None = None
+    rag_answer: AgenticRagAnswer | None = None
+    deep_research_draft: DeepResearchDraft | None = None
+    content_agent_action: ContentAgentActionPlan | None = None
     audit_hash: AuditHash
     created_by: SubjectId
     created_at: datetime
@@ -496,6 +801,9 @@ class AgentRunInput:
     auto_reply: AutoReplyRequest | None = None
     content_hygiene: ContentHygieneRequest | None = None
     publication_optimization: PublicationOptimizationRequest | None = None
+    rag_query: AgenticRagQueryRequest | None = None
+    deep_research: DeepResearchRequest | None = None
+    content_agent_action: ContentAgentActionRequest | None = None
     created_at: datetime | str | None = None
 
 
@@ -561,6 +869,89 @@ class NeuroAgentOrchestrator:
         default_factory=InMemoryNeuroAgentRepository
     )
     audit_logger: AuditLogger = field(default_factory=AuditLogger)
+    vector_store: TenantVectorStore = field(default_factory=InMemoryTenantVectorStore)
+
+    async def upsert_rag_documents(
+        self,
+        *,
+        tenant_id: str,
+        updated_by: str,
+        correlation_id: str,
+        documents: tuple[RagDocumentInput, ...],
+        updated_at: datetime | str | None = None,
+        event_id: str | None = None,
+    ) -> RagDocumentsUpsertResult:
+        if len(documents) == 0:
+            raise ValueError("documents должен содержать хотя бы один документ")
+
+        changed_at = normalize_datetime(updated_at or datetime.now(UTC))
+        context = _tenant_context(
+            tenant_id=tenant_id,
+            subject=updated_by,
+            correlation_id=correlation_id,
+        )
+        references = tuple(
+            build_rag_document_reference(
+                tenant_id=tenant_id,
+                document=document,
+                created_at=normalize_datetime(document.created_at or changed_at),
+            )
+            for document in documents
+        )
+        records = tuple(
+            rag_document_vector_record(document=document, reference=reference)
+            for document, reference in zip(documents, references, strict=True)
+        )
+        await self.vector_store.upsert(
+            RAG_VECTOR_DOMAIN,
+            records,
+            context=context,
+        )
+        audit_record = self.audit_logger.record(
+            event_type=RAG_DOCUMENTS_UPSERTED_EVENT,
+            tenant_id=tenant_id,
+            metadata={
+                "document_ids": [reference.document_id for reference in references],
+                "source_types": [reference.source_type for reference in references],
+                "source_ref_hashes": [
+                    reference.source_ref_hash for reference in references
+                ],
+                "content_hashes": [reference.content_hash for reference in references],
+                "upserted_count": len(references),
+            },
+            timestamp=changed_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=updated_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        result = RagDocumentsUpsertResult(
+            tenant_id=tenant_id,
+            upserted_count=len(references),
+            documents=references,
+            audit_hash=audit_record.audit_hash,
+            updated_at=changed_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-rag-documents-upserted"),
+                type=RAG_DOCUMENTS_UPSERTED_EVENT,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=changed_at,
+                payload={
+                    "document_ids": [reference.document_id for reference in references],
+                    "source_types": [reference.source_type for reference in references],
+                    "content_hashes": [
+                        reference.content_hash for reference in references
+                    ],
+                    "upserted_count": result.upserted_count,
+                    "audit_hash": result.audit_hash,
+                },
+            )
+        )
+        return result
 
     async def update_thresholds(
         self,
@@ -707,6 +1098,47 @@ class NeuroAgentOrchestrator:
                 run_id=resolved_run_id,
                 event_id=run.event_id,
                 request=run.publication_optimization,
+                thresholds=thresholds,
+                created_at=created_at,
+            )
+        elif run.task_type is AgentTaskType.AGENTIC_RAG:
+            if run.rag_query is None:
+                raise ValueError("rag_query обязателен для agentic_rag")
+            created_run = await self._run_agentic_rag(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                run_id=resolved_run_id,
+                event_id=run.event_id,
+                request=run.rag_query,
+                thresholds=thresholds,
+                created_at=created_at,
+            )
+        elif run.task_type is AgentTaskType.DEEP_RESEARCH:
+            if run.deep_research is None:
+                raise ValueError("deep_research обязателен для deep_research")
+            created_run = await self._run_deep_research(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                run_id=resolved_run_id,
+                event_id=run.event_id,
+                request=run.deep_research,
+                thresholds=thresholds,
+                created_at=created_at,
+            )
+        elif run.task_type is AgentTaskType.CONTENT_AGENT_ACTION:
+            if run.content_agent_action is None:
+                raise ValueError(
+                    "content_agent_action обязателен для content_agent_action"
+                )
+            created_run = await self._run_content_agent_action(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                run_id=resolved_run_id,
+                event_id=run.event_id,
+                request=run.content_agent_action,
                 thresholds=thresholds,
                 created_at=created_at,
             )
@@ -1098,6 +1530,363 @@ class NeuroAgentOrchestrator:
         )
         return agent_run
 
+    async def _run_agentic_rag(
+        self,
+        *,
+        tenant_id: str,
+        created_by: str,
+        correlation_id: str,
+        run_id: str,
+        event_id: str | None,
+        request: AgenticRagQueryRequest,
+        thresholds: CouncilThresholds,
+        created_at: datetime,
+    ) -> AgentRun:
+        answered_at = normalize_datetime(request.created_at or created_at)
+        answer = await self._build_agentic_rag_answer(
+            tenant_id=tenant_id,
+            subject=created_by,
+            correlation_id=correlation_id,
+            request=request,
+            created_at=answered_at,
+        )
+        audit_record = self.audit_logger.record(
+            event_type=RAG_QUERY_COMPLETED_EVENT,
+            tenant_id=tenant_id,
+            metadata={
+                "run_id": run_id,
+                "query_id": request.query_id,
+                "query_hash": answer.query_hash,
+                "retrieval_count": answer.retrieval_count,
+                "document_ids": [item.document_id for item in answer.context_items],
+                "content_hashes": [item.content_hash for item in answer.context_items],
+                "policy_revision": thresholds.revision,
+                "evidence_hash": answer.evidence_hash,
+            },
+            timestamp=answered_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        agent_run = AgentRun(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            task_type=AgentTaskType.AGENTIC_RAG,
+            status=AgentRunStatus.COMPLETED,
+            policy_decision=PolicyDecision.ALLOW,
+            policy_revision=thresholds.revision,
+            rag_answer=answer,
+            audit_hash=audit_record.audit_hash,
+            created_by=created_by,
+            created_at=answered_at,
+            updated_at=answered_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-rag-query-completed"),
+                type=RAG_QUERY_COMPLETED_EVENT,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=answered_at,
+                payload={
+                    "run_id": agent_run.run_id,
+                    "query_id": request.query_id,
+                    "query_hash": answer.query_hash,
+                    "retrieval_count": answer.retrieval_count,
+                    "document_ids": [item.document_id for item in answer.context_items],
+                    "audit_hash": agent_run.audit_hash,
+                },
+            )
+        )
+        return agent_run
+
+    async def _run_deep_research(
+        self,
+        *,
+        tenant_id: str,
+        created_by: str,
+        correlation_id: str,
+        run_id: str,
+        event_id: str | None,
+        request: DeepResearchRequest,
+        thresholds: CouncilThresholds,
+        created_at: datetime,
+    ) -> AgentRun:
+        drafted_at = normalize_datetime(request.created_at or created_at)
+        draft = await self._build_deep_research_draft(
+            tenant_id=tenant_id,
+            subject=created_by,
+            correlation_id=correlation_id,
+            request=request,
+            created_at=drafted_at,
+        )
+        audit_record = self.audit_logger.record(
+            event_type=DEEP_RESEARCH_DRAFT_CREATED_EVENT,
+            tenant_id=tenant_id,
+            metadata={
+                "run_id": run_id,
+                "research_id": request.research_id,
+                "question_hash": draft.question_hash,
+                "citation_count": draft.citation_count,
+                "document_ids": [citation.document_id for citation in draft.citations],
+                "requires_human_review": draft.requires_human_review,
+                "policy_revision": thresholds.revision,
+                "evidence_hash": draft.evidence_hash,
+            },
+            timestamp=drafted_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        agent_run = AgentRun(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            task_type=AgentTaskType.DEEP_RESEARCH,
+            status=AgentRunStatus.COMPLETED,
+            policy_decision=PolicyDecision.ALLOW,
+            policy_revision=thresholds.revision,
+            deep_research_draft=draft,
+            audit_hash=audit_record.audit_hash,
+            created_by=created_by,
+            created_at=drafted_at,
+            updated_at=drafted_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-deep-research-draft-created"),
+                type=DEEP_RESEARCH_DRAFT_CREATED_EVENT,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=drafted_at,
+                payload={
+                    "run_id": agent_run.run_id,
+                    "research_id": request.research_id,
+                    "question_hash": draft.question_hash,
+                    "citation_count": draft.citation_count,
+                    "requires_human_review": draft.requires_human_review,
+                    "audit_hash": agent_run.audit_hash,
+                },
+            )
+        )
+        return agent_run
+
+    async def _run_content_agent_action(
+        self,
+        *,
+        tenant_id: str,
+        created_by: str,
+        correlation_id: str,
+        run_id: str,
+        event_id: str | None,
+        request: ContentAgentActionRequest,
+        thresholds: CouncilThresholds,
+        created_at: datetime,
+    ) -> AgentRun:
+        proposed_at = normalize_datetime(request.created_at or created_at)
+        reasons = content_agent_policy_reasons(
+            request=request,
+            thresholds=thresholds,
+        )
+        action_plan = build_content_agent_action_plan(
+            tenant_id=tenant_id,
+            request=request,
+            policy_reasons=reasons,
+            proposed_at=proposed_at,
+        )
+        audit_record = self.audit_logger.record(
+            event_type=CONTENT_AGENT_ACTION_PROPOSED_EVENT,
+            tenant_id=tenant_id,
+            metadata={
+                "run_id": run_id,
+                "action_id": request.action_id,
+                "workspace_ref_hash": action_plan.workspace_ref_hash,
+                "action_types": [action.action_type for action in action_plan.actions],
+                "target_ref_hashes": [
+                    action.target_ref_hash for action in action_plan.actions
+                ],
+                "approval_status": action_plan.approval_status.value,
+                "requires_human_approval": action_plan.requires_human_approval,
+                "auto_executed": action_plan.auto_executed,
+                "policy_decision": PolicyDecision.ESCALATE.value,
+                "policy_revision": thresholds.revision,
+                "policy_reasons": list(reasons),
+                "evidence_hash": action_plan.evidence_hash,
+            },
+            timestamp=proposed_at,
+            correlation_id=correlation_id,
+            actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
+            source=NEURO_AGENT_SOURCE,
+        )
+        agent_run = AgentRun(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            task_type=AgentTaskType.CONTENT_AGENT_ACTION,
+            status=AgentRunStatus.NEEDS_COUNCIL_REVIEW,
+            policy_decision=PolicyDecision.ESCALATE,
+            policy_revision=thresholds.revision,
+            policy_reasons=reasons,
+            content_agent_action=action_plan,
+            audit_hash=audit_record.audit_hash,
+            created_by=created_by,
+            created_at=proposed_at,
+            updated_at=proposed_at,
+        )
+        await self.publisher.publish(
+            EventEnvelope(
+                event_id=event_id or _new_id("evt-content-agent-action-proposed"),
+                type=CONTENT_AGENT_ACTION_PROPOSED_EVENT,
+                schema_version=NEURO_AGENT_SCHEMA_VERSION,
+                tenant_id=tenant_id,
+                source=NEURO_AGENT_SOURCE,
+                correlation_id=correlation_id,
+                occurred_at=proposed_at,
+                payload={
+                    "run_id": agent_run.run_id,
+                    "action_id": request.action_id,
+                    "workspace_ref_hash": action_plan.workspace_ref_hash,
+                    "approval_status": action_plan.approval_status.value,
+                    "requires_human_approval": action_plan.requires_human_approval,
+                    "auto_executed": action_plan.auto_executed,
+                    "policy_reasons": list(reasons),
+                    "audit_hash": agent_run.audit_hash,
+                },
+            )
+        )
+        return agent_run
+
+    async def _build_agentic_rag_answer(
+        self,
+        *,
+        tenant_id: str,
+        subject: str,
+        correlation_id: str,
+        request: AgenticRagQueryRequest,
+        created_at: datetime,
+    ) -> AgenticRagAnswer:
+        context_items = await self._retrieve_rag_context(
+            tenant_id=tenant_id,
+            subject=subject,
+            correlation_id=correlation_id,
+            query_text=request.query_text,
+            limit=request.limit,
+            source_type=request.source_type,
+        )
+        query_hash = scoped_ref_hash(
+            tenant_id=tenant_id,
+            namespace="rag_query",
+            value=request.query_text,
+        )
+        evidence_hash = _hash_json(
+            {
+                "tenant_id": tenant_id,
+                "query_id": request.query_id,
+                "query_hash": query_hash,
+                "document_ids": [item.document_id for item in context_items],
+                "content_hashes": [item.content_hash for item in context_items],
+            }
+        )
+        return AgenticRagAnswer(
+            query_id=request.query_id,
+            tenant_id=tenant_id,
+            query_hash=query_hash,
+            answer_text=render_rag_answer(
+                query_text=request.query_text,
+                context_items=context_items,
+            ),
+            context_items=context_items,
+            retrieval_count=len(context_items),
+            evidence_hash=evidence_hash,
+            created_at=created_at,
+        )
+
+    async def _build_deep_research_draft(
+        self,
+        *,
+        tenant_id: str,
+        subject: str,
+        correlation_id: str,
+        request: DeepResearchRequest,
+        created_at: datetime,
+    ) -> DeepResearchDraft:
+        query_text = request.query_text or request.question
+        context_items = await self._retrieve_rag_context(
+            tenant_id=tenant_id,
+            subject=subject,
+            correlation_id=correlation_id,
+            query_text=query_text,
+            limit=request.limit,
+            source_type=None,
+        )
+        citations = tuple(
+            DeepResearchCitation(
+                document_id=item.document_id,
+                source_type=item.source_type,
+                source_ref_hash=item.source_ref_hash,
+                content_hash=item.content_hash,
+                excerpt=item.excerpt,
+            )
+            for item in context_items
+        )
+        question_hash = scoped_ref_hash(
+            tenant_id=tenant_id,
+            namespace="deep_research_question",
+            value=request.question,
+        )
+        evidence_hash = _hash_json(
+            {
+                "tenant_id": tenant_id,
+                "research_id": request.research_id,
+                "question_hash": question_hash,
+                "citation_ids": [citation.document_id for citation in citations],
+                "citation_hashes": [citation.content_hash for citation in citations],
+            }
+        )
+        return DeepResearchDraft(
+            research_id=request.research_id,
+            question_hash=question_hash,
+            title=deep_research_title(request.question),
+            draft_text=render_deep_research_draft(
+                question=request.question,
+                citations=citations,
+            ),
+            outline=deep_research_outline(citations),
+            citations=citations,
+            citation_count=len(citations),
+            draft_status=DeepResearchDraftStatus.DRAFTED,
+            requires_human_review=True,
+            evidence_hash=evidence_hash,
+            created_at=created_at,
+        )
+
+    async def _retrieve_rag_context(
+        self,
+        *,
+        tenant_id: str,
+        subject: str,
+        correlation_id: str,
+        query_text: str,
+        limit: int,
+        source_type: str | None,
+    ) -> tuple[AgenticRagContextItem, ...]:
+        context = _tenant_context(
+            tenant_id=tenant_id,
+            subject=subject,
+            correlation_id=correlation_id,
+        )
+        metadata_filter = {"source_type": source_type} if source_type else None
+        results = await self.vector_store.query(
+            RAG_VECTOR_DOMAIN,
+            text_embedding(query_text),
+            context=context,
+            limit=limit,
+            metadata_filter=metadata_filter,
+        )
+        return tuple(rag_context_item_from_vector_result(result) for result in results)
+
 
 def build_audience_profile(
     *,
@@ -1330,6 +2119,234 @@ def build_publication_analytics_report(
         evidence_hash=evidence_hash,
         created_at=created_at,
     )
+
+
+def build_rag_document_reference(
+    *,
+    tenant_id: str,
+    document: RagDocumentInput,
+    created_at: datetime,
+) -> RagDocumentReference:
+    return RagDocumentReference(
+        document_id=document.document_id,
+        source_type=document.source_type,
+        source_ref_hash=(
+            scoped_ref_hash(
+                tenant_id=tenant_id,
+                namespace="rag_source",
+                value=document.source_ref,
+            )
+            if document.source_ref is not None
+            else None
+        ),
+        content_hash=scoped_ref_hash(
+            tenant_id=tenant_id,
+            namespace="rag_content",
+            value=document.content,
+        ),
+        topic_tags=document.topic_tags,
+        created_at=created_at,
+    )
+
+
+def rag_document_vector_record(
+    *,
+    document: RagDocumentInput,
+    reference: RagDocumentReference,
+) -> VectorRecord:
+    metadata: dict[str, str] = {
+        "document_id": reference.document_id,
+        "source_type": reference.source_type,
+        "content_hash": reference.content_hash,
+        "topic_tags": ",".join(reference.topic_tags),
+        "created_at": format_datetime(reference.created_at),
+    }
+    if reference.source_ref_hash is not None:
+        metadata["source_ref_hash"] = reference.source_ref_hash
+
+    return VectorRecord(
+        id=document.document_id,
+        embedding=text_embedding(document.content),
+        document=document.content,
+        metadata=metadata,
+    )
+
+
+def rag_context_item_from_vector_result(
+    result: VectorSearchResult,
+) -> AgenticRagContextItem:
+    content_hash = _metadata_string(result.metadata, "content_hash")
+    if content_hash == "":
+        content_hash = scoped_ref_hash(
+            tenant_id=_metadata_string(result.metadata, "tenant_id"),
+            namespace="rag_content",
+            value=result.document or result.id,
+        )
+
+    return AgenticRagContextItem(
+        document_id=_metadata_string(result.metadata, "document_id", result.id),
+        source_type=_metadata_string(result.metadata, "source_type", "unknown"),
+        source_ref_hash=_optional_metadata_string(result.metadata, "source_ref_hash"),
+        content_hash=content_hash,
+        excerpt=content_excerpt(result.document or ""),
+        distance=result.distance,
+        relevance_score=relevance_score(result.distance),
+        topic_tags=_metadata_topic_tags(result.metadata),
+    )
+
+
+def render_rag_answer(
+    *,
+    query_text: str,
+    context_items: tuple[AgenticRagContextItem, ...],
+) -> str:
+    if not context_items:
+        return (
+            "Tenant-scoped RAG не нашел релевантный контекст. "
+            "Перед публикацией нужен ручной подбор источников."
+        )
+
+    snippets = " ".join(item.excerpt for item in context_items[:3])
+    return (
+        f"Найден tenant-scoped контекст для запроса '{query_text.strip()}': {snippets}"
+    )
+
+
+def deep_research_title(question: str) -> str:
+    normalized = content_excerpt(question, max_length=96)
+    return f"Черновик исследования: {normalized}"
+
+
+def render_deep_research_draft(
+    *,
+    question: str,
+    citations: tuple[DeepResearchCitation, ...],
+) -> str:
+    if not citations:
+        return (
+            "Черновик: источники в tenant-scoped RAG пока не найдены. "
+            f"Вопрос исследования: {question.strip()}"
+        )
+
+    evidence = " ".join(citation.excerpt for citation in citations[:3])
+    return (
+        "Черновик: материал отвечает на исследовательский вопрос и должен пройти "
+        "человеческую редактуру перед публикацией. "
+        f"Вопрос: {question.strip()} Контекст источников: {evidence}"
+    )
+
+
+def deep_research_outline(
+    citations: tuple[DeepResearchCitation, ...],
+) -> tuple[str, ...]:
+    if not citations:
+        return (
+            "Уточнить источники",
+            "Сформировать тезисы",
+            "Передать человеку на проверку",
+        )
+
+    return (
+        "Контекст и источники",
+        "Ключевые тезисы черновика",
+        "Проверка человеком перед публикацией",
+    )
+
+
+def content_agent_policy_reasons(
+    *,
+    request: ContentAgentActionRequest,
+    thresholds: CouncilThresholds,
+) -> tuple[str, ...]:
+    reasons = ["human_approval_required"]
+    if request.risk_score > thresholds.max_autonomous_risk_score:
+        reasons.append("risk_score_above_threshold")
+    if request.agent_confidence < thresholds.min_agent_confidence:
+        reasons.append("confidence_below_threshold")
+
+    return tuple(reasons)
+
+
+def build_content_agent_action_plan(
+    *,
+    tenant_id: str,
+    request: ContentAgentActionRequest,
+    policy_reasons: tuple[str, ...],
+    proposed_at: datetime,
+) -> ContentAgentActionPlan:
+    workspace_ref_hash = scoped_ref_hash(
+        tenant_id=tenant_id,
+        namespace="content_agent_workspace",
+        value=request.workspace_ref,
+    )
+    actions = tuple(
+        ContentAgentActionStep(
+            action_type=action.action_type,
+            target_ref_hash=scoped_ref_hash(
+                tenant_id=tenant_id,
+                namespace="content_agent_target",
+                value=action.target_ref,
+            ),
+            summary=action.summary,
+        )
+        for action in request.proposed_actions
+    )
+    evidence_hash = _hash_json(
+        {
+            "tenant_id": tenant_id,
+            "action_id": request.action_id,
+            "workspace_ref_hash": workspace_ref_hash,
+            "goal_hash": scoped_ref_hash(
+                tenant_id=tenant_id,
+                namespace="content_agent_goal",
+                value=request.goal,
+            ),
+            "target_ref_hashes": [action.target_ref_hash for action in actions],
+            "risk_score": request.risk_score,
+            "agent_confidence": request.agent_confidence,
+            "policy_reasons": list(policy_reasons),
+        }
+    )
+
+    return ContentAgentActionPlan(
+        action_id=request.action_id,
+        workspace_ref_hash=workspace_ref_hash,
+        goal=request.goal,
+        actions=actions,
+        risk_score=request.risk_score,
+        agent_confidence=request.agent_confidence,
+        approval_status=ContentAgentApprovalStatus.AWAITING_HUMAN_APPROVAL,
+        requires_human_approval=True,
+        auto_executed=False,
+        policy_reasons=policy_reasons,
+        evidence_hash=evidence_hash,
+        proposed_at=proposed_at,
+    )
+
+
+def text_embedding(value: str) -> tuple[float, ...]:
+    vector = [0.0] * RAG_EMBEDDING_DIMENSIONS
+    for token in _word_tokens(value):
+        bucket = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
+        vector[bucket % RAG_EMBEDDING_DIMENSIONS] += 1.0
+
+    norm = sum(item * item for item in vector) ** 0.5
+    if norm == 0:
+        return tuple(vector)
+
+    return tuple(round(item / norm, 6) for item in vector)
+
+
+def content_excerpt(value: str, *, max_length: int = 220) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= max_length:
+        return normalized
+
+    return normalized[: max_length - 3].rstrip() + "..."
+
+
+def relevance_score(distance: float) -> float:
+    return round(1 / (1 + distance), 4)
 
 
 def build_optimization_recommendations(
@@ -1571,6 +2588,51 @@ def _coalesce[T](value: T | None, fallback: T) -> T:
         return fallback
 
     return value
+
+
+def _metadata_string(
+    metadata: Mapping[str, object],
+    key: str,
+    fallback: str = "",
+) -> str:
+    value = metadata.get(key)
+    if isinstance(value, str):
+        return value
+
+    return fallback
+
+
+def _optional_metadata_string(
+    metadata: Mapping[str, object],
+    key: str,
+) -> str | None:
+    value = _metadata_string(metadata, key)
+    if value == "":
+        return None
+
+    return value
+
+
+def _metadata_topic_tags(metadata: Mapping[str, object]) -> tuple[str, ...]:
+    raw_value = _metadata_string(metadata, "topic_tags")
+    if raw_value == "":
+        return ()
+
+    return tuple(item for item in raw_value.split(",") if item)
+
+
+def _tenant_context(
+    *,
+    tenant_id: str,
+    subject: str,
+    correlation_id: str,
+) -> TenantContext:
+    return TenantContext(
+        tenant_id=tenant_id,
+        subject=subject,
+        roles=(),
+        correlation_id=correlation_id,
+    )
 
 
 def _run_key(tenant_id: str, run_id: str) -> tuple[str, str]:

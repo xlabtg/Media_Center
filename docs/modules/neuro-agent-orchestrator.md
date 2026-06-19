@@ -1,6 +1,6 @@
 # Neuro-Agent Orchestrator
 
-**Статус:** 🟢 реализовано для epic #58 и контуров #55, #56, #57 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
+**Статус:** 🟢 реализовано для epic #58 и контуров #55, #56, #57, #64 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:neuro-agent`
 
 Оркестрация автономных ИИ-агентов под порогами Совета: работа с аудиторией, вовлечение, контент-гигиена, аналитика, устойчивость доставки.
 
@@ -16,6 +16,7 @@
 - **GET** `/agents/status` — статус и результаты агентов
 - **GET/PUT** `/thresholds` — чтение и обновление порогов Совета для автономных
   AI-действий
+- **POST** `/rag/documents` — добавить tenant-scoped документы в Agentic RAG
 - **PUT/GET** `/proxy-pools/{pool_id}` — управление tenant-scoped прокси-пулом
 - **POST** `/proxy-pools/{pool_id}/lease` — выдача следующего живого прокси
 - **POST** `/proxy-pools/{pool_id}/health-checks` — фиксация проверки живости
@@ -88,6 +89,34 @@
   `neuro_agent.proxy_health.checked` и `neuro_agent.proxy.leased` содержат
   только `proxy_id`, protocol, counts и hash-ссылки, без raw URL и `secret_ref`.
 
+## Реализованный контур issue #64
+
+Agentic RAG, DeepResearch и Content Agent (CUA) расширяют тот же backend-контур
+Neuro-Agent Orchestrator без отдельного сервиса.
+
+- `POST /rag/documents` принимает `RagDocumentInput`, рассчитывает
+  deterministic embedding и пишет документы через общий `TenantVectorStore`
+  (`InMemoryTenantVectorStore` локально или ChromaDB-backed реализация). Vector
+  metadata содержит `tenant_id`, `source_type`, `content_hash` и hash
+  `source_ref`; raw content хранится только в vector store.
+- `agentic_rag` принимает `AgenticRagQueryRequest` и возвращает
+  `AgenticRagAnswer`: tenant-scoped `context_items`, `retrieval_count`,
+  `query_hash`, `evidence_hash` и краткий ответ на основе найденных документов.
+  Запросы tenant A не читают документы tenant B, потому что поиск идёт через
+  tenant-aware collection/filter слой ChromaDB.
+- `deep_research` принимает `DeepResearchRequest` и формирует
+  `DeepResearchDraft` с `draft_status=drafted`, outline, citations и
+  `requires_human_review=true`; публикация черновика остаётся вне автономного
+  действия агента.
+- `content_agent_action` принимает `ContentAgentActionRequest` и возвращает
+  `ContentAgentActionPlan` только как proposal: `approval_status` всегда
+  `awaiting_human_approval`, `requires_human_approval=true`,
+  `auto_executed=false`, а raw workspace/target refs заменяются hash-ссылками.
+- Audit/events `neuro_agent.rag.documents.upserted`,
+  `neuro_agent.rag.query.completed`, `neuro_agent.deep_research.draft.created`
+  и `neuro_agent.content_agent.action_proposed` не содержат raw content, query,
+  source refs или CUA target refs.
+
 ## Зависимости
 - Policy Manager (пороги и этические правила)
 - Agentic RAG/ChromaDB, инфраструктура резервных каналов
@@ -112,4 +141,4 @@
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Neuro-Agent Orchestrator для issue #58.</sub>
+<sub>Спецификация синхронизирована с реализацией Neuro-Agent Orchestrator для issue #58 и issue #64.</sub>
