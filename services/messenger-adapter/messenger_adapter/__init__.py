@@ -19,6 +19,7 @@ from messenger_adapter.base_adapter import (
     PlatformTokenRepository,
     PublicationReceipt,
     PublicationRequest,
+    ReferralLinkRequestTransformer,
     RetryPolicy,
 )
 from messenger_adapter.content_transformer import (
@@ -32,6 +33,23 @@ from messenger_adapter.content_transformer import (
 )
 from messenger_adapter.dzen_adapter import DzenPostPublisher
 from messenger_adapter.ok_adapter import OKMediatopicPublisher
+from messenger_adapter.platform_registry import (
+    InMemoryPlatformRegistry,
+    PlatformKey,
+    PlatformNotRegisteredError,
+    PlatformRegistry,
+    PlatformRegistryEntry,
+    PlatformRegistryError,
+    PlatformStatus,
+)
+from messenger_adapter.referral_links import (
+    REFERRAL_LINKS_METADATA_KEY,
+    REFERRAL_ROUTE_METADATA_KEY,
+    ReferralLinkGenerator,
+    ReferralLinkInjectionError,
+    ReferralLinkInjector,
+    content_with_referral_links,
+)
 from messenger_adapter.telegram_adapter import TelegramBotApiPublisher
 from messenger_adapter.vk_adapter import VKWallPublisher
 
@@ -45,24 +63,38 @@ __all__ = [
     "DzenPostPublisher",
     "EncryptedPlatformToken",
     "InMemoryPlatformPublisher",
+    "InMemoryPlatformRegistry",
     "InMemoryPlatformTokenStore",
     "OKMediatopicPublisher",
     "PlatformContentLimits",
     "PlatformContentTransformer",
+    "PlatformKey",
+    "PlatformNotRegisteredError",
     "PlatformPublicationError",
     "PlatformPublisher",
     "PlatformPublishCommand",
     "PlatformPublishResult",
+    "PlatformRegistry",
+    "PlatformRegistryEntry",
+    "PlatformRegistryError",
+    "PlatformStatus",
     "PlatformTokenCipher",
     "PlatformTokenCryptoError",
     "PlatformTokenNotFoundError",
     "PlatformTokenRepository",
     "PublicationReceipt",
     "PublicationRequest",
+    "REFERRAL_LINKS_METADATA_KEY",
+    "REFERRAL_ROUTE_METADATA_KEY",
+    "ReferralLinkGenerator",
+    "ReferralLinkInjectionError",
+    "ReferralLinkInjector",
+    "ReferralLinkRequestTransformer",
     "RetryPolicy",
     "TelegramBotApiPublisher",
     "TransformedContent",
     "VKWallPublisher",
+    "content_with_referral_links",
     "limit_media_items",
     "media_items_from_metadata",
     "smart_truncate",

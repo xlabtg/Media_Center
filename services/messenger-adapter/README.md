@@ -57,6 +57,21 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
   из текста и media, поддерживает подпись `sig` через application secret и
   мапит rate limit/auth/access/server ошибки в единый контракт адаптера.
 
+## Platform Registry и реферальные ссылки
+
+- `PlatformRegistryEntry` задаёт tenant-scoped параметры площадки: статус,
+  приоритет, лимиты контента и декларативные `parameters`.
+- `InMemoryPlatformRegistry` хранит записи по паре `tenant_id/platform`; если
+  площадка отсутствует, paused или disabled, `BasePlatformAdapter` останавливает
+  публикацию до lookup токена и вызова внешнего publisher-а.
+- Когда `BasePlatformAdapter` получает `platform_registry`, лимиты из реестра
+  становятся источником для `PlatformContentTransformer`.
+- `ReferralLinkInjector` читает `metadata["referral_route"]`, дополняет его
+  `tenant_id` и `content_id`/`publication_id`, вызывает CGLR
+  `generate_referral_links` и добавляет ссылочный блок в текст публикации.
+- В audit metadata попадает только компактный список `referral_links`
+  (`level`, `owner_id`, `reward_share`), без platform token и без секретов.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/messenger-adapter.md)

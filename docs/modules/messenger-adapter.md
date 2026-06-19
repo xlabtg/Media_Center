@@ -18,6 +18,27 @@
 - **platform_registry** — `tenant_id`, `platform`, `limits`, `priority`, `status`
 - **platform_tokens** — `tenant_id`, `platform`, `token_encrypted` (AES-256)
 
+## Platform Registry
+- Реестр хранит tenant-scoped записи площадок: `platform`, лимиты контента,
+  приоритет, статус (`active`, `paused`, `disabled`) и декларативные параметры
+  интеграции.
+- Публикация через `BasePlatformAdapter` может быть привязана к реестру: запись
+  должна существовать и иметь статус `active`; иначе адаптер возвращает
+  неретраемый `PlatformPublicationError` до обращения к токенам и внешним API.
+- Лимиты из активной записи реестра используются как источник для трансформации
+  контента перед отправкой в площадочный publisher.
+
+## Инъекция реферальных ссылок
+- `ReferralLinkInjector` принимает route payload в
+  `PublicationRequest.metadata["referral_route"]`.
+- Payload совместим с CGLR `link_rotator`: `admin_link`, `author_link`,
+  `l3_candidates`, опциональные `content_id`, `rotation_seed` и
+  `l3_min_contribution_weight`.
+- Если `content_id` не передан в route payload, используется
+  `metadata["content_id"]` или `publication_id`.
+- В текст публикации добавляется блок `Реферальные ссылки` с L1/L2/L3 URL, а в
+  metadata сохраняется компактный список уровней, владельцев и reward share.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon (Telegram), VK API, политики ретраев и резервные разрешенные каналы

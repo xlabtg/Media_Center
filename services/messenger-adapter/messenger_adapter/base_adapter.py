@@ -28,7 +28,17 @@ from libs.shared.models import (
     TenantId,
 )
 from libs.shared.tenant import TenantIsolationError
-from messenger_adapter.content_transformer import TransformedContent
+from messenger_adapter.content_transformer import (
+    PlatformContentTransformer,
+    TransformedContent,
+)
+from messenger_adapter.platform_registry import (
+    PlatformNotRegisteredError,
+    PlatformRegistry,
+    PlatformRegistryEntry,
+    PlatformStatus,
+)
+from messenger_adapter.referral_links import ReferralLinkInjectionError
 
 MESSENGER_ADAPTER_SOURCE = "messenger-adapter"
 MESSENGER_ADAPTER_SCHEMA_VERSION = "1.0"
@@ -256,6 +266,11 @@ class ContentTransformer(Protocol):
         """Adapt content and metadata to platform limits before publication."""
 
 
+class ReferralLinkRequestTransformer(Protocol):
+    def inject(self, request: PublicationRequest) -> PublicationRequest:
+        """Inject CGLR referral links into a publication request."""
+
+
 class PlatformTokenCipher:
     def __init__(self, encryption_key: str | bytes) -> None:
         self._key = _decode_aes256_key(encryption_key)
@@ -443,6 +458,8 @@ class BasePlatformAdapter:
     sleeper: DelaySleeper = _default_sleep
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger(__name__))
     content_transformer: ContentTransformer | None = None
+    platform_registry: PlatformRegistry | None = None
+    referral_link_injector: ReferralLinkRequestTransformer | None = None
 
     def __post_init__(self) -> None:
         self.platform = _normalize_platform(self.platform)
@@ -464,7 +481,20 @@ class BasePlatformAdapter:
                 retryable=False,
             )
 
-        publication_request = self._transform_request(request)
+        registry_entry = self._require_active_platform(request)
+        try:
+            publication_request = self._prepare_request(
+                request,
+                registry_entry=registry_entry,
+            )
+        except ReferralLinkInjectionError as error:
+            raise PlatformPublicationError(
+                "Не удалось встроить реферальные ссылки",
+                platform=request.platform,
+                error_code="referral_link_injection_failed",
+                retryable=False,
+            ) from error
+
         requested_at = _normalize_datetime(now or datetime.now(UTC))
         token_record = self.token_store.require_token(
             tenant_id=publication_request.tenant_id,
@@ -543,11 +573,67 @@ class BasePlatformAdapter:
             retryable=False,
         )
 
-    def _transform_request(self, request: PublicationRequest) -> PublicationRequest:
-        if self.content_transformer is None:
+    def _require_active_platform(
+        self,
+        request: PublicationRequest,
+    ) -> PlatformRegistryEntry | None:
+        if self.platform_registry is None:
+            return None
+
+        try:
+            entry = self.platform_registry.require_platform(
+                tenant_id=request.tenant_id,
+                platform=request.platform,
+            )
+        except PlatformNotRegisteredError as error:
+            raise PlatformPublicationError(
+                "Площадка не зарегистрирована в реестре tenant",
+                platform=request.platform,
+                error_code="platform_not_registered",
+                retryable=False,
+            ) from error
+
+        if entry.status != PlatformStatus.ACTIVE:
+            error_code = (
+                "platform_paused"
+                if entry.status == PlatformStatus.PAUSED
+                else "platform_disabled"
+            )
+            raise PlatformPublicationError(
+                "Площадка недоступна для публикации по статусу реестра",
+                platform=request.platform,
+                error_code=error_code,
+                retryable=False,
+            )
+
+        return entry
+
+    def _prepare_request(
+        self,
+        request: PublicationRequest,
+        *,
+        registry_entry: PlatformRegistryEntry | None,
+    ) -> PublicationRequest:
+        prepared_request = request
+        if self.referral_link_injector is not None:
+            prepared_request = self.referral_link_injector.inject(prepared_request)
+
+        return self._transform_request(
+            prepared_request,
+            registry_entry=registry_entry,
+        )
+
+    def _transform_request(
+        self,
+        request: PublicationRequest,
+        *,
+        registry_entry: PlatformRegistryEntry | None,
+    ) -> PublicationRequest:
+        transformer = self._content_transformer_for(registry_entry)
+        if transformer is None:
             return request
 
-        transformed = self.content_transformer.transform(
+        transformed = transformer.transform(
             platform=request.platform,
             content=request.content,
             metadata=request.metadata,
@@ -556,6 +642,18 @@ class BasePlatformAdapter:
         data["content"] = transformed.content
         data["metadata"] = transformed.metadata
         return PublicationRequest(**data)
+
+    def _content_transformer_for(
+        self,
+        registry_entry: PlatformRegistryEntry | None,
+    ) -> ContentTransformer | None:
+        if registry_entry is not None:
+            return PlatformContentTransformer(
+                limits_by_platform={registry_entry.platform: registry_entry.limits},
+                default_limits=registry_entry.limits,
+            )
+
+        return self.content_transformer
 
     async def _sleep(self, delay_seconds: float) -> None:
         sleep_result = self.sleeper(delay_seconds)
