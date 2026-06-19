@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import cast
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, field_validator
@@ -42,6 +43,7 @@ RAG_DOCUMENTS_UPSERTED_EVENT = "neuro_agent.rag.documents.upserted"
 RAG_QUERY_COMPLETED_EVENT = "neuro_agent.rag.query.completed"
 DEEP_RESEARCH_DRAFT_CREATED_EVENT = "neuro_agent.deep_research.draft.created"
 CONTENT_AGENT_ACTION_PROPOSED_EVENT = "neuro_agent.content_agent.action_proposed"
+DECISION_EXPLANATION_AUDIT_SCOPE = "neuro_agent.decision_explanation"
 
 DEFAULT_MAX_AUTONOMOUS_RISK_SCORE = 0.45
 DEFAULT_MIN_AGENT_CONFIDENCE = 0.75
@@ -49,6 +51,7 @@ DEFAULT_MAX_AUTONOMOUS_RECIPIENTS = 5
 DEFAULT_MIN_CONTENT_QUALITY_SCORE = 0.7
 DEFAULT_ALLOWED_TEMPLATE_KEYS = ("welcome", "faq_basic", "participation_rules")
 DEFAULT_THRESHOLD_AUDIT_HASH = "0" * 64
+DEFAULT_DECISION_EXPLANATION_AUDIT_HASH = "0" * 64
 RAG_VECTOR_DOMAIN = "agentic_rag"
 RAG_EMBEDDING_DIMENSIONS = 32
 
@@ -710,6 +713,35 @@ class ContentAgentActionPlan(SharedBaseModel):
         return normalize_datetime(value)
 
 
+class DecisionExplanation(SharedBaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    explanation_id: IdempotencyKey
+    tenant_id: TenantId
+    run_id: IdempotencyKey
+    task_type: AgentTaskType
+    status: AgentRunStatus
+    policy_decision: PolicyDecision
+    policy_revision: int = Field(ge=1)
+    summary: str = Field(min_length=1, max_length=1_000)
+    reason_codes: tuple[str, ...] = Field(default_factory=tuple)
+    input_facts: dict[str, JSONValue] = Field(default_factory=dict)
+    evidence_refs: tuple[str, ...] = Field(default_factory=tuple)
+    action_refs: tuple[str, ...] = Field(default_factory=tuple)
+    explanation_hash: AuditHash
+    audit_hash: AuditHash = DEFAULT_DECISION_EXPLANATION_AUDIT_HASH
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _normalize_created_at(cls, value: datetime) -> datetime:
+        return normalize_datetime(value)
+
+
 class CouncilThresholds(SharedBaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -767,6 +799,7 @@ class AgentRun(SharedBaseModel):
     rag_answer: AgenticRagAnswer | None = None
     deep_research_draft: DeepResearchDraft | None = None
     content_agent_action: ContentAgentActionPlan | None = None
+    decision_explanation: DecisionExplanation
     audit_hash: AuditHash
     created_by: SubjectId
     created_at: datetime
@@ -780,6 +813,10 @@ class AgentRun(SharedBaseModel):
 
 class AgentStatusResponse(SharedBaseModel):
     items: tuple[AgentRun, ...]
+
+
+class DecisionExplanationListResponse(SharedBaseModel):
+    items: tuple[DecisionExplanation, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -811,6 +848,9 @@ class AgentRunInput:
 class InMemoryNeuroAgentRepository:
     _thresholds: dict[str, CouncilThresholds] = field(default_factory=dict)
     _runs: dict[tuple[str, str], AgentRun] = field(default_factory=dict)
+    _decision_explanations: dict[tuple[str, str], DecisionExplanation] = field(
+        default_factory=dict
+    )
 
     def get_thresholds(self, *, tenant_id: str) -> CouncilThresholds:
         thresholds = self._thresholds.get(tenant_id)
@@ -843,6 +883,7 @@ class InMemoryNeuroAgentRepository:
             )
 
         self._runs[key] = run
+        self._decision_explanations[key] = run.decision_explanation
         return run
 
     def list_runs(
@@ -860,6 +901,29 @@ class InMemoryNeuroAgentRepository:
             runs = (run for run in runs if run.task_type is task_type)
 
         return tuple(runs)
+
+    def list_decision_explanations(
+        self,
+        *,
+        tenant_id: str,
+        task_type: AgentTaskType | None = None,
+    ) -> tuple[DecisionExplanation, ...]:
+        explanations = (
+            explanation
+            for (
+                record_tenant_id,
+                _run_id,
+            ), explanation in self._decision_explanations.items()
+            if record_tenant_id == tenant_id
+        )
+        if task_type is not None:
+            explanations = (
+                explanation
+                for explanation in explanations
+                if explanation.task_type is task_type
+            )
+
+        return tuple(explanations)
 
 
 @dataclass(slots=True)
@@ -1156,6 +1220,17 @@ class NeuroAgentOrchestrator:
     ) -> tuple[AgentRun, ...]:
         return self.repository.list_runs(tenant_id=tenant_id, task_type=task_type)
 
+    def list_decision_explanations(
+        self,
+        *,
+        tenant_id: str,
+        task_type: AgentTaskType | None = None,
+    ) -> tuple[DecisionExplanation, ...]:
+        return self.repository.list_decision_explanations(
+            tenant_id=tenant_id,
+            task_type=task_type,
+        )
+
     def get_thresholds(self, *, tenant_id: str) -> CouncilThresholds:
         return self.repository.get_thresholds(tenant_id=tenant_id)
 
@@ -1180,6 +1255,25 @@ class NeuroAgentOrchestrator:
             created_at=created_at,
             profile_id=f"profile-{run_id}",
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.AUDIENCE_ANALYSIS,
+            status=AgentRunStatus.COMPLETED,
+            policy_decision=PolicyDecision.ALLOW,
+            policy_revision=thresholds.revision,
+            reason_codes=(),
+            input_facts={
+                "source_count": profile.source_count,
+                "total_reach": profile.total_reach,
+                "engagement_rate": profile.engagement_rate,
+                "public_sources_only": profile.public_sources_only,
+                "legal_basis": list(profile.legal_basis),
+            },
+            evidence_refs=(f"audience_evidence:{profile.evidence_hash}",),
+            action_refs=(f"audience_profile:{profile.profile_id}",),
+            created_at=created_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=AUDIENCE_PROFILE_CREATED_EVENT,
             tenant_id=tenant_id,
@@ -1193,11 +1287,15 @@ class NeuroAgentOrchestrator:
                 "public_sources_only": profile.public_sources_only,
                 "legal_basis": list(profile.legal_basis),
                 "evidence_hash": profile.evidence_hash,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=created_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1207,6 +1305,7 @@ class NeuroAgentOrchestrator:
             policy_decision=PolicyDecision.ALLOW,
             policy_revision=thresholds.revision,
             audience_profile=profile,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=created_at,
@@ -1227,6 +1326,7 @@ class NeuroAgentOrchestrator:
                     "source_count": profile.source_count,
                     "total_reach": profile.total_reach,
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1283,6 +1383,28 @@ class NeuroAgentOrchestrator:
             policy_reasons=reasons,
             decided_at=decided_at,
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.ENGAGEMENT_AUTO_REPLY,
+            status=run_status,
+            policy_decision=policy_decision,
+            policy_revision=thresholds.revision,
+            reason_codes=reasons,
+            input_facts={
+                "platform": request.platform,
+                "template_key": request.template_key,
+                "risk_score": request.risk_score,
+                "agent_confidence": request.agent_confidence,
+                "estimated_recipients": request.estimated_recipients,
+                "max_autonomous_risk_score": thresholds.max_autonomous_risk_score,
+                "min_agent_confidence": thresholds.min_agent_confidence,
+                "max_autonomous_recipients": thresholds.max_autonomous_recipients,
+            },
+            evidence_refs=(f"recipient_ref_hash:{recipient_ref_hash}",),
+            action_refs=(f"auto_reply:{request.trigger_id}",),
+            created_at=decided_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=event_type,
             tenant_id=tenant_id,
@@ -1299,11 +1421,15 @@ class NeuroAgentOrchestrator:
                 "risk_score": request.risk_score,
                 "agent_confidence": request.agent_confidence,
                 "estimated_recipients": request.estimated_recipients,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=decided_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1314,6 +1440,7 @@ class NeuroAgentOrchestrator:
             policy_revision=thresholds.revision,
             policy_reasons=reasons,
             auto_reply=decision,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=decided_at,
@@ -1337,6 +1464,7 @@ class NeuroAgentOrchestrator:
                     "policy_reasons": list(reasons),
                     "recipient_ref_hash": recipient_ref_hash,
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1376,6 +1504,30 @@ class NeuroAgentOrchestrator:
             if assessment.status is ContentHygieneStatus.FLAGGED
             else CONTENT_HYGIENE_PASSED_EVENT
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.CONTENT_HYGIENE,
+            status=run_status,
+            policy_decision=policy_decision,
+            policy_revision=thresholds.revision,
+            reason_codes=assessment.policy_reasons,
+            input_facts={
+                "content_id": request.content_id,
+                "platform": request.platform,
+                "quality_score": assessment.quality_score,
+                "safety_risk_score": assessment.safety_risk_score,
+                "flags": list(assessment.flags),
+                "min_content_quality_score": thresholds.min_content_quality_score,
+                "max_autonomous_risk_score": thresholds.max_autonomous_risk_score,
+            },
+            evidence_refs=(
+                f"content_hash:{assessment.content_hash}",
+                f"evidence:{assessment.evidence_hash}",
+            ),
+            action_refs=(f"content_hygiene:{request.content_id}",),
+            created_at=assessment.assessed_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=event_type,
             tenant_id=tenant_id,
@@ -1394,11 +1546,15 @@ class NeuroAgentOrchestrator:
                 "policy_reasons": list(assessment.policy_reasons),
                 "evidence_hash": assessment.evidence_hash,
                 "context_keys": ",".join(sorted(request.context)),
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=assessment.assessed_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1409,6 +1565,7 @@ class NeuroAgentOrchestrator:
             policy_revision=thresholds.revision,
             policy_reasons=assessment.policy_reasons,
             content_hygiene=assessment,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=assessment.assessed_at,
@@ -1435,6 +1592,7 @@ class NeuroAgentOrchestrator:
                     "policy_revision": thresholds.revision,
                     "policy_reasons": list(assessment.policy_reasons),
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1466,6 +1624,30 @@ class NeuroAgentOrchestrator:
             if policy_decision is PolicyDecision.ESCALATE
             else AgentRunStatus.COMPLETED
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.PUBLICATION_OPTIMIZATION,
+            status=run_status,
+            policy_decision=policy_decision,
+            policy_revision=thresholds.revision,
+            reason_codes=reasons,
+            input_facts={
+                "publication_id": request.publication_id,
+                "platform": request.platform,
+                "engagement_rate": report.engagement_rate,
+                "click_through_rate": report.click_through_rate,
+                "conversion_rate": report.conversion_rate,
+                "performance_band": report.performance_band,
+                "recommendation_count": len(report.recommendations),
+                "recommendation_actions": [
+                    recommendation.action for recommendation in report.recommendations
+                ],
+            },
+            evidence_refs=(f"publication_evidence:{report.evidence_hash}",),
+            action_refs=(f"publication_optimization:{request.publication_id}",),
+            created_at=report.created_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=PUBLICATION_ANALYTICS_CREATED_EVENT,
             tenant_id=tenant_id,
@@ -1487,11 +1669,15 @@ class NeuroAgentOrchestrator:
                 "policy_revision": thresholds.revision,
                 "policy_reasons": list(reasons),
                 "evidence_hash": report.evidence_hash,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=report.created_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1502,6 +1688,7 @@ class NeuroAgentOrchestrator:
             policy_revision=thresholds.revision,
             policy_reasons=reasons,
             publication_analytics=report,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=report.created_at,
@@ -1525,6 +1712,7 @@ class NeuroAgentOrchestrator:
                     "policy_revision": thresholds.revision,
                     "policy_reasons": list(reasons),
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1550,6 +1738,27 @@ class NeuroAgentOrchestrator:
             request=request,
             created_at=answered_at,
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.AGENTIC_RAG,
+            status=AgentRunStatus.COMPLETED,
+            policy_decision=PolicyDecision.ALLOW,
+            policy_revision=thresholds.revision,
+            reason_codes=(),
+            input_facts={
+                "query_id": request.query_id,
+                "query_hash": answer.query_hash,
+                "retrieval_count": answer.retrieval_count,
+                "document_ids": [item.document_id for item in answer.context_items],
+            },
+            evidence_refs=(
+                f"rag_evidence:{answer.evidence_hash}",
+                *(f"content_hash:{item.content_hash}" for item in answer.context_items),
+            ),
+            action_refs=(f"agentic_rag:{request.query_id}",),
+            created_at=answered_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=RAG_QUERY_COMPLETED_EVENT,
             tenant_id=tenant_id,
@@ -1562,11 +1771,15 @@ class NeuroAgentOrchestrator:
                 "content_hashes": [item.content_hash for item in answer.context_items],
                 "policy_revision": thresholds.revision,
                 "evidence_hash": answer.evidence_hash,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=answered_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1576,6 +1789,7 @@ class NeuroAgentOrchestrator:
             policy_decision=PolicyDecision.ALLOW,
             policy_revision=thresholds.revision,
             rag_answer=answer,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=answered_at,
@@ -1597,6 +1811,7 @@ class NeuroAgentOrchestrator:
                     "retrieval_count": answer.retrieval_count,
                     "document_ids": [item.document_id for item in answer.context_items],
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1622,6 +1837,31 @@ class NeuroAgentOrchestrator:
             request=request,
             created_at=drafted_at,
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.DEEP_RESEARCH,
+            status=AgentRunStatus.COMPLETED,
+            policy_decision=PolicyDecision.ALLOW,
+            policy_revision=thresholds.revision,
+            reason_codes=(),
+            input_facts={
+                "research_id": request.research_id,
+                "question_hash": draft.question_hash,
+                "citation_count": draft.citation_count,
+                "requires_human_review": draft.requires_human_review,
+                "document_ids": [citation.document_id for citation in draft.citations],
+            },
+            evidence_refs=(
+                f"research_evidence:{draft.evidence_hash}",
+                *(
+                    f"content_hash:{citation.content_hash}"
+                    for citation in draft.citations
+                ),
+            ),
+            action_refs=(f"deep_research:{request.research_id}",),
+            created_at=drafted_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=DEEP_RESEARCH_DRAFT_CREATED_EVENT,
             tenant_id=tenant_id,
@@ -1634,11 +1874,15 @@ class NeuroAgentOrchestrator:
                 "requires_human_review": draft.requires_human_review,
                 "policy_revision": thresholds.revision,
                 "evidence_hash": draft.evidence_hash,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=drafted_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1648,6 +1892,7 @@ class NeuroAgentOrchestrator:
             policy_decision=PolicyDecision.ALLOW,
             policy_revision=thresholds.revision,
             deep_research_draft=draft,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=drafted_at,
@@ -1669,6 +1914,7 @@ class NeuroAgentOrchestrator:
                     "citation_count": draft.citation_count,
                     "requires_human_review": draft.requires_human_review,
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -1697,6 +1943,34 @@ class NeuroAgentOrchestrator:
             policy_reasons=reasons,
             proposed_at=proposed_at,
         )
+        explanation = build_decision_explanation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            task_type=AgentTaskType.CONTENT_AGENT_ACTION,
+            status=AgentRunStatus.NEEDS_COUNCIL_REVIEW,
+            policy_decision=PolicyDecision.ESCALATE,
+            policy_revision=thresholds.revision,
+            reason_codes=reasons,
+            input_facts={
+                "action_id": request.action_id,
+                "risk_score": request.risk_score,
+                "agent_confidence": request.agent_confidence,
+                "action_count": len(action_plan.actions),
+                "action_types": [action.action_type for action in action_plan.actions],
+                "requires_human_approval": action_plan.requires_human_approval,
+                "auto_executed": action_plan.auto_executed,
+            },
+            evidence_refs=(
+                f"workspace_ref_hash:{action_plan.workspace_ref_hash}",
+                f"action_evidence:{action_plan.evidence_hash}",
+                *(
+                    f"target_ref_hash:{action.target_ref_hash}"
+                    for action in action_plan.actions
+                ),
+            ),
+            action_refs=(f"content_agent_action:{request.action_id}",),
+            created_at=proposed_at,
+        )
         audit_record = self.audit_logger.record(
             event_type=CONTENT_AGENT_ACTION_PROPOSED_EVENT,
             tenant_id=tenant_id,
@@ -1715,11 +1989,15 @@ class NeuroAgentOrchestrator:
                 "policy_revision": thresholds.revision,
                 "policy_reasons": list(reasons),
                 "evidence_hash": action_plan.evidence_hash,
+                **decision_explanation_audit_metadata(explanation),
             },
             timestamp=proposed_at,
             correlation_id=correlation_id,
             actor_hash=subject_ref_hash(tenant_id=tenant_id, subject_id=created_by),
             source=NEURO_AGENT_SOURCE,
+        )
+        explanation = explanation.model_copy(
+            update={"audit_hash": audit_record.audit_hash}
         )
         agent_run = AgentRun(
             run_id=run_id,
@@ -1730,6 +2008,7 @@ class NeuroAgentOrchestrator:
             policy_revision=thresholds.revision,
             policy_reasons=reasons,
             content_agent_action=action_plan,
+            decision_explanation=explanation,
             audit_hash=audit_record.audit_hash,
             created_by=created_by,
             created_at=proposed_at,
@@ -1753,6 +2032,7 @@ class NeuroAgentOrchestrator:
                     "auto_executed": action_plan.auto_executed,
                     "policy_reasons": list(reasons),
                     "audit_hash": agent_run.audit_hash,
+                    **decision_explanation_event_payload(explanation),
                 },
             )
         )
@@ -2324,6 +2604,122 @@ def build_content_agent_action_plan(
     )
 
 
+def build_decision_explanation(
+    *,
+    tenant_id: str,
+    run_id: str,
+    task_type: AgentTaskType,
+    status: AgentRunStatus,
+    policy_decision: PolicyDecision,
+    policy_revision: int,
+    reason_codes: tuple[str, ...],
+    input_facts: Mapping[str, object],
+    evidence_refs: tuple[str, ...],
+    action_refs: tuple[str, ...],
+    created_at: datetime,
+) -> DecisionExplanation:
+    normalized_reasons = tuple(
+        dict.fromkeys(reason.strip() for reason in reason_codes if reason.strip())
+    )
+    normalized_evidence_refs = tuple(
+        dict.fromkeys(item.strip() for item in evidence_refs if item.strip())
+    )
+    normalized_action_refs = tuple(
+        dict.fromkeys(item.strip() for item in action_refs if item.strip())
+    )
+    facts = _clone_json_mapping(input_facts)
+    summary = render_decision_explanation_summary(
+        task_type=task_type,
+        status=status,
+        policy_decision=policy_decision,
+        policy_revision=policy_revision,
+        reason_codes=normalized_reasons,
+    )
+    hash_payload = {
+        "tenant_id": tenant_id,
+        "run_id": run_id,
+        "task_type": task_type.value,
+        "status": status.value,
+        "policy_decision": policy_decision.value,
+        "policy_revision": policy_revision,
+        "summary": summary,
+        "reason_codes": list(normalized_reasons),
+        "input_facts": facts,
+        "evidence_refs": list(normalized_evidence_refs),
+        "action_refs": list(normalized_action_refs),
+        "created_at": format_datetime(created_at),
+    }
+    explanation_hash = _hash_json(hash_payload)
+    explanation_id_hash = _hash_json({"tenant_id": tenant_id, "run_id": run_id})
+    explanation_id = f"xai-{explanation_id_hash[:32]}"
+    return DecisionExplanation(
+        explanation_id=explanation_id,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        task_type=task_type,
+        status=status,
+        policy_decision=policy_decision,
+        policy_revision=policy_revision,
+        summary=summary,
+        reason_codes=normalized_reasons,
+        input_facts=facts,
+        evidence_refs=normalized_evidence_refs,
+        action_refs=normalized_action_refs,
+        explanation_hash=explanation_hash,
+        created_at=created_at,
+    )
+
+
+def render_decision_explanation_summary(
+    *,
+    task_type: AgentTaskType,
+    status: AgentRunStatus,
+    policy_decision: PolicyDecision,
+    policy_revision: int,
+    reason_codes: tuple[str, ...],
+) -> str:
+    if policy_decision is PolicyDecision.ESCALATE:
+        reasons = ", ".join(reason_codes) if reason_codes else "manual_review"
+        return (
+            f"AI-решение по {task_type.value} передано Совету: {reasons}; "
+            f"статус {status.value}, ревизия политики {policy_revision}."
+        )
+
+    return (
+        f"AI-решение по {task_type.value} разрешено в рамках порогов Совета; "
+        f"статус {status.value}, ревизия политики {policy_revision}."
+    )
+
+
+def decision_explanation_audit_metadata(
+    explanation: DecisionExplanation,
+) -> dict[str, JSONValue]:
+    return cast(
+        dict[str, JSONValue],
+        {
+            "decision_explanation_scope": DECISION_EXPLANATION_AUDIT_SCOPE,
+            "decision_explanation_id": explanation.explanation_id,
+            "decision_explanation_hash": explanation.explanation_hash,
+            "decision_explanation_summary_hash": _hash_json(
+                {"summary": explanation.summary}
+            ),
+            "decision_explanation_action_refs": list(explanation.action_refs),
+        },
+    )
+
+
+def decision_explanation_event_payload(
+    explanation: DecisionExplanation,
+) -> dict[str, JSONValue]:
+    return cast(
+        dict[str, JSONValue],
+        {
+            "decision_explanation_id": explanation.explanation_id,
+            "decision_explanation_hash": explanation.explanation_hash,
+        },
+    )
+
+
 def text_embedding(value: str) -> tuple[float, ...]:
     vector = [0.0] * RAG_EMBEDDING_DIMENSIONS
     for token in _word_tokens(value):
@@ -2581,6 +2977,13 @@ def _hash_json(payload: Mapping[str, object]) -> str:
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
+
+
+def _clone_json_mapping(payload: Mapping[str, object]) -> dict[str, JSONValue]:
+    return cast(
+        dict[str, JSONValue],
+        json.loads(json.dumps(dict(payload), ensure_ascii=False, sort_keys=True)),
+    )
 
 
 def _coalesce[T](value: T | None, fallback: T) -> T:
