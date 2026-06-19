@@ -24,6 +24,7 @@ from libs.shared import (
     InMemoryAuditLogSink,
     InMemoryAuditSink,
     InMemoryEventBus,
+    InMemoryTenantVectorStore,
     JSONValue,
     ServiceTemplateConfig,
     SharedBaseModel,
@@ -31,6 +32,7 @@ from libs.shared import (
     SubjectId,
     TenantContext,
     TenantCoreError,
+    TenantVectorStore,
     create_service_app,
     error_response_body,
     require_access,
@@ -38,6 +40,7 @@ from libs.shared import (
 )
 
 from .orchestrator import (
+    AgenticRagQueryRequest,
     AgentRun,
     AgentRunAlreadyExistsError,
     AgentRunInput,
@@ -45,13 +48,17 @@ from .orchestrator import (
     AgentTaskType,
     AudienceSource,
     AutoReplyRequest,
+    ContentAgentActionRequest,
     ContentHygieneRequest,
     CouncilThresholds,
+    DeepResearchRequest,
     InMemoryNeuroAgentRepository,
     NeuroAgentOrchestrator,
     NeuroAgentOrchestratorError,
     PdnScopeViolationError,
     PublicationOptimizationRequest,
+    RagDocumentInput,
+    RagDocumentsUpsertResult,
     ThresholdUpdateInput,
 )
 from .proxy_rotation import (
@@ -139,6 +146,14 @@ PROXY_LEASE_POLICY = AccessPolicy.allow_roles(
     action="neuro_agent.proxy_pool.lease",
     resource_type="neuro_agent_proxy_pool",
 )
+RAG_DOCUMENT_UPSERT_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    MEMBER_FULL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    action="neuro_agent.rag.documents.upsert",
+    resource_type="neuro_agent_rag",
+)
 
 
 class UpdateThresholdsRequest(SharedBaseModel):
@@ -167,6 +182,12 @@ class UpdateThresholdsRequest(SharedBaseModel):
     metadata: dict[str, JSONValue] = Field(default_factory=dict)
 
 
+class UpsertRagDocumentsRequest(SharedBaseModel):
+    documents: tuple[RagDocumentInput, ...] = Field(min_length=1)
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+    updated_at: datetime | None = None
+
+
 class RunAgentRequest(SharedBaseModel):
     run_id: str | None = Field(default=None, min_length=1, max_length=128)
     event_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -175,6 +196,9 @@ class RunAgentRequest(SharedBaseModel):
     auto_reply: AutoReplyRequest | None = None
     content_hygiene: ContentHygieneRequest | None = None
     publication_optimization: PublicationOptimizationRequest | None = None
+    rag_query: AgenticRagQueryRequest | None = None
+    deep_research: DeepResearchRequest | None = None
+    content_agent_action: ContentAgentActionRequest | None = None
     created_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -201,6 +225,15 @@ class RunAgentRequest(SharedBaseModel):
             raise ValueError(
                 "publication_optimization обязателен для publication_optimization"
             )
+        if self.task_type is AgentTaskType.AGENTIC_RAG and self.rag_query is None:
+            raise ValueError("rag_query обязателен для agentic_rag")
+        if self.task_type is AgentTaskType.DEEP_RESEARCH and self.deep_research is None:
+            raise ValueError("deep_research обязателен для deep_research")
+        if (
+            self.task_type is AgentTaskType.CONTENT_AGENT_ACTION
+            and self.content_agent_action is None
+        ):
+            raise ValueError("content_agent_action обязателен для content_agent_action")
 
         return self
 
@@ -231,6 +264,7 @@ class NeuroAgentOrchestratorAPIState:
     publisher: InMemoryEventBus
     repository: InMemoryNeuroAgentRepository
     proxy_repository: InMemoryProxyPoolRepository
+    vector_store: TenantVectorStore
     audit_log_sink: InMemoryAuditLogSink
     tenant_audit_sink: InMemoryAuditSink
 
@@ -243,12 +277,14 @@ def create_neuro_agent_orchestrator_app(
     *,
     repository: InMemoryNeuroAgentRepository | None = None,
     proxy_repository: InMemoryProxyPoolRepository | None = None,
+    vector_store: TenantVectorStore | None = None,
     publisher: InMemoryEventBus | None = None,
     audit_log_sink: InMemoryAuditLogSink | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
 ) -> FastAPI:
     resolved_repository = repository or InMemoryNeuroAgentRepository()
     resolved_proxy_repository = proxy_repository or InMemoryProxyPoolRepository()
+    resolved_vector_store = vector_store or InMemoryTenantVectorStore()
     resolved_publisher = publisher or InMemoryEventBus()
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
@@ -256,6 +292,7 @@ def create_neuro_agent_orchestrator_app(
         repository=resolved_repository,
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
+        vector_store=resolved_vector_store,
     )
     proxy_rotation = ProxyRotationManager(
         repository=resolved_proxy_repository,
@@ -273,6 +310,7 @@ def create_neuro_agent_orchestrator_app(
         publisher=resolved_publisher,
         repository=resolved_repository,
         proxy_repository=resolved_proxy_repository,
+        vector_store=resolved_vector_store,
         audit_log_sink=resolved_audit_log_sink,
         tenant_audit_sink=resolved_tenant_audit_sink,
     )
@@ -294,6 +332,28 @@ def create_neuro_agent_orchestrator_app(
     app.add_exception_handler(ValueError, _value_error_handler)
     app.include_router(router)
     return app
+
+
+@router.post(
+    "/rag/documents",
+    response_model=RagDocumentsUpsertResult,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Добавить tenant-scoped документы в Agentic RAG",
+)
+async def upsert_rag_documents(
+    payload: UpsertRagDocumentsRequest,
+    state: Annotated[NeuroAgentOrchestratorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> RagDocumentsUpsertResult:
+    actor_context = require_access(RAG_DOCUMENT_UPSERT_POLICY, context=context)
+    return await state.orchestrator.upsert_rag_documents(
+        tenant_id=context.tenant_id,
+        updated_by=_subject(actor_context),
+        correlation_id=_correlation_id(context),
+        documents=payload.documents,
+        updated_at=payload.updated_at,
+        event_id=payload.event_id,
+    )
 
 
 @router.post(
@@ -320,6 +380,9 @@ async def run_agent(
             auto_reply=payload.auto_reply,
             content_hygiene=payload.content_hygiene,
             publication_optimization=payload.publication_optimization,
+            rag_query=payload.rag_query,
+            deep_research=payload.deep_research,
+            content_agent_action=payload.content_agent_action,
             created_at=payload.created_at,
         ),
     )
