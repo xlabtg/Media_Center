@@ -1,6 +1,6 @@
 # Private Blockchain Auditor
 
-**Статус:** 🟢 реализованы access_controller и batch_writer; добавлен API верификации audit records · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
+**Статус:** 🟢 реализовано · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
 
 Неизменяемый аудит ключевых событий в приватной блокчейн-сети: только SHA256-хэши и метаданные, доступ только для Совета.
 
@@ -11,7 +11,8 @@
 - Контроль доступа (только Совет) и верификация записей
 
 ## Основные интерфейсы
-- **POST** `/audit/record` — записать хэш события (batch-агрегация)
+- **POST** `/audit/record` — принять batch hash-only audit records и записать их в private chain
+- **GET** `/audit/records/{event_id}` — получить записанный audit record по `event_id`
 - **POST** `/audit/verify` — пересчитать hash события и сравнить с записанным audit record
 - **GET** `/audit/verify?event_id=&hash=` — проверить записанный hash по `event_id`
 
@@ -26,6 +27,8 @@
   контента, голоса и transcript.
 
 ## Реализовано в issue #50
+- реализованы access_controller и batch_writer для council-only доступа и
+  пакетной записи.
 - `BlockchainAuditAccessController` применяет deny-by-default RBAC: чтение,
   одиночная запись и batch-запись audit records доступны только роли Совета,
   то есть роль `council`.
@@ -37,6 +40,8 @@
   transport-вызовом без одиночных сетевых вызовов для каждого audit record.
 
 ## Реализовано в issue #51
+- API верификации audit records доступен через `POST /audit/verify` и
+  совместимый `GET /audit/verify?event_id=&hash=`.
 - `create_blockchain_auditor_app()` собирает FastAPI-приложение через общий
   service template и документирует `/audit/verify` в OpenAPI.
 - `POST /audit/verify` принимает `event_id`, `event_type`, `timestamp`,
@@ -48,6 +53,17 @@
 - Отсутствующая запись возвращает error envelope `audit_record_not_found`;
   расхождение hash возвращается как `matched=false` без ошибки транспорта.
 
+## Реализовано в issue #52
+- `POST /audit/record` принимает `records[]`, берёт `tenant_id` только из
+  проверенного `TenantContext`, пишет batch через `AuditBatchWriter` и
+  возвращает список receipt records с `block_ref`.
+- `GET /audit/records/{event_id}` читает hash-only audit record через тот же
+  council-only access controller, что и verify API.
+- Сквозной acceptance-контракт фиксирует, что в private chain попадают только
+  SHA256-хэши и безопасные metadata, sensitive keys (`amount`, ПДн, токены,
+  raw content) отклоняются до transport, batch-запись использует один
+  transport-вызов, а записанная запись верифицируется через `/audit/verify`.
+
 ## Модель данных (черновик)
 - **audit_records** — `tenant_id`, `event_type`, `hash`, `metadata`, `block_ref`, `created_at`
 
@@ -57,7 +73,8 @@
 
 ## Безопасность и мультитенантность
 - В сеть пишутся **только** SHA256-хэши и метаданные — без сумм и ПДн
-- Чтение, одиночная запись и batch-запись аудита доступны только роли Совета
+- Чтение, одиночная запись, REST batch-запись и верификация аудита доступны
+  только роли Совета
 - Все операции сравнивают `tenant_id` ресурса с проверенным `TenantContext`
 - Хэш детерминирован (`sort_keys=True`) и верифицируем
 - API верификации доступен только роли Совета и не пишет исходный event payload
@@ -78,4 +95,4 @@
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Черновик спецификации. Детализируется на этапе проектирования соответствующего модуля. Сгенерировано `experiments/gen_module_docs.py`.</sub>
+<sub>Спецификация синхронизирована с реализацией Private Blockchain Auditor для issue #52.</sub>

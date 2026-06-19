@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal, cast
 
-from fastapi import APIRouter, Depends, FastAPI, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
+from fastapi import status as http_status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from pydantic import ConfigDict, Field, field_validator
 from libs.shared import (
     VALIDATION_ERROR_CODE,
     AuditHash,
+    CorrelationId,
     EventType,
     IdempotencyKey,
     InMemoryAuditSink,
@@ -28,9 +30,14 @@ from libs.shared import (
     require_tenant_context,
 )
 
+from .batch_writer import AuditBatchWriter
 from .connector import (
+    AuditBatchError,
     AuditMetadataPolicyError,
     AuditRecord,
+    AuditRecordCommand,
+    AuditRecordConflictError,
+    AuditRecordReceipt,
     GrpcBlockchainAuditConnector,
     GrpcBlockchainAuditTransport,
     InMemoryGrpcBlockchainAuditTransport,
@@ -44,6 +51,34 @@ EventMismatchReason = Literal["event_type_mismatch", "hash_mismatch"]
 
 AuditHashQuery = Annotated[AuditHash, Query(alias="hash")]
 EventIdQuery = Annotated[IdempotencyKey, Query(alias="event_id")]
+EventIdPath = Annotated[
+    IdempotencyKey,
+    Path(alias="event_id"),
+]
+
+
+class AuditRecordRequestItem(SharedBaseModel):
+    event_id: IdempotencyKey
+    event_type: EventType
+    audit_hash: AuditHash
+    occurred_at: datetime
+    correlation_id: CorrelationId | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("occurred_at")
+    @classmethod
+    def _normalize_occurred_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class AuditRecordBatchRequest(SharedBaseModel):
+    records: tuple[AuditRecordRequestItem, ...] = Field(min_length=1, max_length=100)
+
+
+class AuditRecordBatchResponse(SharedBaseModel):
+    items: tuple[AuditRecordReceipt, ...]
 
 
 class AuditEventVerificationRequest(SharedBaseModel):
@@ -96,6 +131,7 @@ class AuditHashVerificationResponse(SharedBaseModel):
 @dataclass(slots=True)
 class BlockchainAuditorAPIState:
     connector: GrpcBlockchainAuditConnector
+    batch_writer: AuditBatchWriter
     tenant_audit_sink: InMemoryAuditSink
 
 
@@ -122,6 +158,7 @@ def create_blockchain_auditor_app(
     )
     app.state.blockchain_auditor_api = BlockchainAuditorAPIState(
         connector=resolved_connector,
+        batch_writer=AuditBatchWriter(connector=resolved_connector),
         tenant_audit_sink=resolved_audit_sink,
     )
     app.add_exception_handler(TenantCoreError, _tenant_core_error_handler)
@@ -131,8 +168,38 @@ def create_blockchain_auditor_app(
         AuditMetadataPolicyError,
         _audit_metadata_policy_error_handler,
     )
+    app.add_exception_handler(AuditBatchError, _audit_batch_error_handler)
+    app.add_exception_handler(
+        AuditRecordConflictError,
+        _audit_record_conflict_error_handler,
+    )
     app.include_router(router)
     return app
+
+
+@router.post(
+    "/audit/record",
+    response_model=AuditRecordBatchResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Записать hash-only audit records",
+)
+async def record_audit_records(
+    payload: AuditRecordBatchRequest,
+    state: Annotated[BlockchainAuditorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> AuditRecordBatchResponse:
+    receipts = await state.batch_writer.record_batch(
+        (
+            _audit_record_command(
+                item,
+                tenant_id=context.tenant_id,
+                correlation_id=context.correlation_id,
+            )
+            for item in payload.records
+        ),
+        context=context,
+    )
+    return AuditRecordBatchResponse(items=receipts)
 
 
 @router.post(
@@ -207,6 +274,23 @@ async def verify_audit_hash(
     )
 
 
+@router.get(
+    "/audit/records/{event_id}",
+    response_model=AuditRecord,
+    summary="Получить audit record по event_id",
+)
+async def get_audit_record(
+    event_id: EventIdPath,
+    state: Annotated[BlockchainAuditorAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> AuditRecord:
+    return await _get_audit_record_or_404(
+        state=state,
+        context=context,
+        event_id=event_id,
+    )
+
+
 async def _get_audit_record_or_404(
     *,
     state: BlockchainAuditorAPIState,
@@ -227,6 +311,23 @@ async def _get_audit_record_or_404(
         )
 
     return record
+
+
+def _audit_record_command(
+    item: AuditRecordRequestItem,
+    *,
+    tenant_id: str,
+    correlation_id: str | None,
+) -> AuditRecordCommand:
+    return AuditRecordCommand(
+        tenant_id=tenant_id,
+        event_id=item.event_id,
+        event_type=item.event_type,
+        audit_hash=item.audit_hash,
+        occurred_at=item.occurred_at,
+        correlation_id=item.correlation_id or correlation_id,
+        metadata=item.metadata,
+    )
 
 
 def _event_mismatch_reason(
@@ -295,6 +396,34 @@ async def _audit_metadata_policy_error_handler(
         status_code=400,
         content=error_response_body(
             code="audit_metadata_policy_violation",
+            message=str(exc),
+            correlation_id=request.headers.get("x-correlation-id"),
+        ),
+    )
+
+
+async def _audit_batch_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content=error_response_body(
+            code="audit_batch_invalid",
+            message=str(exc),
+            correlation_id=request.headers.get("x-correlation-id"),
+        ),
+    )
+
+
+async def _audit_record_conflict_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content=error_response_body(
+            code="audit_record_conflict",
             message=str(exc),
             correlation_id=request.headers.get("x-correlation-id"),
         ),
