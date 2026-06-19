@@ -21,6 +21,8 @@ from messenger_adapter.base_adapter import (
     PublicationRequest,
     RetryPolicy,
 )
+from messenger_adapter.telegram_adapter import TelegramBotApiPublisher
+from messenger_adapter.vk_adapter import VKWallPublisher
 
 __all__ = [
     "MESSENGER_ADAPTER_SCHEMA_VERSION",
@@ -42,4 +44,6 @@ __all__ = [
     "PublicationReceipt",
     "PublicationRequest",
     "RetryPolicy",
+    "TelegramBotApiPublisher",
+    "VKWallPublisher",
 ]
