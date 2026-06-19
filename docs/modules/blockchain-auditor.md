@@ -1,6 +1,6 @@
 # Private Blockchain Auditor
 
-**Статус:** 🟡 baseline коннектора · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
+**Статус:** 🟢 реализованы access_controller и batch_writer · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
 
 Неизменяемый аудит ключевых событий в приватной блокчейн-сети: только SHA256-хэши и метаданные, доступ только для Совета.
 
@@ -24,6 +24,17 @@
 - Metadata перед записью проверяются на отсутствие ПДн, сумм, токенов, сырого
   контента, голоса и transcript.
 
+## Реализовано в issue #50
+- `BlockchainAuditAccessController` применяет deny-by-default RBAC: чтение,
+  одиночная запись и batch-запись audit records доступны только роли Совета,
+  то есть роль `council`.
+- Access controller проверяет соответствие `tenant_id` команды и доверенного
+  `TenantContext`; cross-tenant запись или чтение отклоняется до transport.
+- `GrpcBlockchainAuditConnector.record_audit_hashes()` передаёт пачку хэшей в
+  transport одним batch-вызовом после проверки metadata policy.
+- `AuditBatchWriter` проверяет размер набора и использует batch API одним
+  transport-вызовом без одиночных сетевых вызовов для каждого audit record.
+
 ## Модель данных (черновик)
 - **audit_records** — `tenant_id`, `event_type`, `hash`, `metadata`, `block_ref`, `created_at`
 
@@ -33,7 +44,8 @@
 
 ## Безопасность и мультитенантность
 - В сеть пишутся **только** SHA256-хэши и метаданные — без сумм и ПДн
-- Чтение и запись аудита доступны только роли Совета
+- Чтение, одиночная запись и batch-запись аудита доступны только роли Совета
+- Все операции сравнивают `tenant_id` ресурса с проверенным `TenantContext`
 - Хэш детерминирован (`sort_keys=True`) и верифицируем
 
 ## Связанные задачи (issue)

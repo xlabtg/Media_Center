@@ -1,4 +1,13 @@
+from blockchain_auditor.access_controller import (
+    AUDIT_BATCH_RECORD_POLICY,
+    AUDIT_READ_POLICY,
+    AUDIT_RECORD_POLICY,
+    BLOCKCHAIN_AUDITOR_RESOURCE_TYPE,
+    BlockchainAuditAccessController,
+)
+from blockchain_auditor.batch_writer import AuditBatchWriter
 from blockchain_auditor.connector import (
+    AuditBatchError,
     AuditMetadataPolicyError,
     AuditRecord,
     AuditRecordCommand,
@@ -23,14 +32,21 @@ from blockchain_auditor.settings import (
 )
 
 __all__ = [
+    "AUDIT_BATCH_RECORD_POLICY",
     "BLOCKCHAIN_AUDITOR_SERVICE_NAME",
+    "BLOCKCHAIN_AUDITOR_RESOURCE_TYPE",
     "DEFAULT_BLOCKCHAIN_AUDITOR_URL",
+    "AUDIT_READ_POLICY",
+    "AUDIT_RECORD_POLICY",
+    "AuditBatchError",
+    "AuditBatchWriter",
     "AuditMetadataPolicyError",
     "AuditRecord",
     "AuditRecordCommand",
     "AuditRecordConflictError",
     "AuditRecordReceipt",
     "BlockchainAuditError",
+    "BlockchainAuditAccessController",
     "BlockchainAuditorSettings",
     "GrpcBlockchainAuditConnector",
     "GrpcBlockchainAuditTransport",
