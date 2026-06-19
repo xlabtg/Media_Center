@@ -39,6 +39,7 @@
 | [docs/STAGE_0_ACCEPTANCE.md](docs/STAGE_0_ACCEPTANCE.md) | Итоговая фиксация готовности этапа 0 и gate перед реализацией |
 | [docs/STAGE_1_ACCEPTANCE.md](docs/STAGE_1_ACCEPTANCE.md) | Итоговая фиксация готовности базовой инфраструктуры и мультитенантности |
 | [docs/STAGE_2_ACCEPTANCE.md](docs/STAGE_2_ACCEPTANCE.md) | Итоговая фиксация готовности ключевых микросервисов и сквозных сценариев |
+| [docs/STAGE_3_ACCEPTANCE.md](docs/STAGE_3_ACCEPTANCE.md) | Итоговая фиксация готовности расширенных модулей AI, голоса, KPI и уведомлений |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
