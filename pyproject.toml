@@ -53,6 +53,7 @@ python_version = "3.13"
 strict = true
 mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/cglr",
+  "$MYPY_CONFIG_FILE_DIR/services/blockchain-auditor",
   "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
   "$MYPY_CONFIG_FILE_DIR/services/hitl-payout-gateway",
   "$MYPY_CONFIG_FILE_DIR/services/messenger-adapter",
@@ -68,6 +69,7 @@ testpaths = [
 pythonpath = [
   ".",
   "services/cglr",
+  "services/blockchain-auditor",
   "services/contribution-ledger",
   "services/hitl-payout-gateway",
   "services/messenger-adapter",
