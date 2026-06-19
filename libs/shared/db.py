@@ -319,6 +319,72 @@ class PayoutDistribution(Base, TenantOwnedMixin):
     )
 
 
+class WalletOperation(Base, TenantOwnedMixin):
+    __tablename__ = "wallet_operations"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_wallet_operations_tenant_idempotency",
+        ),
+        CheckConstraint("amount_mcv <> 0", name="amount_mcv_non_zero"),
+        CheckConstraint(
+            "payout_share IS NULL OR (payout_share >= 0 AND payout_share <= 1)",
+            name="payout_share_range",
+        ),
+        Index(
+            "idx_wallet_operations_tenant_member_created",
+            "tenant_id",
+            "member_id",
+            "created_at",
+        ),
+        Index(
+            "idx_wallet_operations_tenant_ref",
+            "tenant_id",
+            "ref_type",
+            "ref_id",
+        ),
+        Index("idx_wallet_operations_audit_hash", "audit_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("tenants.tenant_id", name="fk_wallet_operations_tenant_id_tenants"),
+        nullable=False,
+        index=True,
+    )
+    member_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    amount_mcv: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    balance_after_mcv: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    period: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    distribution_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    payout_share: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 10),
+        nullable=True,
+    )
+    metadata_json: Mapped[dict[str, object]] = mapped_column(
+        "metadata",
+        JSON,
+        nullable=False,
+        default=dict,
+    )
+    audit_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class DatabaseSettings:
     database_url: str

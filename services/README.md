@@ -16,3 +16,4 @@ tenant middleware, DB settings и структурой миграций.
 | [activity-command-center](activity-command-center/) | Пороги Совета, очереди задач и контуры обратной связи. |
 | [messenger-adapter](messenger-adapter/) | Публикация и трансформация контента для площадок. |
 | [blockchain-auditor](blockchain-auditor/) | Неизменяемый аудит SHA256-хэшей и метаданных. |
+| [wallet](wallet/) | Внутренний учёт МСЦ, балансов и операций участника. |

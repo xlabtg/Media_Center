@@ -125,6 +125,8 @@ jobs:
             path: services/blockchain-auditor
           - service: voice-to-chain
             path: services/voice-to-chain
+          - service: wallet
+            path: services/wallet
 
     steps:
       - name: Checkout
