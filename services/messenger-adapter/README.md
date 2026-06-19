@@ -15,6 +15,22 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - не генерирует контент и не рассчитывает вклад самостоятельно;
 - шифрует и минимизирует чувствительные данные интеграций.
 
+## Базовый адаптер
+
+Пакет `messenger_adapter` содержит фундамент для будущих площадочных
+интеграций:
+
+- `BasePlatformAdapter` принимает единый `PublicationRequest`, получает токен
+  tenant/platform из хранилища и вызывает конкретный `PlatformPublisher`;
+- `RetryPolicy` повторяет временные сбои с экспоненциальной задержкой и
+  фиксирует финальный результат в событиях `publication.succeeded` /
+  `publication.failed`;
+- `PlatformTokenCipher` шифрует токены AES-256-GCM с привязкой associated data
+  к `tenant_id` и `platform`, а `InMemoryPlatformTokenStore` не выдаёт токены
+  между tenant'ами;
+- события и audit metadata содержат только служебные идентификаторы, хэши
+  внешних ссылок и количество попыток, без raw platform token.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/messenger-adapter.md)
