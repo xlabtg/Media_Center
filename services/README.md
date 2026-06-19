@@ -14,6 +14,7 @@ tenant middleware, DB settings и структурой миграций.
 | [cglr](cglr/) | Генерация контента и маршрутизация ссылок. |
 | [hitl-payout-gateway](hitl-payout-gateway/) | Выплаты под контролем человека: вето, 2FA, коннекторы. |
 | [activity-command-center](activity-command-center/) | Пороги Совета, очереди задач и контуры обратной связи. |
+| [analytics-engine](analytics-engine/) | KPI пилота и агрегаты активности, контента, вовлечённости и действий. |
 | [messenger-adapter](messenger-adapter/) | Публикация и трансформация контента для площадок. |
 | [blockchain-auditor](blockchain-auditor/) | Неизменяемый аудит SHA256-хэшей и метаданных. |
 | [wallet](wallet/) | Внутренний учёт МСЦ, балансов и операций участника. |
