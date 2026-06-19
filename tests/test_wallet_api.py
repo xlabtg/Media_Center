@@ -179,8 +179,8 @@ def test_wallet_operation_is_idempotent_and_rejects_conflict() -> None:
     headers = _headers(
         subject="council-1",
         roles=("council",),
-        idempotency_key="wallet-idempotent-1",
     )
+    headers["Idempotency-Key"] = "wallet-idempotent-1"
     payload = {
         "operation_id": "wallet-op-idempotent",
         "member_id": "member-a",
