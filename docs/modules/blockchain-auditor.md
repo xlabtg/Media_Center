@@ -1,6 +1,6 @@
 # Private Blockchain Auditor
 
-**Статус:** 🟢 реализованы access_controller и batch_writer · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
+**Статус:** 🟢 реализованы access_controller и batch_writer; добавлен API верификации audit records · **Этап:** Этап 2 — Ключевые микросервисы · **Компонент:** `component:blockchain-auditor`
 
 Неизменяемый аудит ключевых событий в приватной блокчейн-сети: только SHA256-хэши и метаданные, доступ только для Совета.
 
@@ -12,7 +12,8 @@
 
 ## Основные интерфейсы
 - **POST** `/audit/record` — записать хэш события (batch-агрегация)
-- **GET** `/audit/verify?hash=` — проверить соответствие события записи
+- **POST** `/audit/verify` — пересчитать hash события и сравнить с записанным audit record
+- **GET** `/audit/verify?event_id=&hash=` — проверить записанный hash по `event_id`
 
 ## Реализовано в issue #49
 - `hash_generator` формирует детерминированный SHA256 по canonical JSON
@@ -35,6 +36,18 @@
 - `AuditBatchWriter` проверяет размер набора и использует batch API одним
   transport-вызовом без одиночных сетевых вызовов для каждого audit record.
 
+## Реализовано в issue #51
+- `create_blockchain_auditor_app()` собирает FastAPI-приложение через общий
+  service template и документирует `/audit/verify` в OpenAPI.
+- `POST /audit/verify` принимает `event_id`, `event_type`, `timestamp`,
+  `points` и безопасные metadata, пересчитывает deterministic SHA256 через
+  canonical JSON и возвращает `matched`, `recorded_hash`, `calculated_hash`,
+  `block_ref` и `mismatch_reason`.
+- `GET /audit/verify?event_id=&hash=` сохраняет совместимый read-only контракт
+  проверки уже рассчитанного hash.
+- Отсутствующая запись возвращает error envelope `audit_record_not_found`;
+  расхождение hash возвращается как `matched=false` без ошибки транспорта.
+
 ## Модель данных (черновик)
 - **audit_records** — `tenant_id`, `event_type`, `hash`, `metadata`, `block_ref`, `created_at`
 
@@ -47,6 +60,8 @@
 - Чтение, одиночная запись и batch-запись аудита доступны только роли Совета
 - Все операции сравнивают `tenant_id` ресурса с проверенным `TenantContext`
 - Хэш детерминирован (`sort_keys=True`) и верифицируем
+- API верификации доступен только роли Совета и не пишет исходный event payload
+  в audit-chain.
 
 ## Связанные задачи (issue)
 - [#49](https://github.com/xlabtg/Media_Center/issues/49) — Коннектор сети (Hyperledger Besu/QBFT, gRPC) + hash_generator (`type:feature`)

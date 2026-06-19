@@ -5,6 +5,13 @@ from blockchain_auditor.access_controller import (
     BLOCKCHAIN_AUDITOR_RESOURCE_TYPE,
     BlockchainAuditAccessController,
 )
+from blockchain_auditor.api import (
+    AuditEventVerificationRequest,
+    AuditEventVerificationResponse,
+    AuditHashVerificationResponse,
+    BlockchainAuditorAPIState,
+    create_blockchain_auditor_app,
+)
 from blockchain_auditor.batch_writer import AuditBatchWriter
 from blockchain_auditor.connector import (
     AuditBatchError,
@@ -39,6 +46,9 @@ __all__ = [
     "AUDIT_READ_POLICY",
     "AUDIT_RECORD_POLICY",
     "AuditBatchError",
+    "AuditEventVerificationRequest",
+    "AuditEventVerificationResponse",
+    "AuditHashVerificationResponse",
     "AuditBatchWriter",
     "AuditMetadataPolicyError",
     "AuditRecord",
@@ -47,12 +57,14 @@ __all__ = [
     "AuditRecordReceipt",
     "BlockchainAuditError",
     "BlockchainAuditAccessController",
+    "BlockchainAuditorAPIState",
     "BlockchainAuditorSettings",
     "GrpcBlockchainAuditConnector",
     "GrpcBlockchainAuditTransport",
     "HashGenerationResult",
     "InMemoryGrpcBlockchainAuditTransport",
     "build_blockchain_auditor_settings",
+    "create_blockchain_auditor_app",
     "generate_event_hash",
     "generate_event_hash_from_payload",
     "validate_audit_metadata",
