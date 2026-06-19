@@ -52,6 +52,7 @@ extend-exclude = '''
 python_version = "3.13"
 strict = true
 mypy_path = [
+  "$MYPY_CONFIG_FILE_DIR/services/activity-command-center",
   "$MYPY_CONFIG_FILE_DIR/services/cglr",
   "$MYPY_CONFIG_FILE_DIR/services/blockchain-auditor",
   "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
@@ -68,6 +69,7 @@ testpaths = [
 ]
 pythonpath = [
   ".",
+  "services/activity-command-center",
   "services/cglr",
   "services/blockchain-auditor",
   "services/contribution-ledger",

@@ -24,6 +24,7 @@
 | `services/contribution-ledger/` | Учёт вклада, баллы, Кв, экспорт долей и аудит | [docs/modules/contribution-ledger.md](modules/contribution-ledger.md) |
 | `services/cglr/` | Генерация контента, шаблоны, маршрутизация ссылок L1/L2/L3 | [docs/modules/cglr.md](modules/cglr.md) |
 | `services/hitl-payout-gateway/` | Очередь выплат, окно вето, 2FA, коннекторы исполнения | [docs/modules/hitl-payout-gateway.md](modules/hitl-payout-gateway.md) |
+| `services/activity-command-center/` | Пороги Совета, tenant-scoped очереди задач и контуры обратной связи | [docs/modules/activity-command-center.md](modules/activity-command-center.md) |
 | `services/messenger-adapter/` | Единый интерфейс публикации на площадках и реестр площадок | [docs/modules/messenger-adapter.md](modules/messenger-adapter.md) |
 | `services/blockchain-auditor/` | Запись и проверка SHA256-хэшей в приватной audit-chain | [docs/modules/blockchain-auditor.md](modules/blockchain-auditor.md) |
 
