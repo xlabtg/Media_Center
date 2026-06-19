@@ -1,9 +1,10 @@
 # Web Cabinet
 
-Сервис личного кабинета пайщика для #67, панели Совета для #68 и дашборда KPI
-для #69. Он собирает tenant-scoped проекцию вклада, баланса МСЦ, истории
-операций, контента, реферальных ссылок, HITL-очереди и метрик Analytics Engine
-в формат, удобный для клиентского веб-экрана.
+Сервис личного кабинета пайщика для #67, панели Совета для #68, дашборда KPI
+для #69 и онбординга для #70. Он собирает tenant-scoped проекцию вклада,
+баланса МСЦ, истории операций, контента, реферальных ссылок, HITL-очереди,
+метрик Analytics Engine, шагов онбординга и AI-подсказок в формат, удобный для
+клиентского веб-экрана.
 
 ## Интерфейсы
 
@@ -24,6 +25,12 @@
   HTML-экран "Дашборд KPI".
 - `GET /analytics/dashboard/export?period=<YYYY-MM|YYYY-Www>` выгружает CSV
   отчёт по KPI и агрегатам.
+- `GET /onboarding/overview` возвращает JSON-сводку "Онбординг": прогресс
+  обязательных шагов, согласия, AI-ответы и проверку готовности участника.
+- `GET /onboarding` возвращает адаптивный HTML-экран самостоятельного
+  онбординга участника.
+- `POST /onboarding/assistant/answer` возвращает ответ AI-ассистента на
+  типовой вопрос из tenant-scoped базы FAQ.
 
 ## Данные
 
@@ -40,6 +47,10 @@
 - `InMemoryAnalyticsRepository` подключается из Analytics Engine и даёт
   дашборду #69 те же KPI и агрегаты, что `GET /analytics/kpi` и
   `GET /analytics/aggregates`.
+- `OnboardingProfileRecord`, `OnboardingStepRecord`,
+  `OnboardingConsentRecord` и `OnboardingAssistantAnswerRecord` хранят
+  tenant-scoped projection онбординга: окно 12–36 ч, шаги, согласия, readiness
+  и ответы AI-ассистента на типовые вопросы.
 
 Баланс и история операций читаются из `InMemoryWalletRepository`, поэтому
 значения МСЦ в кабинете соответствуют контракту Wallet Module.
@@ -66,3 +77,9 @@
 - Tenant-isolation контракт #69: подмена `X-Tenant-Id` возвращает
   `403 tenant_isolation_violation`, а данные другого tenant не попадают в JSON,
   HTML и CSV.
+- Онбординг доступен ролям `audience`, `member_assoc`, `member_full`,
+  `council`, `presidium`, `board`; участник видит только собственный прогресс,
+  а управляющие роли могут открыть участника по `member_id` внутри tenant.
+- Tenant-isolation контракт #70: подмена `X-Tenant-Id` возвращает
+  `403 tenant_isolation_violation`, а шаги, согласия и ответы AI-ассистента
+  другого tenant не попадают в JSON, HTML и ответ ассистента.

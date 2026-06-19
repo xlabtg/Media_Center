@@ -1,15 +1,18 @@
 # Web Cabinet
 
-**Статус:** 🟢 реализовано для #67, #68 и #69 · **Этап:** Этап 4 — Клиентские приложения и UX · **Компонент:** `component:web-cabinet`
+**Статус:** 🟢 реализовано для #67, #68, #69 и #70 · **Этап:** Этап 4 — Клиентские приложения и UX · **Компонент:** `component:web-cabinet`
 
 Личный кабинет пайщика показывает вклад, баланс МСЦ, историю операций, контент
 и реферальные ссылки в пределах tenant пользователя. Панель Совета собирает
 очередь HITL-выплат, окно вето, 2FA-подтверждение, политики и audit timeline в
 единый клиентский экран. Дашборд KPI визуализирует метрики Analytics Engine,
 срезы по периодам и категориям, а также CSV-выгрузку отчёта для Совета и
-участников tenant.
+участников tenant. Онбординг участника добавляет самостоятельный вход нового
+участника, AI-ассистент для типовых вопросов, прогресс шагов/согласий и
+проверка готовности участника к ручному решению Совета.
 
 Базовые клиентские экраны реализовано для #67 и #68; дашборд KPI добавлен в #69.
+Контракт реализовано для #67, #68 и #69 сохранён; онбординг добавлен в #70.
 
 ## Зона ответственности
 
@@ -22,6 +25,8 @@
   2FA-подтверждения выплат и изменения политик Policy Manager.
 - Дашборд KPI: tenant-scoped метрики, агрегаты активности/контента/
   вовлечённости/действий, срезы по периодам и выгрузка CSV.
+- Онбординг нового участника: 12–36-часовое окно, обязательные шаги,
+  согласия, AI-подсказки, ответы на типовые вопросы и readiness-проверка.
 
 ## Основные интерфейсы
 
@@ -42,6 +47,11 @@
 - **GET** `/analytics/dashboard` — адаптивный HTML-дашборд KPI.
 - **GET** `/analytics/dashboard/export` — CSV-выгрузка KPI и агрегатов с теми
   же фильтрами периода и категории.
+- **GET** `/onboarding/overview` — JSON-сводка онбординга текущего участника
+  или, для ролей Совета/Президиума/Правления, указанного `member_id`.
+- **GET** `/onboarding` — адаптивный HTML-экран самостоятельного онбординга.
+- **POST** `/onboarding/assistant/answer` — ответ AI-ассистента на типовой
+  вопрос онбординга из tenant-scoped базы FAQ.
 
 Оба endpoint личного кабинета принимают опциональный `member_id`: пайщик может
 читать только свой кабинет, а роли `council`, `presidium`, `board` — кабинет
@@ -61,6 +71,13 @@
   `event_type`, `event_id`, `audit_hash` и временем события.
 - **AnalyticsDashboardOverviewResponse** — tenant-scoped dashboard projection:
   KPI, агрегаты категорий, периодные срезы, ссылка на CSV export.
+- **OnboardingProfileRecord** — tenant-scoped профиль онбординга:
+  `member_id`, `started_at`, окно 12–36 ч и рекомендация статуса.
+- **OnboardingStepRecord** — шаги участника с порядком, обязательностью,
+  статусом и временем завершения.
+- **OnboardingConsentRecord** — согласия онбординга с флагами required/granted.
+- **OnboardingAssistantAnswerRecord** — tenant-scoped FAQ AI-ассистента:
+  типовой вопрос, ответ, confidence, ссылки на источники и флаг эскалации.
 - **WalletBalanceResponse / WalletOperationResponse** — используются напрямую
   из Wallet Module, чтобы баланс и история соответствовали backend.
 
@@ -78,6 +95,11 @@
 - Дашборд KPI доступен ролям `council`, `presidium`, `board`, `member_full`,
   `member_assoc`; tenant-isolation контракт #69 покрывает подмену
   `X-Tenant-Id` и отсутствие метрик другого tenant в JSON, HTML и CSV.
+- Онбординг доступен ролям `audience`, `member_assoc`, `member_full`,
+  `council`, `presidium`, `board`; новый участник читает только собственный
+  прогресс, а управляющие роли могут открыть `member_id` внутри tenant.
+- tenant-isolation контракт #70 покрывает подмену `X-Tenant-Id` и отсутствие
+  шагов, согласий и ответов AI-ассистента другого tenant в JSON, HTML и ответах.
 
 ## Реализация
 
@@ -92,13 +114,16 @@
   acceptance-тест #68.
 - [tests/test_analytics_dashboard_issue69_acceptance_contract.py](../../tests/test_analytics_dashboard_issue69_acceptance_contract.py) —
   acceptance-тест #69.
+- [tests/test_onboarding_issue70_acceptance_contract.py](../../tests/test_onboarding_issue70_acceptance_contract.py) —
+  acceptance-тест #70.
 
 ## Связанные задачи (issue)
 
 - [#67](https://github.com/xlabtg/Media_Center/issues/67) — Веб-кабинет пайщика (вклад, баланс, история)
 - [#68](https://github.com/xlabtg/Media_Center/issues/68) — Панель Совета (HITL): вето, пороги, подтверждения
 - [#69](https://github.com/xlabtg/Media_Center/issues/69) — Дашборды аналитики и KPI
+- [#70](https://github.com/xlabtg/Media_Center/issues/70) — Онбординг + AI-ассистент
 - [#60](https://github.com/xlabtg/Media_Center/issues/60) — Wallet Module: учёт МСЦ и операций
 
 ---
-<sub>Спецификация синхронизирована с реализацией Web Cabinet для issue #67, #68 и #69.</sub>
+<sub>Спецификация синхронизирована с реализацией Web Cabinet для issue #67, #68, #69 и #70.</sub>
