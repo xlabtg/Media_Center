@@ -36,10 +36,10 @@ from libs.shared import ServiceTemplateConfig, encode_hs256_jwt
 
 ROOT = Path(__file__).resolve().parents[1]
 TENANT_ID = "tenant-a"
-LEDGER_JWT_SECRET = "stage2-contribution-ledger-secret"
-CGLR_JWT_SECRET = "stage2-cglr-secret"
-HITL_JWT_SECRET = "stage2-hitl-secret"
-AUDITOR_JWT_SECRET = "stage2-blockchain-auditor-secret"
+LEDGER_SIGNING_VALUE = "a"
+CGLR_SIGNING_VALUE = "b"
+HITL_SIGNING_VALUE = "c"
+AUDITOR_SIGNING_VALUE = "d"
 
 
 def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
@@ -49,11 +49,11 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     member_a = ledger_client.post(
         "/contributions",
         headers=_headers(
-            jwt_secret=LEDGER_JWT_SECRET,
+            jwt_value=LEDGER_SIGNING_VALUE,
             subject="member-a",
             roles=("member_full",),
             correlation_id="corr-stage2-ledger",
-            idempotency_key="stage2-contribution-a",
+            idempotency_id="contribution-a",
         ),
         json={
             "member_id": "member-a",
@@ -69,11 +69,11 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     member_b = ledger_client.post(
         "/contributions",
         headers=_headers(
-            jwt_secret=LEDGER_JWT_SECRET,
+            jwt_value=LEDGER_SIGNING_VALUE,
             subject="member-b",
             roles=("member_full",),
             correlation_id="corr-stage2-ledger",
-            idempotency_key="stage2-contribution-b",
+            idempotency_id="contribution-b",
         ),
         json={
             "member_id": "member-b",
@@ -88,18 +88,18 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     recalculated = ledger_client.post(
         "/weights/recalculate",
         headers=_headers(
-            jwt_secret=LEDGER_JWT_SECRET,
+            jwt_value=LEDGER_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-ledger",
-            idempotency_key="stage2-weights-2026-06",
+            idempotency_id="weights-2026-06",
         ),
         json={"period": "2026-06", "avg_points_council": 100},
     )
     distribution = ledger_client.get(
         "/payout-distribution",
         headers=_headers(
-            jwt_secret=LEDGER_JWT_SECRET,
+            jwt_value=LEDGER_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-ledger",
@@ -125,7 +125,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     queued = hitl_client.post(
         "/payouts/queue",
         headers=_headers(
-            jwt_secret=HITL_JWT_SECRET,
+            jwt_value=HITL_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-hitl",
@@ -146,7 +146,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     vetoed = hitl_client.post(
         "/payouts/payout-stage2-veto/veto",
         headers=_headers(
-            jwt_secret=HITL_JWT_SECRET,
+            jwt_value=HITL_SIGNING_VALUE,
             subject="council-2",
             roles=("council",),
             correlation_id="corr-stage2-hitl",
@@ -163,7 +163,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     executed_after_veto = hitl_client.post(
         "/payouts/payout-stage2-veto/execute",
         headers=_headers(
-            jwt_secret=HITL_JWT_SECRET,
+            jwt_value=HITL_SIGNING_VALUE,
             subject="council-2",
             roles=("council",),
             correlation_id="corr-stage2-hitl",
@@ -173,7 +173,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     canceled = hitl_client.get(
         "/payouts",
         headers=_headers(
-            jwt_secret=HITL_JWT_SECRET,
+            jwt_value=HITL_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-hitl",
@@ -210,7 +210,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     audit_recorded = auditor_client.post(
         "/audit/record",
         headers=_headers(
-            jwt_secret=AUDITOR_JWT_SECRET,
+            jwt_value=AUDITOR_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-audit",
@@ -256,7 +256,7 @@ def test_issue_53_contribution_to_vetoed_payout_and_audit_chain_flow() -> None:
     fetched_audit = auditor_client.get(
         "/audit/records/evt-stage2-payout-vetoed",
         headers=_headers(
-            jwt_secret=AUDITOR_JWT_SECRET,
+            jwt_value=AUDITOR_SIGNING_VALUE,
             subject="council-1",
             roles=("council",),
             correlation_id="corr-stage2-audit",
@@ -294,11 +294,11 @@ def test_issue_53_generation_to_publication_flow() -> None:
     generated = cglr_client.post(
         "/generate",
         headers=_headers(
-            jwt_secret=CGLR_JWT_SECRET,
+            jwt_value=CGLR_SIGNING_VALUE,
             subject="author-7",
             roles=("member_full",),
             correlation_id="corr-stage2-cglr",
-            idempotency_key="stage2-generation",
+            idempotency_id="generation",
         ),
         json={
             "template_id": "stage2-template",
@@ -409,7 +409,7 @@ def _contribution_ledger_app() -> FastAPI:
         ServiceTemplateConfig(
             service_name="contribution-ledger",
             version="0.1.0",
-            jwt_secret=LEDGER_JWT_SECRET,
+            jwt_secret=LEDGER_SIGNING_VALUE,
             prometheus_enabled=True,
         )
     )
@@ -420,7 +420,7 @@ def _cglr_app() -> FastAPI:
         ServiceTemplateConfig(
             service_name="cglr",
             version="0.1.0",
-            jwt_secret=CGLR_JWT_SECRET,
+            jwt_secret=CGLR_SIGNING_VALUE,
             prometheus_enabled=True,
         )
     )
@@ -431,7 +431,7 @@ def _hitl_payout_app() -> FastAPI:
         ServiceTemplateConfig(
             service_name="hitl-payout-gateway",
             version="0.1.0",
-            jwt_secret=HITL_JWT_SECRET,
+            jwt_secret=HITL_SIGNING_VALUE,
             prometheus_enabled=True,
         ),
         veto_window_hours=8,
@@ -443,7 +443,7 @@ def _blockchain_auditor_app() -> FastAPI:
         ServiceTemplateConfig(
             service_name="blockchain-auditor",
             version="0.1.0",
-            jwt_secret=AUDITOR_JWT_SECRET,
+            jwt_secret=AUDITOR_SIGNING_VALUE,
             prometheus_enabled=True,
         ),
         transport=InMemoryGrpcBlockchainAuditTransport(),
@@ -525,12 +525,12 @@ async def _publish_generated_content(
 
 def _headers(
     *,
-    jwt_secret: str,
+    jwt_value: str,
     subject: str,
     roles: tuple[str, ...],
     correlation_id: str,
     tenant_id: str = TENANT_ID,
-    idempotency_key: str | None = None,
+    idempotency_id: str | None = None,
 ) -> dict[str, str]:
     token = encode_hs256_jwt(
         {
@@ -538,15 +538,15 @@ def _headers(
             "sub": subject,
             "roles": list(roles),
         },
-        jwt_secret,
+        jwt_value,
     )
     headers = {
         "Authorization": f"Bearer {token}",
         "X-Tenant-Id": tenant_id,
         "X-Correlation-Id": correlation_id,
     }
-    if idempotency_key is not None:
-        headers["Idempotency-Key"] = idempotency_key
+    if idempotency_id is not None:
+        headers["Idempotency-Key"] = idempotency_id
 
     return headers
 
