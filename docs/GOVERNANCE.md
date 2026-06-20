@@ -83,6 +83,20 @@
 
 Решения ИИ должны сопровождаться объяснением для аудита Советом (что, почему, на основании каких данных).
 
+### 6.3. RL-KPI production-контур #101
+
+- RL-KPI работает как supervised feedback loop с окном **7-30 дней**: Analytics
+  Engine анализирует KPI, но создаёт только предложения оптимизаций.
+- Любое изменение политики, порога, контентной стратегии или автоматизации
+  требует явное **решение Совета** через approval/reject before execution.
+- Policy Manager применяет guardrails `rl_kpi.window_days`,
+  `rl_kpi.require_council_approval` и `rl_kpi.min_effect_lift`.
+- После утверждённого изменения обязательно выполняется **измерение эффекта**:
+  baseline KPI сравнивается с evaluation period, а деградация переводит
+  итерацию в rollback flow.
+- Audit trail хранит только hash-only события и tenant-scoped метаданные без
+  ПДн и секретов.
+
 ---
 
 ## 7. Типы голосований

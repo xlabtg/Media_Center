@@ -1,6 +1,6 @@
 # Analytics Engine
 
-**Статус:** 🟢 реализовано для #61 и #92 · **Этап:** Этап 3/7 · **Компонент:** `component:analytics`
+**Статус:** 🟢 реализовано для #61, #92 и #101 · **Этап:** Этап 3/7/8 · **Компонент:** `component:analytics`
 
 Расчёт KPI и агрегатов активности, контента и вовлечённости для дашбордов и контуров обратной связи.
 
@@ -17,6 +17,14 @@
   KPI, usage telemetry и incidents пилота
 - **GET** `/analytics/pilot/reports?period=` — регулярный отчёт Совету по KPI,
   usage telemetry, incidents и feedback-loop статусу
+- **POST** `/analytics/rl-kpi/iterations` — supervised RL-KPI итерация за окно
+  7-30 дней с XAI-предложениями оптимизаций
+- **GET** `/analytics/rl-kpi/iterations/{iteration_id}` — чтение tenant-scoped
+  итерации RL-KPI
+- **POST** `/analytics/rl-kpi/iterations/{iteration_id}/approval` — ручное
+  approval/reject Совета перед изменением политик
+- **POST** `/analytics/rl-kpi/iterations/{iteration_id}/effect` — измерение
+  эффекта утверждённых изменений и rollback flag при деградации KPI
 - `build_analytics_kpi_response` и `build_analytics_aggregates_response` —
   публичные builder-функции для клиентского дашборда #69 без дублирования
   формул KPI вне Analytics Engine.
@@ -38,6 +46,7 @@
   агрегаты, а подмена `X-Tenant-Id` возвращает `403 tenant_isolation_violation`.
 
 ## Реализованный контракт #92
+- Совместимый маркер предыдущего этапа: реализовано для #61 и #92.
 - `POST /analytics/pilot/telemetry/collect` принимает tenant-scoped batch от
   pilot collector и автоматически превращает поле `kpi` в обычные
   `analytics.event_recorded` события для существующих KPI/aggregate builders.
@@ -53,6 +62,25 @@
   не попадают в отчёт Совету, а подмена `X-Tenant-Id` возвращает
   `403 tenant_isolation_violation`.
 
+## Реализованный контракт #101
+- `POST /analytics/rl-kpi/iterations` анализирует KPI за окно 7-30 дней и
+  создаёт `RLKPIOptimizationProposal` только для метрик вне target.
+- Каждое предложение содержит `policy_key`, `action`, `expected_direction`,
+  `expected_lift`, `requires_council_approval=true` и XAI summary с периодами,
+  baseline и последним значением.
+- `POST /analytics/rl-kpi/iterations/{iteration_id}/approval` доступен только
+  роли `council`; без этого шага effect measurement возвращает конфликт и
+  изменения не считаются утверждёнными.
+- `POST /analytics/rl-kpi/iterations/{iteration_id}/effect` сравнивает
+  baseline с evaluation KPI, возвращает `improved`, `stable` или `degraded` и
+  переводит итерацию в `rollback_required` при деградации.
+- Hash-only audit/events: `analytics.rl_kpi_iteration_created`,
+  `analytics.rl_kpi_council_decision_recorded`,
+  `analytics.rl_kpi_effect_measured`.
+- tenant-isolation контракт #101: итерации RL-KPI, approval и effect records
+  фильтруются по `tenant_id`, а подмена `X-Tenant-Id` возвращает
+  `403 tenant_isolation_violation`.
+
 ## Зависимости
 - PostgreSQL, источники событий (вклад, публикации, действия)
 
@@ -63,6 +91,7 @@
 - [#61](https://github.com/xlabtg/Media_Center/issues/61) — Analytics Engine: расчёт KPI и агрегаты (`type:feature`)
 - [#69](https://github.com/xlabtg/Media_Center/issues/69) — Дашборды аналитики и KPI (`type:feature`)
 - [#92](https://github.com/xlabtg/Media_Center/issues/92) — Сбор KPI и телеметрии пилота (`type:feature`)
+- [#101](https://github.com/xlabtg/Media_Center/issues/101) — RL-KPI loop в проде (`type:feature`)
 
 ## Связанные документы
 - [ROADMAP.md](../ROADMAP.md)

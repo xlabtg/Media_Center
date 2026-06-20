@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -53,11 +54,17 @@ ANALYTICS_EVENT_RECORDED_EVENT = "analytics.event_recorded"
 PILOT_TELEMETRY_BATCH_COLLECTED_EVENT = "analytics.pilot_batch_collected"
 PILOT_USAGE_RECORDED_EVENT = "analytics.pilot_usage_recorded"
 PILOT_INCIDENT_RECORDED_EVENT = "analytics.pilot_incident_recorded"
+RL_KPI_ITERATION_CREATED_EVENT = "analytics.rl_kpi_iteration_created"
+RL_KPI_COUNCIL_DECISION_RECORDED_EVENT = "analytics.rl_kpi_council_decision_recorded"
+RL_KPI_EFFECT_MEASURED_EVENT = "analytics.rl_kpi_effect_measured"
 
 _PERIOD_PATTERN = r"^\d{4}-((0[1-9]|1[0-2])|W(0[1-9]|[1-4][0-9]|5[0-3]))$"
 _PILOT_SOURCE_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 _PILOT_SIGNAL_PATTERN = r"^[a-z][a-z0-9_:-]{0,127}$"
 _PILOT_UNIT_PATTERN = r"^[A-Za-z][A-Za-z0-9_/%-]{0,31}$"
+_PERIOD_RE = re.compile(_PERIOD_PATTERN)
+_RL_KPI_MIN_WINDOW_DAYS = 7
+_RL_KPI_MAX_WINDOW_DAYS = 30
 
 ANALYTICS_EVENT_RECORD_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -84,6 +91,30 @@ PILOT_COUNCIL_REPORT_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
     action="analytics.pilot.report",
     resource_type="pilot_report",
+)
+RL_KPI_CREATE_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    action="analytics.rl_kpi.create",
+    resource_type="rl_kpi_iteration",
+)
+RL_KPI_READ_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="analytics.rl_kpi.read",
+    resource_type="rl_kpi_iteration",
+)
+RL_KPI_APPROVAL_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    action="analytics.rl_kpi.approve",
+    resource_type="rl_kpi_iteration",
+)
+RL_KPI_EFFECT_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    action="analytics.rl_kpi.measure_effect",
+    resource_type="rl_kpi_iteration",
 )
 
 
@@ -121,6 +152,38 @@ class PilotIncidentSeverity(StrEnum):
 class PilotIncidentStatus(StrEnum):
     OPEN = "open"
     RESOLVED = "resolved"
+
+
+class RLKPIIterationStatus(StrEnum):
+    AWAITING_COUNCIL_APPROVAL = "awaiting_council_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EFFECT_MEASURED = "effect_measured"
+    ROLLBACK_REQUIRED = "rollback_required"
+    MONITORING_ONLY = "monitoring_only"
+
+
+class RLKPIProposalStatus(StrEnum):
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class RLKPIEffectStatus(StrEnum):
+    PENDING = "pending"
+    IMPROVED = "improved"
+    DEGRADED = "degraded"
+    STABLE = "stable"
+
+
+class RLKPICouncilDecision(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
+
+
+class RLKPIExpectedDirection(StrEnum):
+    INCREASE = "increase"
+    DECREASE = "decrease"
 
 
 _EVENT_CATEGORIES: dict[AnalyticsEventType, AnalyticsCategory] = {
@@ -461,6 +524,131 @@ class PilotCouncilReportResponse(SharedBaseModel):
     generated_at: datetime
 
 
+class RLKPIIterationCreateRequest(SharedBaseModel):
+    iteration_id: IdempotencyKey | None = None
+    periods: tuple[str, ...] = Field(min_length=1, max_length=5)
+    window_days: int = Field(ge=_RL_KPI_MIN_WINDOW_DAYS, le=_RL_KPI_MAX_WINDOW_DAYS)
+    policy_revision: IdempotencyKey
+    started_at: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("periods")
+    @classmethod
+    def _validate_periods(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(value)) != len(value):
+            raise ValueError("periods не должен содержать дубликаты")
+        for period in value:
+            _validate_period(period)
+        return value
+
+    @field_validator("started_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class RLKPICouncilApprovalRequest(SharedBaseModel):
+    decision: RLKPICouncilDecision
+    decided_at: datetime | None = None
+    decision_ref: str = Field(min_length=1, max_length=256)
+    comment: str | None = Field(default=None, min_length=1, max_length=512)
+
+    @field_validator("decision", mode="before")
+    @classmethod
+    def _normalize_decision(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("decided_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class RLKPIEffectMeasurementRequest(SharedBaseModel):
+    evaluation_period: str
+    measured_at: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("evaluation_period")
+    @classmethod
+    def _validate_evaluation_period(cls, value: str) -> str:
+        return _validate_period(value)
+
+    @field_validator("measured_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class RLKPIEffectMeasurement(SharedBaseModel):
+    evaluation_period: str
+    measured_at: datetime
+    baseline_value: float = Field(ge=0, allow_inf_nan=False)
+    evaluation_value: float = Field(ge=0, allow_inf_nan=False)
+    absolute_delta: float = Field(allow_inf_nan=False)
+    relative_delta: float | None = Field(default=None, allow_inf_nan=False)
+    status: RLKPIEffectStatus
+    rollback_recommended: bool
+
+
+class RLKPIOptimizationProposal(SharedBaseModel):
+    proposal_id: IdempotencyKey
+    metric_key: str = Field(min_length=1, max_length=128)
+    category: AnalyticsCategory
+    status: RLKPIProposalStatus
+    policy_key: str = Field(min_length=1, max_length=128)
+    action: str = Field(min_length=1, max_length=128)
+    rationale_code: str = Field(min_length=1, max_length=128)
+    baseline_value: float = Field(ge=0, allow_inf_nan=False)
+    latest_value: float = Field(ge=0, allow_inf_nan=False)
+    target_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    target_max: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    expected_direction: RLKPIExpectedDirection
+    expected_lift: float = Field(ge=0, allow_inf_nan=False)
+    xai_summary: str = Field(min_length=1, max_length=512)
+    requires_council_approval: bool = True
+    effect: RLKPIEffectMeasurement | None = None
+
+
+class RLKPICouncilControl(SharedBaseModel):
+    required_role: str
+    approval_status: str
+    approved_by: SubjectId | None = None
+    approved_at: datetime | None = None
+    decision_ref: str | None = None
+
+
+class RLKPIMonitoringSummary(SharedBaseModel):
+    baseline_period: str
+    evaluation_period: str | None = None
+    effect_status: RLKPIEffectStatus
+    metrics: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class RLKPIIterationResponse(SharedBaseModel):
+    iteration_id: IdempotencyKey
+    tenant_id: TenantId
+    periods: tuple[str, ...]
+    window_days: int = Field(ge=_RL_KPI_MIN_WINDOW_DAYS, le=_RL_KPI_MAX_WINDOW_DAYS)
+    policy_revision: IdempotencyKey
+    status: RLKPIIterationStatus
+    proposal_count: int = Field(ge=0)
+    proposals: tuple[RLKPIOptimizationProposal, ...]
+    council_control: RLKPICouncilControl
+    monitoring: RLKPIMonitoringSummary
+    audit_hash: AuditHash
+    started_at: datetime
+    updated_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class AnalyticsEventRecord:
     event_id: str
@@ -524,6 +712,24 @@ class PilotTelemetryBatchRecord:
     metadata: dict[str, JSONValue]
 
 
+@dataclass(frozen=True, slots=True)
+class RLKPIIterationRecord:
+    iteration_id: str
+    tenant_id: str
+    periods: tuple[str, ...]
+    window_days: int
+    policy_revision: str
+    status: RLKPIIterationStatus
+    proposals: tuple[RLKPIOptimizationProposal, ...]
+    council_control: RLKPICouncilControl
+    monitoring: RLKPIMonitoringSummary
+    audit_hash: str
+    correlation_id: str
+    started_at: datetime
+    updated_at: datetime
+    metadata: dict[str, JSONValue]
+
+
 @dataclass(slots=True)
 class InMemoryAnalyticsRepository:
     _events: list[AnalyticsEventRecord] = field(default_factory=list)
@@ -532,6 +738,9 @@ class InMemoryAnalyticsRepository:
     )
     _usage_signals: list[PilotUsageTelemetryRecord] = field(default_factory=list)
     _incidents: list[PilotIncidentRecord] = field(default_factory=list)
+    _rl_kpi_iterations: dict[tuple[str, str], RLKPIIterationRecord] = field(
+        default_factory=dict
+    )
     _tenant_guard: TenantScopedRepository[AnalyticsEventRecord] = field(
         default_factory=lambda: TenantScopedRepository("analytics_events")
     )
@@ -540,6 +749,9 @@ class InMemoryAnalyticsRepository:
     )
     _incident_guard: TenantScopedRepository[PilotIncidentRecord] = field(
         default_factory=lambda: TenantScopedRepository("pilot_incidents")
+    )
+    _rl_kpi_guard: TenantScopedRepository[RLKPIIterationRecord] = field(
+        default_factory=lambda: TenantScopedRepository("rl_kpi_iterations")
     )
 
     def event_exists(self, *, tenant_id: str, event_id: str) -> bool:
@@ -576,6 +788,57 @@ class InMemoryAnalyticsRepository:
 
         self._pilot_batches[key] = record
         return record
+
+    def rl_kpi_iteration_exists(
+        self,
+        *,
+        tenant_id: str,
+        iteration_id: str,
+    ) -> bool:
+        return (tenant_id, iteration_id) in self._rl_kpi_iterations
+
+    def add_rl_kpi_iteration(
+        self,
+        record: RLKPIIterationRecord,
+    ) -> RLKPIIterationRecord:
+        key = (record.tenant_id, record.iteration_id)
+        if key in self._rl_kpi_iterations:
+            raise SharedError(
+                status_code=409,
+                error_code="rl_kpi_iteration_conflict",
+                message="RL-KPI итерация с таким iteration_id уже существует",
+            )
+
+        self._rl_kpi_iterations[key] = record
+        return record
+
+    def save_rl_kpi_iteration(
+        self,
+        record: RLKPIIterationRecord,
+    ) -> RLKPIIterationRecord:
+        self._rl_kpi_iterations[(record.tenant_id, record.iteration_id)] = record
+        return record
+
+    def get_rl_kpi_iteration(
+        self,
+        *,
+        context: TenantContext,
+        iteration_id: str,
+    ) -> RLKPIIterationRecord:
+        records = self._rl_kpi_guard.list_for_tenant(
+            self._rl_kpi_iterations.values(),
+            context,
+        )
+        for record in records:
+            if record.iteration_id == iteration_id:
+                return record
+
+        raise SharedError(
+            status_code=404,
+            error_code="rl_kpi_iteration_not_found",
+            message="RL-KPI итерация не найдена",
+            correlation_id=context.correlation_id,
+        )
 
     def add_usage_signal(
         self,
@@ -931,6 +1194,316 @@ def get_pilot_council_report(
     )
 
 
+@router.post(
+    "/analytics/rl-kpi/iterations",
+    response_model=RLKPIIterationResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Создать supervised RL-KPI итерацию по KPI за окно 7-30 дней",
+)
+async def create_rl_kpi_iteration(
+    payload: RLKPIIterationCreateRequest,
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> RLKPIIterationResponse:
+    require_access(RL_KPI_CREATE_POLICY, context=context)
+    iteration_id = payload.iteration_id or _new_id("rl-kpi-iteration")
+    if state.repository.rl_kpi_iteration_exists(
+        tenant_id=context.tenant_id,
+        iteration_id=iteration_id,
+    ):
+        raise SharedError(
+            status_code=409,
+            error_code="rl_kpi_iteration_conflict",
+            message="RL-KPI итерация с таким iteration_id уже существует",
+            correlation_id=context.correlation_id,
+        )
+
+    started_at = payload.started_at or datetime.now(UTC)
+    period_kpis = tuple(
+        build_analytics_kpi_response(
+            tenant_id=context.tenant_id,
+            period=period,
+            events=state.repository.list_events(context=context, period=period),
+        )
+        for period in payload.periods
+    )
+    proposals = _build_rl_kpi_proposals(
+        iteration_id=iteration_id,
+        period_kpis=period_kpis,
+        window_days=payload.window_days,
+    )
+    status = (
+        RLKPIIterationStatus.AWAITING_COUNCIL_APPROVAL
+        if proposals
+        else RLKPIIterationStatus.MONITORING_ONLY
+    )
+    monitoring = RLKPIMonitoringSummary(
+        baseline_period=payload.periods[-1],
+        effect_status=RLKPIEffectStatus.PENDING,
+        metrics=tuple(proposal.metric_key for proposal in proposals),
+    )
+    council_control = RLKPICouncilControl(
+        required_role=COUNCIL_ROLE,
+        approval_status="pending" if proposals else "not_required",
+    )
+    audit_record = state.audit_logger.record(
+        event_type=RL_KPI_ITERATION_CREATED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "iteration_id": iteration_id,
+            "periods": list(payload.periods),
+            "window_days": payload.window_days,
+            "policy_revision": payload.policy_revision,
+            "proposal_ids": [proposal.proposal_id for proposal in proposals],
+            "metadata": payload.metadata,
+        },
+        timestamp=started_at,
+        correlation_id=_correlation_id(context),
+        actor_hash=_actor_hash(context),
+        source=ANALYTICS_ENGINE_SOURCE,
+    )
+    record = state.repository.add_rl_kpi_iteration(
+        RLKPIIterationRecord(
+            iteration_id=iteration_id,
+            tenant_id=context.tenant_id,
+            periods=payload.periods,
+            window_days=payload.window_days,
+            policy_revision=payload.policy_revision,
+            status=status,
+            proposals=proposals,
+            council_control=council_control,
+            monitoring=monitoring,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=_correlation_id(context),
+            started_at=started_at,
+            updated_at=started_at,
+            metadata=payload.metadata,
+        )
+    )
+    await state.publisher.publish(
+        _rl_kpi_event_envelope(
+            record=record,
+            event_type=RL_KPI_ITERATION_CREATED_EVENT,
+            occurred_at=started_at,
+            audit_hash=audit_record.audit_hash,
+        )
+    )
+    return _rl_kpi_iteration_response(record)
+
+
+@router.get(
+    "/analytics/rl-kpi/iterations/{iteration_id}",
+    response_model=RLKPIIterationResponse,
+    summary="Получить supervised RL-KPI итерацию tenant",
+)
+def get_rl_kpi_iteration(
+    iteration_id: str,
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> RLKPIIterationResponse:
+    require_access(RL_KPI_READ_POLICY, context=context)
+    return _rl_kpi_iteration_response(
+        state.repository.get_rl_kpi_iteration(
+            context=context,
+            iteration_id=iteration_id,
+        )
+    )
+
+
+@router.post(
+    "/analytics/rl-kpi/iterations/{iteration_id}/approval",
+    response_model=RLKPIIterationResponse,
+    summary="Зафиксировать решение Совета по RL-KPI предложениям",
+)
+async def approve_rl_kpi_iteration(
+    iteration_id: str,
+    payload: RLKPICouncilApprovalRequest,
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> RLKPIIterationResponse:
+    actor_context = require_access(RL_KPI_APPROVAL_POLICY, context=context)
+    decided_by = _required_subject(actor_context)
+    decided_at = payload.decided_at or datetime.now(UTC)
+    record = state.repository.get_rl_kpi_iteration(
+        context=context,
+        iteration_id=iteration_id,
+    )
+    if record.status is not RLKPIIterationStatus.AWAITING_COUNCIL_APPROVAL:
+        raise SharedError(
+            status_code=409,
+            error_code="rl_kpi_iteration_not_awaiting_council_approval",
+            message="Решение Совета доступно только для RL-KPI с предложениями",
+            correlation_id=context.correlation_id,
+        )
+
+    proposal_status = (
+        RLKPIProposalStatus.APPROVED
+        if payload.decision is RLKPICouncilDecision.APPROVE
+        else RLKPIProposalStatus.REJECTED
+    )
+    status = (
+        RLKPIIterationStatus.APPROVED
+        if payload.decision is RLKPICouncilDecision.APPROVE
+        else RLKPIIterationStatus.REJECTED
+    )
+    proposals = tuple(
+        proposal.model_copy(update={"status": proposal_status})
+        for proposal in record.proposals
+    )
+    council_control = RLKPICouncilControl(
+        required_role=COUNCIL_ROLE,
+        approval_status=proposal_status.value,
+        approved_by=decided_by,
+        approved_at=decided_at,
+        decision_ref=payload.decision_ref,
+    )
+    audit_record = state.audit_logger.record(
+        event_type=RL_KPI_COUNCIL_DECISION_RECORDED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "iteration_id": record.iteration_id,
+            "decision": payload.decision.value,
+            "decision_ref": payload.decision_ref,
+            "comment_present": payload.comment is not None,
+            "proposal_ids": [proposal.proposal_id for proposal in proposals],
+        },
+        timestamp=decided_at,
+        correlation_id=_correlation_id(context),
+        actor_hash=_actor_hash(context),
+        source=ANALYTICS_ENGINE_SOURCE,
+    )
+    updated = state.repository.save_rl_kpi_iteration(
+        RLKPIIterationRecord(
+            iteration_id=record.iteration_id,
+            tenant_id=record.tenant_id,
+            periods=record.periods,
+            window_days=record.window_days,
+            policy_revision=record.policy_revision,
+            status=status,
+            proposals=proposals,
+            council_control=council_control,
+            monitoring=record.monitoring,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=record.correlation_id,
+            started_at=record.started_at,
+            updated_at=decided_at,
+            metadata=record.metadata,
+        )
+    )
+    await state.publisher.publish(
+        _rl_kpi_event_envelope(
+            record=updated,
+            event_type=RL_KPI_COUNCIL_DECISION_RECORDED_EVENT,
+            occurred_at=decided_at,
+            audit_hash=audit_record.audit_hash,
+            extra_payload={
+                "decision": payload.decision.value,
+                "decision_ref": payload.decision_ref,
+            },
+        )
+    )
+    return _rl_kpi_iteration_response(updated)
+
+
+@router.post(
+    "/analytics/rl-kpi/iterations/{iteration_id}/effect",
+    response_model=RLKPIIterationResponse,
+    summary="Измерить эффект утверждённых RL-KPI изменений",
+)
+async def measure_rl_kpi_effect(
+    iteration_id: str,
+    payload: RLKPIEffectMeasurementRequest,
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> RLKPIIterationResponse:
+    require_access(RL_KPI_EFFECT_POLICY, context=context)
+    record = state.repository.get_rl_kpi_iteration(
+        context=context,
+        iteration_id=iteration_id,
+    )
+    if record.council_control.approval_status != RLKPIProposalStatus.APPROVED.value:
+        raise SharedError(
+            status_code=409,
+            error_code="rl_kpi_requires_council_approval",
+            message="Измерение эффекта доступно только после approval Совета",
+            correlation_id=context.correlation_id,
+        )
+
+    measured_at = payload.measured_at or datetime.now(UTC)
+    evaluation_kpi = build_analytics_kpi_response(
+        tenant_id=context.tenant_id,
+        period=payload.evaluation_period,
+        events=state.repository.list_events(
+            context=context,
+            period=payload.evaluation_period,
+        ),
+    )
+    proposals = _measure_rl_kpi_proposal_effects(
+        proposals=record.proposals,
+        evaluation_period=payload.evaluation_period,
+        measured_at=measured_at,
+        evaluation_kpi=evaluation_kpi,
+    )
+    effect_status = _overall_rl_kpi_effect_status(proposals)
+    status = (
+        RLKPIIterationStatus.ROLLBACK_REQUIRED
+        if effect_status is RLKPIEffectStatus.DEGRADED
+        else RLKPIIterationStatus.EFFECT_MEASURED
+    )
+    monitoring = RLKPIMonitoringSummary(
+        baseline_period=record.monitoring.baseline_period,
+        evaluation_period=payload.evaluation_period,
+        effect_status=effect_status,
+        metrics=record.monitoring.metrics,
+    )
+    audit_record = state.audit_logger.record(
+        event_type=RL_KPI_EFFECT_MEASURED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "iteration_id": record.iteration_id,
+            "evaluation_period": payload.evaluation_period,
+            "effect_status": effect_status.value,
+            "rollback_required": status is RLKPIIterationStatus.ROLLBACK_REQUIRED,
+            "metadata": payload.metadata,
+        },
+        timestamp=measured_at,
+        correlation_id=_correlation_id(context),
+        actor_hash=_actor_hash(context),
+        source=ANALYTICS_ENGINE_SOURCE,
+    )
+    updated = state.repository.save_rl_kpi_iteration(
+        RLKPIIterationRecord(
+            iteration_id=record.iteration_id,
+            tenant_id=record.tenant_id,
+            periods=record.periods,
+            window_days=record.window_days,
+            policy_revision=record.policy_revision,
+            status=status,
+            proposals=proposals,
+            council_control=record.council_control,
+            monitoring=monitoring,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=record.correlation_id,
+            started_at=record.started_at,
+            updated_at=measured_at,
+            metadata=record.metadata,
+        )
+    )
+    await state.publisher.publish(
+        _rl_kpi_event_envelope(
+            record=updated,
+            event_type=RL_KPI_EFFECT_MEASURED_EVENT,
+            occurred_at=measured_at,
+            audit_hash=audit_record.audit_hash,
+            extra_payload={
+                "evaluation_period": payload.evaluation_period,
+                "effect_status": effect_status.value,
+            },
+        )
+    )
+    return _rl_kpi_iteration_response(updated)
+
+
 def build_analytics_kpi_response(
     *,
     tenant_id: str,
@@ -961,6 +1534,275 @@ def build_analytics_aggregates_response(
 
 def subject_ref_hash(*, tenant_id: str, subject_id: str) -> str:
     return "sha256:" + hashlib.sha256(f"{tenant_id}:{subject_id}".encode()).hexdigest()
+
+
+def _validate_period(value: str) -> str:
+    if _PERIOD_RE.fullmatch(value) is None:
+        raise ValueError("period должен соответствовать YYYY-MM или YYYY-Www")
+    return value
+
+
+def _build_rl_kpi_proposals(
+    *,
+    iteration_id: str,
+    period_kpis: tuple[AnalyticsKPIResponse, ...],
+    window_days: int,
+) -> tuple[RLKPIOptimizationProposal, ...]:
+    if not period_kpis:
+        return ()
+
+    latest_kpi = period_kpis[-1]
+    proposals: list[RLKPIOptimizationProposal] = []
+    for metric in latest_kpi.metrics:
+        if metric.status is KPIStatus.ON_TRACK:
+            continue
+
+        values = tuple(
+            period_metric.value
+            for period_metric in _metric_series(period_kpis, metric.key)
+        )
+        baseline_value = _round_metric(sum(values) / len(values)) if values else 0
+        direction = _expected_direction(metric)
+        proposals.append(
+            RLKPIOptimizationProposal(
+                proposal_id=f"{iteration_id}:{metric.key}",
+                metric_key=metric.key,
+                category=metric.category,
+                status=RLKPIProposalStatus.PROPOSED,
+                policy_key=f"rl_kpi.{metric.key}",
+                action=_rl_kpi_action(metric.key, direction),
+                rationale_code=f"{metric.key}_{metric.status.value}",
+                baseline_value=baseline_value,
+                latest_value=metric.value,
+                target_min=metric.target_min,
+                target_max=metric.target_max,
+                expected_direction=direction,
+                expected_lift=_expected_lift(metric, direction),
+                xai_summary=_rl_kpi_xai_summary(
+                    metric=metric,
+                    periods=tuple(kpi.period for kpi in period_kpis),
+                    baseline_value=baseline_value,
+                    window_days=window_days,
+                ),
+            )
+        )
+
+    return tuple(proposals)
+
+
+def _metric_series(
+    period_kpis: tuple[AnalyticsKPIResponse, ...],
+    metric_key: str,
+) -> tuple[KPIMetric, ...]:
+    return tuple(
+        metric
+        for kpi in period_kpis
+        for metric in kpi.metrics
+        if metric.key == metric_key
+    )
+
+
+def _expected_direction(metric: KPIMetric) -> RLKPIExpectedDirection:
+    if metric.status is KPIStatus.ABOVE_TARGET:
+        return RLKPIExpectedDirection.DECREASE
+    return RLKPIExpectedDirection.INCREASE
+
+
+def _expected_lift(
+    metric: KPIMetric,
+    direction: RLKPIExpectedDirection,
+) -> float:
+    if direction is RLKPIExpectedDirection.INCREASE and metric.target_min is not None:
+        return _round_metric(max(metric.target_min - metric.value, 0))
+    if direction is RLKPIExpectedDirection.DECREASE and metric.target_max is not None:
+        return _round_metric(max(metric.value - metric.target_max, 0))
+
+    return 0.0
+
+
+def _rl_kpi_action(metric_key: str, direction: RLKPIExpectedDirection) -> str:
+    if direction is RLKPIExpectedDirection.DECREASE:
+        return "stabilize_metric_with_council_review"
+
+    return {
+        "active_members": "increase_member_activation",
+        "new_members": "review_onboarding_funnel",
+        "materials_published": "rebalance_content_plan",
+        "content_views": "increase_distribution_and_link_rotation",
+        "avg_reading_minutes": "improve_article_structure",
+        "comments": "run_engagement_prompt_experiment",
+        "tasks_completed": "review_task_queue_and_notifications",
+        "initiatives_created": "prepare_initiative_call",
+    }.get(metric_key, "optimize_metric_under_council_control")
+
+
+def _rl_kpi_xai_summary(
+    *,
+    metric: KPIMetric,
+    periods: tuple[str, ...],
+    baseline_value: float,
+    window_days: int,
+) -> str:
+    target = _metric_target_label(metric)
+    return (
+        f"{metric.label}: последнее значение {_format_float(metric.value)} "
+        f"{metric.unit}, окно {window_days} дней ({', '.join(periods)}), "
+        f"среднее окна {_format_float(baseline_value)}, {target}; "
+        "предложение требует approval Совета."
+    )
+
+
+def _measure_rl_kpi_proposal_effects(
+    *,
+    proposals: tuple[RLKPIOptimizationProposal, ...],
+    evaluation_period: str,
+    measured_at: datetime,
+    evaluation_kpi: AnalyticsKPIResponse,
+) -> tuple[RLKPIOptimizationProposal, ...]:
+    evaluation_metrics = {metric.key: metric for metric in evaluation_kpi.metrics}
+    return tuple(
+        proposal.model_copy(
+            update={
+                "effect": _measure_rl_kpi_effect(
+                    proposal=proposal,
+                    evaluation_metric=evaluation_metrics[proposal.metric_key],
+                    evaluation_period=evaluation_period,
+                    measured_at=measured_at,
+                )
+            }
+        )
+        for proposal in proposals
+        if proposal.metric_key in evaluation_metrics
+    )
+
+
+def _measure_rl_kpi_effect(
+    *,
+    proposal: RLKPIOptimizationProposal,
+    evaluation_metric: KPIMetric,
+    evaluation_period: str,
+    measured_at: datetime,
+) -> RLKPIEffectMeasurement:
+    baseline_value = proposal.latest_value
+    evaluation_value = evaluation_metric.value
+    absolute_delta = _round_metric(evaluation_value - baseline_value)
+    relative_delta = None
+    if baseline_value > 0:
+        relative_delta = _round_metric(absolute_delta / baseline_value)
+
+    status = _proposal_effect_status(
+        direction=proposal.expected_direction,
+        absolute_delta=absolute_delta,
+    )
+    return RLKPIEffectMeasurement(
+        evaluation_period=evaluation_period,
+        measured_at=measured_at,
+        baseline_value=baseline_value,
+        evaluation_value=evaluation_value,
+        absolute_delta=absolute_delta,
+        relative_delta=relative_delta,
+        status=status,
+        rollback_recommended=status is RLKPIEffectStatus.DEGRADED,
+    )
+
+
+def _proposal_effect_status(
+    *,
+    direction: RLKPIExpectedDirection,
+    absolute_delta: float,
+) -> RLKPIEffectStatus:
+    if absolute_delta == 0:
+        return RLKPIEffectStatus.STABLE
+    if direction is RLKPIExpectedDirection.INCREASE:
+        return (
+            RLKPIEffectStatus.IMPROVED
+            if absolute_delta > 0
+            else RLKPIEffectStatus.DEGRADED
+        )
+
+    return (
+        RLKPIEffectStatus.IMPROVED if absolute_delta < 0 else RLKPIEffectStatus.DEGRADED
+    )
+
+
+def _overall_rl_kpi_effect_status(
+    proposals: tuple[RLKPIOptimizationProposal, ...],
+) -> RLKPIEffectStatus:
+    statuses = tuple(
+        proposal.effect.status for proposal in proposals if proposal.effect is not None
+    )
+    if not statuses:
+        return RLKPIEffectStatus.STABLE
+    if RLKPIEffectStatus.DEGRADED in statuses:
+        return RLKPIEffectStatus.DEGRADED
+    if RLKPIEffectStatus.IMPROVED in statuses:
+        return RLKPIEffectStatus.IMPROVED
+
+    return RLKPIEffectStatus.STABLE
+
+
+def _rl_kpi_event_envelope(
+    *,
+    record: RLKPIIterationRecord,
+    event_type: str,
+    occurred_at: datetime,
+    audit_hash: str,
+    extra_payload: dict[str, JSONValue] | None = None,
+) -> EventEnvelope:
+    payload: dict[str, JSONValue] = {
+        "iteration_id": record.iteration_id,
+        "periods": list(record.periods),
+        "window_days": record.window_days,
+        "policy_revision": record.policy_revision,
+        "status": record.status.value,
+        "proposal_count": len(record.proposals),
+        "audit_hash": audit_hash,
+    }
+    if extra_payload is not None:
+        payload.update(extra_payload)
+
+    return EventEnvelope(
+        event_id=_new_id("evt-rl-kpi"),
+        type=event_type,
+        schema_version=ANALYTICS_ENGINE_SCHEMA_VERSION,
+        tenant_id=record.tenant_id,
+        source=ANALYTICS_ENGINE_SOURCE,
+        correlation_id=record.correlation_id,
+        occurred_at=occurred_at,
+        payload=payload,
+    )
+
+
+def _rl_kpi_iteration_response(
+    record: RLKPIIterationRecord,
+) -> RLKPIIterationResponse:
+    return RLKPIIterationResponse(
+        iteration_id=record.iteration_id,
+        tenant_id=record.tenant_id,
+        periods=record.periods,
+        window_days=record.window_days,
+        policy_revision=record.policy_revision,
+        status=record.status,
+        proposal_count=len(record.proposals),
+        proposals=record.proposals,
+        council_control=record.council_control,
+        monitoring=record.monitoring,
+        audit_hash=record.audit_hash,
+        started_at=record.started_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _required_subject(context: TenantContext) -> SubjectId:
+    if context.subject is None or context.subject.strip() == "":
+        raise SharedError(
+            status_code=400,
+            error_code="actor_required",
+            message="RL-KPI approval требует subject в tenant context",
+            correlation_id=context.correlation_id,
+        )
+
+    return context.subject
 
 
 def _api_state(request: Request) -> AnalyticsEngineAPIState:
@@ -1483,6 +2325,22 @@ def _build_category_aggregates(
 
 def _round_metric(value: float) -> float:
     return round(value, 4)
+
+
+def _metric_target_label(metric: KPIMetric) -> str:
+    if metric.target_min is None and metric.target_max is None:
+        return metric.target_window
+    if metric.target_min is None:
+        return f"цель до {_format_float(metric.target_max or 0)}"
+    if metric.target_max is None:
+        return f"цель от {_format_float(metric.target_min)}"
+    return f"цель {_format_float(metric.target_min)}-{_format_float(metric.target_max)}"
+
+
+def _format_float(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{value:.4f}".rstrip("0").rstrip(".")
 
 
 def _normalize_datetime(value: datetime) -> datetime:
