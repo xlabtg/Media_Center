@@ -76,6 +76,23 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - В audit metadata попадает только компактный список `referral_links`
   (`level`, `owner_id`, `reward_share`), без platform token и без секретов.
 
+## Telegram-клиент участника (issue #71)
+
+- `TelegramClientGateway` даёт участникам входящий канал работы через Telegram:
+  связывает аккаунт (`link_account`), разбирает базовые команды (`/start`,
+  `/help`, `/status`, `/balance`, `/tasks`) и формирует ответы на русском без
+  раскрытия секретов.
+- `TelegramIdentityCipher` шифрует Telegram-идентичность участника AES-256-GCM
+  с доменно-разделённой меткой AAD `telegram_client_identity`; в события, аудит
+  и логи попадает только шифртекст и tenant-scoped `telegram_user_ref_hash`, а
+  не сырой идентификатор и не данные участника (баллы, статус).
+- `TelegramProxyRotator` обеспечивает работу через прокси-ротацию: tenant-scoped
+  пул `http`/`socks5`/`mtproto`, round-robin по живым endpoint'ам, пометку
+  здоровья и `redacted_url`/SHA-256 хэши вместо учётных данных (хранятся только
+  как `secret_ref`).
+- Взаимодействия публикуют события `messenger.telegram_client.account_linked` и
+  `messenger.telegram_client.command_handled` и фиксируются аудит-хэшем.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/messenger-adapter.md)

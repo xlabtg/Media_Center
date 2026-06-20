@@ -93,6 +93,24 @@ Gateway и HITL Payout Gateway:
 - health-check помечает неживые proxy как `unhealthy`, после чего lease выдаёт
   только живые endpoint до следующей успешной проверки.
 
+### 4.2. Telegram-клиент участника
+
+Telegram-клиент участника для issue #71 даёт кооперативным участникам входящий
+канал работы через Telegram и опирается на правила §4.1 для прокси:
+
+- Telegram-идентичность участника шифруется AES-256-GCM (`PlatformTokenCipher`)
+  с доменно-разделённой меткой associated data `telegram_client_identity` плюс
+  `tenant_id`; сырой Telegram ID не хранится в открытом виде;
+- в события, audit и логи попадает только шифртекст и tenant-scoped
+  `telegram_user_ref_hash` (SHA-256), но не сырой идентификатор, не текст
+  команды и не данные участника (баллы, статус, задачи);
+- доступ к привязке и данным участника строго изолирован по `tenant_id`:
+  ключи хранилищ и AAD шифра включают tenant, поэтому шифртекст одного tenant
+  невозможно расшифровать в контексте другого;
+- работа через прокси использует tenant-scoped пул `TelegramProxyRotator`
+  (HTTP/SOCKS5/MTProto) по правилам §4.1: round-robin по живым endpoint,
+  `redacted_url` и hash вместо raw URL и `secret_ref`.
+
 ---
 
 ## 5. Детальная модель угроз STRIDE

@@ -9,6 +9,8 @@
 - Адаптеры Telegram, VK, Dzen, OK и др. (top-10 РФ)
 - Трансформация и обрезка контента под ограничения площадки
 - Реестр площадок (Platform Registry) и инъекция реферальных ссылок
+- Клиентский (входящий) канал работы участника через Telegram
+  (`telegram_client`)
 
 ## Основные интерфейсы
 - **POST** `/publish` — опубликовать контент на площадку(и)
@@ -43,6 +45,30 @@
 - В текст публикации добавляется блок `Реферальные ссылки` с L1/L2/L3 URL, а в
   metadata сохраняется компактный список уровней, владельцев и reward share.
 
+## Telegram-клиент участника (issue #71)
+- `TelegramClientGateway` — оркестратор входящего канала: связывает Telegram-
+  аккаунт участника, разбирает базовые команды и фиксирует аудит и события без
+  раскрытия секретов. Базовые сценарии: `/start`, `/help`, `/status`,
+  `/balance` (баллы и Кв), `/tasks`; нераспознанные команды отдают подсказку.
+- **Шифрование чувствительных данных.** `TelegramIdentityCipher` переиспользует
+  AES-256-GCM (`PlatformTokenCipher`) с доменно-разделённой меткой AAD
+  `telegram_client_identity`, поэтому сырой Telegram ID нигде не хранится в
+  открытом виде. В события, аудит и логи попадает только шифртекст и
+  детерминированный `telegram_user_ref_hash` (tenant-scoped SHA-256).
+- **Работа через прокси.** `TelegramProxyRotator` ведёт tenant-scoped пул
+  endpoint'ов (`http`/`socks5`/`mtproto`), выбирает живой proxy по round-robin,
+  поддерживает пометку здоровья (`mark_unhealthy`/`mark_healthy`) и
+  сигнализирует `TelegramProxyUnavailableError` при отсутствии живых proxy.
+  Учётные данные хранятся только через `secret_ref`; наружу отдаются
+  `redacted_url` и SHA-256 хэши (`url_hash`, `secret_ref_hash`).
+- **События.** `messenger.telegram_client.account_linked` (связка аккаунта) и
+  `messenger.telegram_client.command_handled` (обработка команды) публикуются
+  через общий конверт событий с `audit_hash` и хэшами вместо секретов.
+- Acceptance-контракт issue #71 покрывает доступность базовых сценариев,
+  защищённую передачу идентичности (per-tenant AAD, отсутствие сырого ID и
+  баланса в событиях) и ротацию прокси с health-failover и изоляцией пулов по
+  tenant.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon (Telegram), VK API, политики ретраев и резервные разрешенные каналы
@@ -60,7 +86,7 @@
 - [#46](https://github.com/xlabtg/Media_Center/issues/46) — Адаптеры Dzen, OK + трансформация и обрезка контента (`type:feature`)
 - [#47](https://github.com/xlabtg/Media_Center/issues/47) — Platform Registry + инъекция реферальных ссылок + тесты (`type:feature`)
 - [#48](https://github.com/xlabtg/Media_Center/issues/48) — 📤 Unified Messenger Adapter (`type:epic`)
-- [#71](https://github.com/xlabtg/Media_Center/issues/71) — Telegram-клиент (шифрование, устойчивость доставки) (`type:feature`)
+- [#71](https://github.com/xlabtg/Media_Center/issues/71) — Telegram-клиент (шифрование, прокси) (`type:feature`)
 - [#75](https://github.com/xlabtg/Media_Center/issues/75) — Интеграция Telegram (Telethon) (`type:feature`)
 - [#76](https://github.com/xlabtg/Media_Center/issues/76) — Интеграция VK API (`type:feature`)
 - [#77](https://github.com/xlabtg/Media_Center/issues/77) — Интеграции Dzen, OK и др. (top-10 РФ) (`type:feature`)
@@ -73,4 +99,4 @@
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48 и Telegram-клиента участника для issue #71.</sub>
