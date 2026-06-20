@@ -283,6 +283,13 @@ Private Blockchain Auditor, Unified Messenger Adapter и клиентским п
 
 ## 8. Секреты и конфигурация
 
+Backup/DR-контур для PostgreSQL, ChromaDB и S3/MinIO описан в
+[DISASTER_RECOVERY.md](DISASTER_RECOVERY.md), а машинно-проверяемая политика -
+в `infra/backup/backup-policy.json`. Backup manifests, restore drill evidence и
+incident notes следуют `no_pdn_no_secrets`: в них допустимы `tenant_id`,
+SHA256-хэши, timestamps и технические счетчики, но запрещены ПДн, токены,
+платежные суммы, raw content и закрытые материалы.
+
 Параметры окружения (см. `.env.example`):
 
 | Переменная | Назначение |

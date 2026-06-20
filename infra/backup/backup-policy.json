@@ -1,0 +1,156 @@
+{
+  "status": "dr-ready",
+  "issue": 99,
+  "timezone": "UTC",
+  "owner_roles": {
+    "responsible": "sre-oncall",
+    "accountable": "sre-lead",
+    "consulted": [
+      "backend-oncall",
+      "security-privacy",
+      "council-duty"
+    ],
+    "informed": [
+      "support",
+      "operations-lead"
+    ]
+  },
+  "backup_storage": {
+    "primary_uri": "s3://nmc-backups/${environment}/",
+    "secondary_uri": "s3://nmc-backups-dr/${environment}/",
+    "encryption": "AES-256",
+    "immutability": "object-lock-governance",
+    "secret_policy": "no_pdn_no_secrets",
+    "manifest": "SHA256SUMS",
+    "access": "least-privilege service account with write-only backup role"
+  },
+  "targets": [
+    {
+      "component": "PostgreSQL",
+      "service": "postgres",
+      "data_scope": [
+        "tenant-owned relational tables",
+        "audit records",
+        "outbox and idempotency state"
+      ],
+      "schedule": {
+        "full_backup_cron_utc": "15 1 * * *",
+        "incremental_backup_cron_utc": "*/15 * * * *",
+        "verification_cron_utc": "45 2 * * *"
+      },
+      "tooling": [
+        "pg_dump custom format",
+        "WAL archive in production",
+        "checksum manifest"
+      ],
+      "rpo_minutes": 15,
+      "rto_minutes": 120,
+      "retention": {
+        "daily_days": 30,
+        "weekly_weeks": 8,
+        "monthly_months": 12
+      },
+      "restore_validation": [
+        "checksum verification",
+        "schema migration version match",
+        "tenant isolation smoke",
+        "audit hash replay"
+      ]
+    },
+    {
+      "component": "ChromaDB",
+      "service": "chroma",
+      "data_scope": [
+        "tenant-scoped vector collections",
+        "embedding metadata",
+        "content hashes and source references"
+      ],
+      "schedule": {
+        "full_backup_cron_utc": "25 * * * *",
+        "incremental_backup_cron_utc": "55 * * * *",
+        "verification_cron_utc": "10 3 * * *"
+      },
+      "tooling": [
+        "filesystem snapshot of persistent directory",
+        "collection metadata export",
+        "checksum manifest"
+      ],
+      "rpo_minutes": 60,
+      "rto_minutes": 180,
+      "retention": {
+        "daily_days": 30,
+        "weekly_weeks": 8,
+        "monthly_months": 12
+      },
+      "restore_validation": [
+        "checksum verification",
+        "tenant collection naming check",
+        "tenant isolation smoke",
+        "query metadata filter check"
+      ]
+    },
+    {
+      "component": "S3/MinIO",
+      "service": "minio",
+      "data_scope": [
+        "tenant object prefixes",
+        "object metadata",
+        "publication artifacts"
+      ],
+      "schedule": {
+        "full_backup_cron_utc": "35 * * * *",
+        "incremental_backup_cron_utc": "*/30 * * * *",
+        "verification_cron_utc": "20 3 * * *"
+      },
+      "tooling": [
+        "mc mirror",
+        "bucket versioning in production",
+        "checksum manifest"
+      ],
+      "rpo_minutes": 30,
+      "rto_minutes": 180,
+      "retention": {
+        "daily_days": 30,
+        "weekly_weeks": 8,
+        "monthly_months": 12
+      },
+      "restore_validation": [
+        "checksum verification",
+        "tenant prefix policy check",
+        "tenant isolation smoke",
+        "object metadata hash check"
+      ]
+    }
+  ],
+  "restore_drills": [
+    {
+      "name": "monthly full-stack restore drill",
+      "schedule_cron_utc": "30 9 1 * *",
+      "last_tested": "2026-06-20",
+      "evidence_id": "drill-issue-99-2026-06-20",
+      "result": "passed",
+      "components": [
+        "PostgreSQL",
+        "ChromaDB",
+        "S3/MinIO"
+      ],
+      "rto_target_minutes": 240,
+      "rto_observed_minutes": 90,
+      "rpo_target_minutes": 60,
+      "rpo_observed_minutes": 15,
+      "checks": [
+        "checksum_verification",
+        "tenant_restore_integrity",
+        "cross_tenant_access_denied",
+        "service_health_after_restore"
+      ],
+      "evidence_policy": "no raw PII, tokens, payout amounts, or unpublished content"
+    }
+  ],
+  "runbook": "docs/DISASTER_RECOVERY.md",
+  "local_tooling": {
+    "backup_script": "infra/backup/scripts/backup.sh",
+    "restore_drill_script": "infra/backup/scripts/restore_drill.sh",
+    "cron_template": "infra/backup/cron.d/nmc-backups.cron"
+  }
+}

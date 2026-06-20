@@ -9,7 +9,7 @@ BLOCKCHAIN_COMPOSE = $(COMPOSE) -f $(BLOCKCHAIN_COMPOSE_FILE)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down migrate seed test ps logs clean blockchain-up blockchain-down blockchain-config blockchain-logs
+.PHONY: help up down migrate seed test ps logs clean backup-policy backup-local restore-drill blockchain-up blockchain-down blockchain-config blockchain-logs
 
 help:
 	@printf '%s\n' \
@@ -19,6 +19,9 @@ help:
 		'  make test     Validate the local environment contract' \
 		'  make down     Stop the local stack' \
 		'  make clean    Stop the local stack and remove volumes' \
+		'  make backup-policy  Validate the Backup/DR policy JSON' \
+		'  make backup-local   Print local Backup/DR backup commands' \
+		'  make restore-drill  Print local Backup/DR restore drill' \
 		'  make blockchain-config  Validate the private blockchain compose contract' \
 		'  make blockchain-up      Start local stack with Besu/QBFT profile' \
 		'  make blockchain-down    Stop local stack with Besu/QBFT profile'
@@ -52,6 +55,15 @@ logs:
 
 clean:
 	$(COMPOSE) down -v --remove-orphans
+
+backup-policy:
+	python3 -m json.tool infra/backup/backup-policy.json >/dev/null
+
+backup-local:
+	bash infra/backup/scripts/backup.sh --dry-run all
+
+restore-drill:
+	bash infra/backup/scripts/restore_drill.sh --dry-run
 
 blockchain-up:
 	$(BLOCKCHAIN_COMPOSE) --profile $(BLOCKCHAIN_PROFILE) up -d

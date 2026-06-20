@@ -9,7 +9,9 @@
 инцидентов. Структурный каталог целей находится в
 `infra/observability/slo-targets.json`, правила Prometheus - в
 `infra/observability/prometheus/rules/sre-alerts.yml`, маршруты Alertmanager -
-в `infra/observability/alertmanager.yml`. Контракт проверяется тестом
+в `infra/observability/alertmanager.yml`. Backup/DR-процедуры этапа 8
+опубликованы в [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md), а структурная
+политика - в `infra/backup/backup-policy.json`. Контракт проверяется тестом
 `tests/test_sre_issue98_acceptance_contract.py`.
 
 Все evidence, алерты, постмортемы и тестовые события ведутся по политике
@@ -162,6 +164,21 @@ OpenTelemetry Collector или Alertmanager.
    correlation_id.
 4. Восстановить pipeline, затем проверить rule evaluation, alert delivery и
    Grafana datasource.
+
+### 5.6. `backup_restore_failed`
+
+Триггеры: неуспешный backup job, отсутствует checksum manifest, превышен RPO,
+restore drill превысил RTO/RPO, не прошли `tenant_restore_integrity` или
+`cross_tenant_access_denied`.
+
+1. Открыть [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) и
+   `infra/backup/backup-policy.json`.
+2. Проверить затронутый компонент: PostgreSQL, ChromaDB или S3/MinIO.
+3. Если есть риск потери audit state или tenant leak, классифицировать как P0 и
+   подключить `security-privacy` и `council-duty`.
+4. Запустить restore drill в изолированном sandbox и сверить checksum,
+   tenant_id, RTO и RPO.
+5. Зафиксировать corrective action без ПДн, токенов, сумм выплат и raw content.
 
 ## 6. Alert routing
 
