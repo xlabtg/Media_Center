@@ -115,6 +115,26 @@
   поста, локальный pacing лимитов и отсутствие raw token/content в публичных
   результатах.
 
+## Dzen/OK и дополнительные площадки top-10 РФ (issue #77)
+- Dzen и OK остаются специализированными publisher-ами
+  `DzenPostPublisher`/`OKMediatopicPublisher`, а дополнительные площадки
+  подключаются через `RegistryHTTPPublisher` без изменения
+  `UnifiedMessengerAdapter`.
+- `RegistryHTTPPublisher` читает tenant-scoped `PlatformRegistryEntry` и
+  требует активный статус площадки; HTTP-контур задаётся декларативно в
+  `parameters.http.endpoint_url`, `method`, `auth_mode`, `target_field`,
+  `content_field`, `media_field`, `response_ref_fields` и связанных полях.
+- Для дополнительных площадок top-10 РФ на пилотном контуре предусмотрены
+  registry-managed профили `rutube`, `vc`, `pikabu`, `habr`, `tenchat` и
+  `livejournal`; полный каталог и актуализация статусов остаются задачей #80.
+- Ошибки HTTP-интеграций нормализуются в общий `PlatformPublicationError`:
+  `rate_limited`, `auth_failed`, `access_denied`, `platform_unavailable`,
+  `invalid_request` и ошибки конфигурации реестра, поэтому batch-публикация
+  возвращает частичные failures без раскрытия raw platform token.
+- Acceptance-контракт issue #77 покрывает batch через Dzen, OK и
+  registry-configured HTTP-площадки, приоритеты реестра, default target id,
+  обработку rate limit и отсутствие токенов в публичном результате.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon 1.44.0 (Telegram), VK API, политики ретраев и резервные разрешенные
@@ -148,4 +168,4 @@
 - [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75 и VK API-интеграцией issue #76.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75, VK API-интеграцией issue #76 и Dzen/OK/top-10 интеграциями issue #77.</sub>

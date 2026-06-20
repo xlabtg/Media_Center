@@ -79,6 +79,21 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
   из текста и media, поддерживает подпись `sig` через application secret и
   мапит rate limit/auth/access/server ошибки в единый контракт адаптера.
 
+## Дополнительные площадки top-10 РФ
+
+- `RegistryHTTPPublisher` подключает дополнительные площадки через
+  `PlatformRegistryEntry.parameters["http"]`: endpoint, HTTP method, auth mode,
+  поля target/content/media и поля ответа задаются декларативно.
+- Для пилотного расширения top-10 РФ предусмотрены registry-managed площадки
+  `rutube`, `vc`, `pikabu`, `habr`, `tenchat` и `livejournal`; полный каталог
+  и регулярное обновление статусов вынесены в задачу #80.
+- Ошибки дополнительных площадок приводятся к общему контракту
+  `PlatformPublicationError`, поэтому `UnifiedMessengerAdapter` может вернуть
+  частичный успех: receipts по Dzen/OK/rutube и failures, например по habr
+  rate limit, без остановки всей batch-публикации.
+- Raw platform token остаётся внутри `PlatformPublishCommand`; наружу выходят
+  только receipt/failure metadata, audit hash и tenant-scoped platform refs.
+
 ## Platform Registry и реферальные ссылки
 
 - `PlatformRegistryEntry` задаёт tenant-scoped параметры площадки: статус,

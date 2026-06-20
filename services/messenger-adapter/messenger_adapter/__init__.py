@@ -32,6 +32,10 @@ from messenger_adapter.content_transformer import (
     smart_truncate,
 )
 from messenger_adapter.dzen_adapter import DzenPostPublisher
+from messenger_adapter.generic_http_publisher import (
+    RegistryHTTPConfig,
+    RegistryHTTPPublisher,
+)
 from messenger_adapter.ok_adapter import OKMediatopicPublisher
 from messenger_adapter.platform_registry import (
     InMemoryPlatformRegistry,
@@ -182,6 +186,8 @@ __all__ = [
     "ReferralLinkInjectionError",
     "ReferralLinkInjector",
     "ReferralLinkRequestTransformer",
+    "RegistryHTTPConfig",
+    "RegistryHTTPPublisher",
     "RetryPolicy",
     "TelegramBotApiPublisher",
     "InMemoryTelegramAccountStore",
