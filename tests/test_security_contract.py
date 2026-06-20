@@ -38,3 +38,21 @@ def test_issue_12_security_baseline_covers_threat_model_controls_and_tests() -> 
             "pentest",
         ],
     )
+
+
+def test_issue_86_pentest_report_documents_finding_fix_and_retest() -> None:
+    retest_command = (
+        "pytest tests/test_hitl_payout_queue_veto.py::"
+        "test_payout_audit_metadata_redacts_sensitive_payment_fields"
+    )
+    assert_markers(
+        "docs/SECURITY_PENTEST_ISSUE_86.md",
+        [
+            "OWASP Top 10:2025",
+            "F-86-01",
+            "Severity: High",
+            "audit_safe_metadata()",
+            retest_command,
+            "Статус: повторная проверка пройдена",
+        ],
+    )

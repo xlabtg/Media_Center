@@ -22,6 +22,8 @@ from libs.shared.models import (
     TenantId,
 )
 
+from .audit_redaction import audit_safe_metadata
+
 VETO_WINDOW_HOURS_ENV = "VETO_WINDOW_HOURS"
 DEFAULT_VETO_WINDOW_HOURS = 8
 MIN_VETO_WINDOW_HOURS = 4
@@ -342,7 +344,7 @@ class PayoutQueueManager:
                 "veto_until": _format_datetime(veto_until),
                 "requires_2fa": requires_2fa,
                 "created_by_hash": created_by_hash,
-                "metadata": dict(metadata or {}),
+                "metadata": audit_safe_metadata(metadata or {}),
             },
             timestamp=queued_at,
             correlation_id=correlation_id,

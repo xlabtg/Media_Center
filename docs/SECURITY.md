@@ -337,3 +337,5 @@ Private Blockchain Auditor, Unified Messenger Adapter и клиентским п
 - Threat model, приоритизация контрмер, стандарты безопасной разработки —
   этап 0.
 - Pentest, аудит ФЗ-152, тесты изоляции — этап 6.
+- Отчёт внутреннего OWASP-аудита и повторной проверки для issue #86:
+  [SECURITY_PENTEST_ISSUE_86.md](SECURITY_PENTEST_ISSUE_86.md).
