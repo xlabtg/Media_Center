@@ -11,7 +11,8 @@ tenant `nmc-pilot`. Он фиксирует отдельный рабочий п
 [docs/STAGE_7_ACCEPTANCE.md](STAGE_7_ACCEPTANCE.md),
 [docs/PILOT_TENANT_ONBOARDING.md](PILOT_TENANT_ONBOARDING.md),
 [docs/COMPLIANCE.md](COMPLIANCE.md), [docs/FAQ.md](FAQ.md),
-[docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md).
+[docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md),
+[docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md).
 
 ## 1. Роли и ответственность
 
@@ -114,6 +115,10 @@ incidents summary и feedback-loop статус. В отчёты не попад
 - какие FAQ нужно обновить;
 - какие политики требовали вето или пересмотра;
 - какие риски передаются в issue #94 или #95.
+
+Итоговая ретроспектива пилота, согласованные выводы Совета и план перехода к
+этапу 8 фиксируются в
+[docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md).
 
 ## 6. Безопасность и compliance gate
 

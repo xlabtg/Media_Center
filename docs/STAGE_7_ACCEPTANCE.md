@@ -2,7 +2,8 @@
 
 Дата фиксации: 2026-06-20.
 
-Статус: acceptance snapshot для issue #91, issue #92, issue #93 и issue #94.
+Статус: acceptance snapshot для issue #91, issue #92, issue #93, issue #94 и
+issue #95.
 
 Документ фиксирует готовность ограниченного пилотного запуска на tenant
 `nmc-pilot`. Он не является разрешением на production launch: реальные ПДн,
@@ -26,6 +27,8 @@
   отдельная инструкция Совета и FAQ пилота;
 - поддержка пилота работает по SLA, severity matrix P0-P3 и release gate через
   CI;
+- ретроспектива пилота проведена, выводы согласованы Советом, а план
+  масштабирования этапа 8 утверждён как `approved_for_stage_8`;
 - rollback описан без удаления audit history.
 
 ## 2. Критерии приемки issue #91
@@ -60,7 +63,15 @@
 | Триаж и приоритизация дефектов | Выполнено: severity matrix P0-P3 задаёт response/fix SLA, эскалацию Совету и обязательный CI для P0/P1; очередь содержит P0 `tenant_isolation` и P1 пилотные кейсы. | [docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md), [tests/test_pilot_support_issue94_acceptance_contract.py](../tests/test_pilot_support_issue94_acceptance_contract.py) |
 | Выпуск исправлений | Выполнено: bugfix records связывают кейс, воспроизводящий тест, workflow `CI`, rollback и monitoring window 24-48 часов. | [infra/local/fixtures/pilot-support-queue.json](../infra/local/fixtures/pilot-support-queue.json), [tests/test_pilot_support_issue94_acceptance_contract.py](../tests/test_pilot_support_issue94_acceptance_contract.py) |
 
-## 6. Gate перед фактическим запуском
+## 6. Критерии приемки issue #95
+
+| Критерий | Статус | Проверяемые ссылки |
+|----------|--------|--------------------|
+| Ретроспектива проведена и задокументирована | Выполнено: `pilot-retro-2026-06-20` фиксирует KPI `2026-W26`, incidents summary, вопросы онбординга, поддержку, документацию и ограничения запуска без ПДн. | [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md), [tests/test_pilot_retrospective_issue95_acceptance_contract.py](../tests/test_pilot_retrospective_issue95_acceptance_contract.py) |
+| Выводы согласованы с Советом | Выполнено: решение Совета принято с кворумом 2/3, статус `approved_for_stage_8`, без разрешения на production launch с реальными данными. | [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md), [docs/COUNCIL_GUIDE.md](COUNCIL_GUIDE.md) |
+| План масштабирования утверждён | Выполнено: план этапа 8 разложен на workstreams #97-#102, gates, rollback и владельцев. | [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md), [docs/DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) |
+
+## 7. Gate перед фактическим запуском
 
 Перед включением реальных каналов Совет проводит ручной go/no-go:
 
@@ -76,17 +87,20 @@
 - участникам и Совету выданы актуальные [docs/USER_GUIDE.md](USER_GUIDE.md),
   [docs/COUNCIL_GUIDE.md](COUNCIL_GUIDE.md), [docs/FAQ.md](FAQ.md) и
   [docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md);
+- итоги ретроспективы и план масштабирования опубликованы в
+  [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](PILOT_RETROSPECTIVE_SCALE_PLAN.md);
 - P0/P1 support queue проверена, открытые критичные дефекты отсутствуют или
   имеют зафиксированный workaround, владельца, rollback и CI-backed fix plan;
 - rollback plan проверен на dry-run.
 
-## 7. Локальная проверка
+## 8. Локальная проверка
 
 ```bash
 pytest tests/test_pilot_tenant_issue91_acceptance_contract.py
 pytest tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py
 pytest tests/test_user_docs_issue93_acceptance_contract.py
 pytest tests/test_pilot_support_issue94_acceptance_contract.py
+pytest tests/test_pilot_retrospective_issue95_acceptance_contract.py
 ```
 
 Полный PR gate остается стандартным:
