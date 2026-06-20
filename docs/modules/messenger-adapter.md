@@ -68,6 +68,10 @@
   защищённую передачу идентичности (per-tenant AAD, отсутствие сырого ID и
   баланса в событиях) и ротацию прокси с health-failover и изоляцией пулов по
   tenant.
+- Сквозной stage-4 acceptance contract для epic #74 проверяет Telegram-клиент
+  как часть единого UX-пакета: команда `/balance` проходит через
+  `TelegramClientGateway`, получает proxy lease и не раскрывает сырой Telegram
+  ID в публичной модели ответа.
 
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
@@ -87,6 +91,7 @@
 - [#47](https://github.com/xlabtg/Media_Center/issues/47) — Platform Registry + инъекция реферальных ссылок + тесты (`type:feature`)
 - [#48](https://github.com/xlabtg/Media_Center/issues/48) — 📤 Unified Messenger Adapter (`type:epic`)
 - [#71](https://github.com/xlabtg/Media_Center/issues/71) — Telegram-клиент (шифрование, прокси) (`type:feature`)
+- [#74](https://github.com/xlabtg/Media_Center/issues/74) — Этап 4 — Клиентские приложения и UX (`type:epic`)
 - [#75](https://github.com/xlabtg/Media_Center/issues/75) — Интеграция Telegram (Telethon) (`type:feature`)
 - [#76](https://github.com/xlabtg/Media_Center/issues/76) — Интеграция VK API (`type:feature`)
 - [#77](https://github.com/xlabtg/Media_Center/issues/77) — Интеграции Dzen, OK и др. (top-10 РФ) (`type:feature`)
@@ -97,6 +102,7 @@
 - [SECURITY.md](../SECURITY.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
+- [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48 и Telegram-клиента участника для issue #71.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71 и сквозным stage-4 acceptance contract #74.</sub>
