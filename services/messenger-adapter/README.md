@@ -117,6 +117,25 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - В audit metadata попадает только компактный список `referral_links`
   (`level`, `owner_id`, `reward_share`), без platform token и без секретов.
 
+## Устойчивость интеграций
+
+- `ResilientPlatformPublisher` подключается как обычный `PlatformPublisher` для
+  `BasePlatformAdapter`, поэтому существующие retry policy, audit log и события
+  сохраняются для primary и fallback-доставки.
+- Перед primary-вызовом publisher получает tenant/platform scoped proxy lease и
+  добавляет в команду только `proxy lease metadata`: `lease_id`, `proxy_id`,
+  protocol и hash redacted URL. Raw proxy endpoint, `secret_ref` и platform
+  token не выходят за границу интеграционного слоя.
+- Если primary publisher возвращает retryable сбой (`platform_unavailable`,
+  `platform_timeout`, `rate_limited`), контур пробует разрешённые
+  IPFS/TON/Matrix fallback routes в порядке приоритета.
+- Fallback routes хранят `endpoint` и `secret_ref` внутри registry, а публичный
+  `FallbackPublicationResult` отдаёт только `gateway_ref_hash`, `content_hash`,
+  `endpoint_hash`, `secret_ref_hash`, тип канала и идентификатор route.
+- Недоступный fallback route помечается `unhealthy`, после чего автоматическое
+  переключение идёт к следующему каналу без раскрытия исходного текста
+  публикации, токена площадки или секретов канала.
+
 ## Telegram-клиент участника (issue #71)
 
 - `TelegramClientGateway` даёт участникам входящий канал работы через Telegram:

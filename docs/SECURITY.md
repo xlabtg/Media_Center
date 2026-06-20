@@ -148,6 +148,23 @@ VK API-интеграция для issue #76 использует тот же к
   ответы VK с кодами rate limit нормализуются в `rate_limited` без попыток
   обхода ограничений площадки.
 
+### 4.5. Устойчивость интеграций
+
+Устойчивость интеграций для issue #81 трактуется как legal fallback channels и
+graceful degradation, а не как обход блокировок, ToS или rate limits:
+
+- `ResilientPlatformPublisher` получает proxy lease перед primary-вызовом
+  площадочного publisher-а, но передаёт дальше только safe metadata:
+  `lease_id`, `proxy_id`, protocol и hash redacted URL;
+- raw proxy URL, IPFS/TON/Matrix endpoint, platform token и channel secret не
+  попадают в публичные результаты, события, audit metadata или логи;
+- `secret_ref` хранится только как ссылка на secret store, а наружу выходит
+  только `secret_ref_hash`;
+- fallback-каналы (`ipfs`, `ton`, `matrix`) используются только если они
+  разрешены реестром tenant/platform и соответствуют legal/platform review;
+- недоступный fallback route помечается `unhealthy`, чтобы следующие попытки
+  использовали другой разрешённый канал без retry storm.
+
 ---
 
 ## 5. Детальная модель угроз STRIDE

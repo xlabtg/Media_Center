@@ -159,6 +159,29 @@
   а публикация через `UnifiedMessengerAdapter` идёт только по активным
   площадкам в порядке приоритетов.
 
+## Устойчивость интеграций (issue #81)
+- `ResilientPlatformPublisher` оборачивает любой существующий
+  `PlatformPublisher`: перед primary-вызовом он получает tenant/platform scoped
+  proxy lease и добавляет в `PlatformPublishCommand.metadata["resilience"]`
+  только безопасные `proxy lease metadata` (`lease_id`, `proxy_id`, protocol и
+  hash redacted URL), без raw endpoint и `secret_ref`.
+- `InMemoryProxyLeaseProvider` задаёт контракт прокси-ротации на уровне
+  интеграций: HTTP/SOCKS5/MTProto endpoint'ы валидируются без inline
+  credentials, выбираются по round-robin среди живых proxy и наружу отдают
+  только SHA-256 хэши.
+- При retryable сбое primary-интеграции `ResilientPlatformPublisher` проходит
+  по разрешённым fallback routes из `FallbackChannelRegistry`. Каналы
+  представлены как `FallbackChannelType.IPFS`, `FallbackChannelType.TON` и
+  `FallbackChannelType.MATRIX`; недоступный канал помечается `unhealthy`, после
+  чего автоматически пробуется следующий route по приоритету.
+- `FallbackPublicationResult` содержит `channel_type`, `channel_id`,
+  `gateway_ref_hash`, `content_hash`, `endpoint_hash` и `secret_ref_hash`, но не
+  раскрывает raw IPFS/TON/Matrix endpoint, токены, секреты или исходный текст.
+- Acceptance-контракт issue #81 покрывает proxy lease перед интеграционным
+  вызовом, автоматическое переключение с недоступного primary publisher на
+  IPFS/TON/Matrix fallback и отсутствие raw token/endpoint/secret в публичных
+  результатах.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon 1.44.0 (Telegram), VK API, политики ретраев и резервные разрешенные
@@ -183,6 +206,7 @@
 - [#76](https://github.com/xlabtg/Media_Center/issues/76) — Интеграция VK API (`type:feature`)
 - [#77](https://github.com/xlabtg/Media_Center/issues/77) — Интеграции Dzen, OK и др. (top-10 РФ) (`type:feature`)
 - [#80](https://github.com/xlabtg/Media_Center/issues/80) — Реестр 102 площадок и приоритизация (`type:feature`)
+- [#81](https://github.com/xlabtg/Media_Center/issues/81) — Anti-blocking: прокси, IPFS/TON/Matrix fallback (`type:feature`)
 
 ## Связанные документы
 - [COMPLIANCE.md](../COMPLIANCE.md)
@@ -192,4 +216,4 @@
 - [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75, VK API-интеграцией issue #76, Dzen/OK/top-10 интеграциями issue #77 и реестром 102 площадок issue #80.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75, VK API-интеграцией issue #76, Dzen/OK/top-10 интеграциями issue #77, реестром 102 площадок issue #80 и устойчивостью интеграций issue #81.</sub>
