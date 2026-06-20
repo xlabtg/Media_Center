@@ -95,3 +95,19 @@ addopts = [
   "--strict-config",
   "--strict-markers",
 ]
+
+[tool.coverage.run]
+branch = true
+source = [
+  "libs",
+  "services",
+]
+omit = [
+  "services/service-template/tests/*",
+]
+
+[tool.coverage.report]
+fail_under = 35
+precision = 2
+show_missing = true
+skip_covered = true
