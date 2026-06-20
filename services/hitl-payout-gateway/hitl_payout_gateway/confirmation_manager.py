@@ -32,6 +32,8 @@ from libs.shared.models import (
 from libs.shared.rbac import COUNCIL_ROLE, AccessPolicy, require_access
 from libs.shared.tenant import TenantContext, assert_requested_tenant
 
+from .audit_redaction import audit_safe_metadata
+
 PAYOUT_CONFIRM_OPERATION = "payout.confirm"
 PAYOUT_CONFIRMED_EVENT = "payout.confirmed"
 PAYOUT_CONFIRM_RESOURCE_TYPE = "hitl_payout"
@@ -208,7 +210,7 @@ class PayoutConfirmationManager:
                 "operation": two_factor_confirmation.operation,
                 "resource_id": two_factor_confirmation.resource_id,
                 "previous_status": payout.status.value,
-                "metadata": dict(metadata or {}),
+                "metadata": audit_safe_metadata(metadata or {}),
             },
             timestamp=confirmed_at,
             correlation_id=correlation_id,

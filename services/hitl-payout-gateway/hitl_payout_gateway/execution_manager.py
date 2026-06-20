@@ -33,6 +33,8 @@ from libs.shared.models import (
     TenantId,
 )
 
+from .audit_redaction import audit_safe_metadata
+
 PAYOUT_EXECUTED_EVENT = "payout.executed"
 PAYOUT_FAILED_EVENT = "payout.failed"
 PAYOUT_PAYMENT_STATUS_SYNCED_EVENT = "payout.payment_status_synced"
@@ -380,7 +382,7 @@ class PayoutExecutionManager:
         resolved_event_id = event_id or _new_id("evt-payout-executed")
         resolved_notification_id = notification_id or _new_id("notification")
         metadata_dict = dict(metadata or {})
-        audit_metadata = _audit_safe_metadata(metadata_dict)
+        audit_metadata = audit_safe_metadata(metadata_dict)
 
         try:
             payment = await self.payment_connector.execute_payout(
@@ -557,7 +559,7 @@ class PayoutExecutionManager:
         status_connector = _payment_status_connector(self.payment_connector)
         connector_name = payout.payment_connector_name or "payment_gateway"
         metadata_dict = dict(metadata or {})
-        audit_metadata = _audit_safe_metadata(metadata_dict)
+        audit_metadata = audit_safe_metadata(metadata_dict)
 
         try:
             payment_status = await status_connector.sync_payout_status(
@@ -683,7 +685,7 @@ class PayoutExecutionManager:
             error,
             connector_name=connector_name,
         )
-        audit_metadata = _audit_safe_metadata(metadata)
+        audit_metadata = audit_safe_metadata(metadata)
         failure_audit = self.audit_logger.record(
             event_type=PAYOUT_FAILED_EVENT,
             tenant_id=payout.tenant_id,
@@ -773,88 +775,6 @@ def _as_connector_error(
         error_code="connector_error",
         retryable=True,
     )
-
-
-_SENSITIVE_METADATA_KEYS = frozenset(
-    {
-        "amount",
-        "amount_minor",
-        "amount_rub",
-        "api_key",
-        "bank_account",
-        "card",
-        "card_number",
-        "pan",
-        "password",
-        "payout_amount",
-        "phone",
-        "recipient",
-        "recipient_id",
-        "recipient_token",
-        "secret",
-        "token",
-    }
-)
-
-
-def _audit_safe_metadata(metadata: Mapping[str, JSONValue]) -> dict[str, JSONValue]:
-    safe: dict[str, JSONValue] = {}
-    redacted_count = 0
-
-    for key, value in metadata.items():
-        normalized_key = key.strip().lower()
-        if normalized_key == "payment" and isinstance(value, dict):
-            safe[key] = _payment_metadata_summary(value)
-            continue
-        if _is_sensitive_metadata_key(normalized_key):
-            redacted_count += 1
-            continue
-
-        safe[key] = _audit_safe_metadata_value(value)
-
-    if redacted_count > 0:
-        safe["redacted_metadata_fields"] = redacted_count
-
-    return safe
-
-
-def _audit_safe_metadata_value(value: JSONValue) -> JSONValue:
-    if isinstance(value, dict):
-        return _audit_safe_metadata(value)
-    if isinstance(value, list):
-        return [_audit_safe_metadata_value(item) for item in value]
-
-    return value
-
-
-def _payment_metadata_summary(payment: Mapping[str, JSONValue]) -> dict[str, JSONValue]:
-    summary: dict[str, JSONValue] = {"present": True}
-    currency = _string_value(payment.get("currency"))
-    rails = _string_value(payment.get("rails"))
-    if currency is not None:
-        summary["currency"] = currency
-    if rails is not None:
-        summary["rails"] = rails
-
-    return summary
-
-
-def _is_sensitive_metadata_key(normalized_key: str) -> bool:
-    if normalized_key in _SENSITIVE_METADATA_KEYS:
-        return True
-
-    return normalized_key.endswith(("_token", "_secret", "_password"))
-
-
-def _string_value(value: JSONValue | None) -> str | None:
-    if not isinstance(value, str):
-        return None
-
-    normalized = value.strip()
-    if normalized == "":
-        return None
-
-    return normalized
 
 
 def _hash_ref(*, tenant_id: str, value: str) -> str:

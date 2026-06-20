@@ -29,6 +29,8 @@ from libs.shared.models import (
     TenantId,
 )
 
+from .audit_redaction import audit_safe_metadata
+
 PAYOUT_VETOED_EVENT = "payout.vetoed"
 
 _REASON_CODE_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
@@ -143,7 +145,7 @@ class VetoManager:
                 "reason_hash": reason_hash,
                 "previous_status": payout.status.value,
                 "new_status": PayoutStatus.CANCELED.value,
-                "metadata": dict(metadata or {}),
+                "metadata": audit_safe_metadata(metadata or {}),
             },
             timestamp=decided_at,
             correlation_id=correlation_id,

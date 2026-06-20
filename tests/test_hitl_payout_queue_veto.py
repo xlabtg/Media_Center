@@ -269,6 +269,141 @@ async def _run_confirmation_authorization_scenario() -> None:
         )
 
 
+def test_payout_audit_metadata_redacts_sensitive_payment_fields() -> None:
+    asyncio.run(_run_payout_audit_metadata_redaction_scenario())
+
+
+async def _run_payout_audit_metadata_redaction_scenario() -> None:
+    bus = InMemoryEventBus()
+    audit_sink = InMemoryAuditLogSink()
+    audit_logger = AuditLogger(sink=audit_sink)
+    now = datetime(2026, 6, 18, 12, 0, tzinfo=UTC)
+    queue_manager = PayoutQueueManager(
+        publisher=bus,
+        audit_logger=audit_logger,
+    )
+    confirmation_manager = PayoutConfirmationManager(
+        repository=queue_manager.repository,
+        publisher=bus,
+        audit_logger=audit_logger,
+    )
+    veto_manager = VetoManager(
+        repository=queue_manager.repository,
+        publisher=bus,
+        audit_logger=audit_logger,
+    )
+
+    await queue_manager.queue_payout(
+        tenant_id="tenant-a",
+        member_id="member-1",
+        period="2026-06",
+        payout_share=0.25,
+        distribution_id="distribution-1",
+        distribution_hash="d" * 64,
+        created_by="council-1",
+        correlation_id="corr-payout-1",
+        payout_id="payout-1",
+        event_id="evt-payout-queued-1",
+        now=now,
+        metadata={
+            "payment": {
+                "amount_minor": 987654,
+                "currency": "RUB",
+                "rails": "sbp",
+                "recipient_token": "recipient-secret-token",
+            },
+            "operator_token": "operator-secret-token",
+            "nested": {
+                "card_number": "4111111111111111",
+                "contact_email": "member-contact@example.test",
+                "safe_note": "tenant-visible-note",
+            },
+            "items": [
+                {
+                    "api_key": "gateway-api-key",
+                    "safe": "kept",
+                }
+            ],
+        },
+    )
+
+    context = TenantContext(
+        tenant_id="tenant-a",
+        subject="council-2",
+        roles=("council",),
+        correlation_id="corr-payout-1",
+    )
+    two_factor = TOTPService(clock=lambda: now.timestamp() + 60)
+    confirmation = two_factor.confirm_sensitive_operation(
+        context=context,
+        secret=TOTP_SECRET,
+        code=two_factor.generate_totp(TOTP_SECRET),
+        operation=PAYOUT_CONFIRM_OPERATION,
+        resource_id="payout-1",
+    )
+    await confirmation_manager.confirm_payout(
+        tenant_id="tenant-a",
+        payout_id="payout-1",
+        context=context,
+        two_factor_confirmation=confirmation,
+        confirmation_id="confirmation-1",
+        event_id="evt-payout-confirmed-1",
+        metadata={
+            "approval_token": "approval-secret-token",
+            "amount_rub": "1000.00",
+            "payment": {
+                "currency": "RUB",
+                "rails": "sbp",
+                "bank_account": "40817810099910004312",
+            },
+        },
+    )
+    await veto_manager.veto_payout(
+        tenant_id="tenant-a",
+        payout_id="payout-1",
+        actor_id="council-2",
+        reason_code="policy_mismatch",
+        reason="Нужно решение Совета по новой политике выплат",
+        correlation_id="corr-payout-1",
+        decision_id="veto-1",
+        event_id="evt-payout-vetoed-1",
+        now=now + timedelta(hours=2),
+        metadata={
+            "recipient": "member@example.test",
+            "card": "5555444433332222",
+            "safe_note": "veto-safe-note",
+        },
+    )
+
+    audit_json = "".join(record.model_dump_json() for record in audit_sink.records)
+
+    assert [record.event_type for record in audit_sink.records] == [
+        "payout.queued",
+        PAYOUT_CONFIRMED_EVENT,
+        "payout.vetoed",
+    ]
+    assert "tenant-visible-note" in audit_json
+    assert "veto-safe-note" in audit_json
+    assert "currency" in audit_json
+    assert "RUB" in audit_json
+    assert "rails" in audit_json
+    assert "sbp" in audit_json
+    for leaked_value in (
+        "987654",
+        "recipient-secret-token",
+        "operator-secret-token",
+        "4111111111111111",
+        "member-contact@example.test",
+        "gateway-api-key",
+        "approval-secret-token",
+        "1000.00",
+        "40817810099910004312",
+        "member@example.test",
+        "5555444433332222",
+    ):
+        assert leaked_value not in audit_json
+
+
 def test_veto_cancels_payout_with_decision_audit_and_event() -> None:
     asyncio.run(_run_veto_cancels_payout_scenario())
 
