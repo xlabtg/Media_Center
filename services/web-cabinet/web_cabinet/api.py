@@ -106,6 +106,13 @@ from libs.shared import (
     require_access,
     require_tenant_context,
 )
+from web_cabinet.design_system import (
+    DESIGN_SYSTEM_NAME,
+    DesignSystemResponse,
+    design_system_css,
+    design_system_response,
+    render_design_system_ui_kit,
+)
 
 WEB_CABINET_SERVICE_NAME = "web-cabinet"
 
@@ -894,6 +901,28 @@ def create_web_cabinet_app(
     )
     app.include_router(router)
     return app
+
+
+@router.get(
+    "/design-system/tokens",
+    response_model=DesignSystemResponse,
+    summary="Получить токены и каталог компонентов дизайн-системы",
+)
+def get_design_system_tokens(
+    _context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> DesignSystemResponse:
+    return design_system_response()
+
+
+@router.get(
+    "/design-system/ui-kit",
+    response_class=HTMLResponse,
+    summary="Открыть HTML UI-kit дизайн-системы",
+)
+def get_design_system_ui_kit(
+    _context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> HTMLResponse:
+    return HTMLResponse(render_design_system_ui_kit())
 
 
 @router.get(
@@ -2069,7 +2098,7 @@ def _render_voice_assistant_html(context: TenantContext) -> str:
     identity = f"{_escape(_subject(context))} · {_escape(context.tenant_id)}"
     tenant_id = _escape(context.tenant_id)
     correlation_id = _escape(_correlation_id(context))
-    return f"""<!doctype html>
+    return _apply_design_system(f"""<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -2470,7 +2499,7 @@ def _render_voice_assistant_html(context: TenantContext) -> str:
     }})();
   </script>
 </body>
-</html>"""
+</html>""")
 
 
 def _render_analytics_dashboard_html(
@@ -2483,7 +2512,7 @@ def _render_analytics_dashboard_html(
     metrics = _render_dashboard_metrics(overview.metrics)
     categories = _render_dashboard_categories(overview.categories)
     periods = _render_dashboard_periods(overview.period_slices)
-    return f"""<!doctype html>
+    return _apply_design_system(f"""<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -2716,7 +2745,7 @@ def _render_analytics_dashboard_html(
     </section>
   </main>
 </body>
-</html>"""
+</html>""")
 
 
 def _render_dashboard_metrics(metrics: tuple[KPIMetric, ...]) -> str:
@@ -2811,7 +2840,7 @@ def _render_onboarding_html(overview: OnboardingOverviewResponse) -> str:
         f"{overview.readiness.granted_required_consents}/"
         f"{overview.readiness.required_consents_total}"
     )
-    return f"""<!doctype html>
+    return _apply_design_system(f"""<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -3047,7 +3076,7 @@ def _render_onboarding_html(overview: OnboardingOverviewResponse) -> str:
     </section>
   </main>
 </body>
-</html>"""
+</html>""")
 
 
 def _render_onboarding_steps(steps: tuple[OnboardingStepItem, ...]) -> str:
@@ -3141,7 +3170,8 @@ def _render_cabinet_html(overview: WebCabinetOverviewResponse) -> str:
     credited_mcv = _format_mcv(overview.balance.credited_mcv)
     debited_mcv = _format_mcv(overview.balance.debited_mcv)
     avg_points = _format_float(overview.contribution.avg_points_council)
-    return f"""<!doctype html>
+    return _apply_design_system(
+        f"""<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -3335,7 +3365,9 @@ def _render_cabinet_html(overview: WebCabinetOverviewResponse) -> str:
     </section>
   </main>
 </body>
-</html>"""
+</html>""",
+        mobile_breakpoint_px=720,
+    )
 
 
 def _render_council_panel_html(overview: CouncilPanelOverviewResponse) -> str:
@@ -3345,7 +3377,7 @@ def _render_council_panel_html(overview: CouncilPanelOverviewResponse) -> str:
     queue = _render_council_queue(overview.payouts)
     details = _render_council_details(overview.payouts[0] if overview.payouts else None)
     policies = _render_council_policies(overview.policies)
-    return f"""<!doctype html>
+    return _apply_design_system(f"""<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -3593,7 +3625,7 @@ def _render_council_panel_html(overview: CouncilPanelOverviewResponse) -> str:
     </section>
   </main>
 </body>
-</html>"""
+</html>""")
 
 
 def _render_council_queue(payouts: tuple[CouncilPanelPayoutItem, ...]) -> str:
@@ -3755,6 +3787,57 @@ def _render_links(links: tuple[CabinetReferralLink, ...]) -> str:
         )
 
     return f'<ul class="link-list">{"".join(items)}</ul>'
+
+
+def _apply_design_system(
+    html_document: str,
+    *,
+    mobile_breakpoint_px: int = 760,
+) -> str:
+    return (
+        html_document.replace(
+            "  <style>\n",
+            (
+                "  <style>\n"
+                f"    {design_system_css(mobile_breakpoint_px=mobile_breakpoint_px)}\n"
+            ),
+            1,
+        )
+        .replace(
+            "<body",
+            f'<body data-design-system="{DESIGN_SYSTEM_NAME}"',
+            1,
+        )
+        .replace(
+            "<main>",
+            '<main class="mc-app-shell" data-component="AppShell">',
+            1,
+        )
+        .replace(
+            '<section class="summary-grid"',
+            '<section class="summary-grid mc-summary-grid"',
+        )
+        .replace(
+            '<section class="dashboard-section"',
+            '<section class="dashboard-section mc-panel" data-component="Panel"',
+        )
+        .replace(
+            '<aside class="dashboard-section"',
+            '<aside class="dashboard-section mc-panel" data-component="Panel"',
+        )
+        .replace(
+            '<article class="metric">',
+            '<article class="metric mc-metric" data-component="MetricTile">',
+        )
+        .replace(
+            '<article class="panel">',
+            '<article class="panel mc-panel" data-component="Panel">',
+        )
+        .replace(
+            '<aside class="panel">',
+            '<aside class="panel mc-panel" data-component="Panel">',
+        )
+    )
 
 
 def _operation_type_label(operation_type: WalletOperationType) -> str:
