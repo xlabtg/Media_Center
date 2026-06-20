@@ -100,8 +100,12 @@ traces/logs/metrics через OTLP. Логи, метрики и traces обяз
 3. dev bucket `nmc-dev` в MinIO.
 
 JSON-фикстуры для будущих сервисных и интеграционных тестов лежат в
-`infra/local/fixtures/dev-fixtures.json`. SQL-сиды намеренно не содержат ПДн,
-денежных сумм, токенов или реальных внешних идентификаторов.
+`infra/local/fixtures/dev-fixtures.json`. Для пилотного запуска issue #91
+добавлена отдельная проверяемая фикстура
+`infra/local/fixtures/pilot-tenant.json`: она описывает tenant `nmc-pilot`,
+20 синтетических участников, роли, onboarding checklist и пороги Совета.
+SQL-сиды намеренно не содержат ПДн, денежных сумм, токенов или реальных внешних
+идентификаторов.
 
 ## Проверка
 

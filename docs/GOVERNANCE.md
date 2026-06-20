@@ -115,3 +115,13 @@
 - **Окна вето и пороги** — HITL Payout Gateway + Policy Manager.
 - **Мониторинг и управление** — Activity Command Center.
 - **Контуры обратной связи (RL-KPI)** — Analytics Engine + Policy Manager.
+
+## 10. Пилотный tenant
+
+Для issue #91 пилотный tenant `nmc-pilot` фиксирует начальную настройку
+управления в [PILOT_TENANT_ONBOARDING.md](PILOT_TENANT_ONBOARDING.md) и
+`infra/local/fixtures/pilot-tenant.json`: 20 синтетических участников, роли
+`council`, `presidium`, `board`, `member_full`, `member_assoc`, кворум Совета
+2/3, окно вето 8 часов и обязательное 2FA-подтверждение чувствительных
+операций. Артефакты не содержат ПДн и используются как launch packet перед
+ручным go/no-go Совета.

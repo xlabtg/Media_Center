@@ -1,22 +1,134 @@
 {
   "tenant_id": "00000000-0000-4000-8000-000000000001",
   "tenant_slug": "nmc-pilot",
+  "tenant_status": "pilot_ready",
+  "pilot_fixture": "infra/local/fixtures/pilot-tenant.json",
   "participants": [
     {
       "participant_id": "00000000-0000-4000-8000-000000000101",
-      "handle": "council-admin",
-      "role": "council"
+      "handle": "council-01",
+      "role": "council",
+      "status": "registered"
     },
     {
       "participant_id": "00000000-0000-4000-8000-000000000102",
-      "handle": "author-1",
-      "role": "member"
+      "handle": "council-02",
+      "role": "council",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000103",
+      "handle": "council-03",
+      "role": "council",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000104",
+      "handle": "council-04",
+      "role": "council",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000105",
+      "handle": "council-05",
+      "role": "council",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000106",
+      "handle": "council-06",
+      "role": "council",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000107",
+      "handle": "presidium-01",
+      "role": "presidium",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000108",
+      "handle": "presidium-02",
+      "role": "presidium",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000109",
+      "handle": "board-01",
+      "role": "board",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000110",
+      "handle": "board-02",
+      "role": "board",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000111",
+      "handle": "board-03",
+      "role": "board",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000112",
+      "handle": "member-full-01",
+      "role": "member_full",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000113",
+      "handle": "member-full-02",
+      "role": "member_full",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000114",
+      "handle": "member-full-03",
+      "role": "member_full",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000115",
+      "handle": "member-full-04",
+      "role": "member_full",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000116",
+      "handle": "member-full-05",
+      "role": "member_full",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000117",
+      "handle": "member-assoc-01",
+      "role": "member_assoc",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000118",
+      "handle": "member-assoc-02",
+      "role": "member_assoc",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000119",
+      "handle": "member-assoc-03",
+      "role": "member_assoc",
+      "status": "registered"
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000120",
+      "handle": "member-assoc-04",
+      "role": "member_assoc",
+      "status": "registered"
     }
   ],
   "contribution_events": [
     {
       "contribution_id": "00000000-0000-4000-8000-000000000201",
-      "participant_id": "00000000-0000-4000-8000-000000000102",
+      "participant_id": "00000000-0000-4000-8000-000000000112",
       "event_type": "content_publication",
       "points": 25,
       "source_ref": "fixture://content/nmc-pilot/post-001"
