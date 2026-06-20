@@ -38,6 +38,7 @@ from messenger_adapter.generic_http_publisher import (
 )
 from messenger_adapter.ok_adapter import OKMediatopicPublisher
 from messenger_adapter.platform_registry import (
+    DEFAULT_PLATFORM_CATALOG_SIZE,
     InMemoryPlatformRegistry,
     PlatformKey,
     PlatformNotRegisteredError,
@@ -45,6 +46,8 @@ from messenger_adapter.platform_registry import (
     PlatformRegistryEntry,
     PlatformRegistryError,
     PlatformStatus,
+    build_default_platform_registry,
+    default_platform_registry_entries,
 )
 from messenger_adapter.referral_links import (
     REFERRAL_LINKS_METADATA_KEY,
@@ -140,6 +143,7 @@ from messenger_adapter.vk_adapter import (
 
 __all__ = [
     "DEFAULT_PLATFORM_LIMITS",
+    "DEFAULT_PLATFORM_CATALOG_SIZE",
     "MESSENGER_ADAPTER_SCHEMA_VERSION",
     "MESSENGER_ADAPTER_SOURCE",
     "PUBLICATION_FAILED_EVENT",
@@ -248,8 +252,10 @@ __all__ = [
     "VKWallPublisher",
     "UnifiedMessengerAdapter",
     "UnifiedMessengerAdapterError",
+    "build_default_platform_registry",
     "content_with_referral_links",
     "default_scenario_handlers",
+    "default_platform_registry_entries",
     "limit_media_items",
     "media_items_from_metadata",
     "new_telegram_telethon_session_ref",
