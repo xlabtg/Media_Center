@@ -98,9 +98,17 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 
 - `PlatformRegistryEntry` задаёт tenant-scoped параметры площадки: статус,
   приоритет, лимиты контента и декларативные `parameters`.
+- Для issue #80 пакет экспортирует `DEFAULT_PLATFORM_CATALOG_SIZE`,
+  `default_platform_registry_entries()` и `build_default_platform_registry()`:
+  seed создаёт 102 tenant-scoped записи с лимитами, статусами,
+  `parameters.default_target_id`, категориями и стабильными приоритетами.
 - `InMemoryPlatformRegistry` хранит записи по паре `tenant_id/platform`; если
   площадка отсутствует, paused или disabled, `BasePlatformAdapter` останавливает
   публикацию до lookup токена и вызова внешнего publisher-а.
+- `InMemoryPlatformRegistry.update_status()` актуализирует доступность площадки;
+  `UnifiedMessengerAdapter` при batch-публикации без явного списка платформ
+  маршрутизирует только `active` записи и сохраняет порядок приоритетов
+  заполненного каталога.
 - Когда `BasePlatformAdapter` получает `platform_registry`, лимиты из реестра
   становятся источником для `PlatformContentTransformer`.
 - `ReferralLinkInjector` читает `metadata["referral_route"]`, дополняет его

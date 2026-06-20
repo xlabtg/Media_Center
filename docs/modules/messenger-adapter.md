@@ -24,6 +24,15 @@
 - Реестр хранит tenant-scoped записи площадок: `platform`, лимиты контента,
   приоритет, статус (`active`, `paused`, `disabled`) и декларативные параметры
   интеграции.
+- Для issue #80 добавлен seed-каталог на `DEFAULT_PLATFORM_CATALOG_SIZE = 102`:
+  `default_platform_registry_entries()` строит 102 tenant-scoped записи с
+  лимитами, параметрами, `parameters.default_target_id`, статусами готовности и
+  стабильными приоритетами, а `build_default_platform_registry()` сразу
+  возвращает заполненный `InMemoryPlatformRegistry`.
+- Статусы каталога обновляются через `InMemoryPlatformRegistry.update_status()`;
+  после актуализации `UnifiedMessengerAdapter` автоматически исключает
+  `paused`/`disabled` записи из публикации без явного списка площадок и
+  включает поднятые в `active` записи по их приоритету.
 - `UnifiedMessengerAdapter` принимает `PublicationBatchRequest`, строит
   batch-публикацию по активным записям реестра в порядке приоритета, использует
   `parameters.default_target_id` как fallback для цели публикации и возвращает
@@ -135,6 +144,21 @@
   registry-configured HTTP-площадки, приоритеты реестра, default target id,
   обработку rate limit и отсутствие токенов в публичном результате.
 
+## Реестр 102 площадок (issue #80)
+- Каталог #80 хранится как кодовый seed, чтобы окружения могли поднимать
+  одинаковую базовую карту маршрутизации без внешнего API: первые 10 площадок
+  соответствуют ранее реализованному top-10 контуру, остальные записи
+  группируются по категориям (`messenger`, `social`, `video`, `blog`,
+  `developer`, `reviews`, `jobs` и др.).
+- Каждая запись содержит tenant scope, лимиты контента, приоритет, статус,
+  `parameters.display_name`, `parameters.category`,
+  `parameters.default_target_id`, `parameters.integration_profile` и маркер
+  `parameters.catalog_issue = "#80"`.
+- Acceptance-контракт проверяет, что 102 tenant-scoped записи создаются
+  детерминированно, статусы `active`/`paused`/`disabled` можно актуализировать,
+  а публикация через `UnifiedMessengerAdapter` идёт только по активным
+  площадкам в порядке приоритетов.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon 1.44.0 (Telegram), VK API, политики ретраев и резервные разрешенные
@@ -168,4 +192,4 @@
 - [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75, VK API-интеграцией issue #76 и Dzen/OK/top-10 интеграциями issue #77.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75, VK API-интеграцией issue #76, Dzen/OK/top-10 интеграциями issue #77 и реестром 102 площадок issue #80.</sub>
