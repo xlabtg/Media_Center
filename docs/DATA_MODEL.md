@@ -36,6 +36,7 @@ SQLAlchemy-моделей и Alembic-миграций выполняется в 
 | Область | Владелец | Основные таблицы / хранилища |
 |---------|----------|-------------------------------|
 | Tenant foundation | API Gateway / shared tenant core | `tenants`, `tenant_settings`, tenant context utilities |
+| Tenant Marketplace | API Gateway / shared tenant core | `tenant_marketplace_profiles`, `tenant_onboarding_applications`, moderation history |
 | Участники и роли | Identity/RBAC layer | `members`, `member_consents`, `role_assignments` |
 | Учёт вклада | Contribution Ledger & Weight Engine | `contributions`, `tenant_weights`, `payout_distributions` |
 | Контент и ссылки | CGLR | `templates`, `generated_content`, `link_routes`, ChromaDB collections |
@@ -52,6 +53,7 @@ SQLAlchemy-моделей и Alembic-миграций выполняется в 
 ```mermaid
 erDiagram
     tenants ||--o{ tenant_settings : configures
+    tenants ||--o{ tenant_marketplace_profiles : publishes
     tenants ||--o{ members : owns
     tenants ||--o{ member_consents : owns
     tenants ||--o{ role_assignments : owns
@@ -76,6 +78,8 @@ erDiagram
     tenants ||--o{ metric_snapshots : owns
     tenants ||--o{ outbox_events : owns
     tenants ||--o{ inbox_events : owns
+
+    tenant_onboarding_applications ||--o{ tenant_marketplace_profiles : provisions
 
     members ||--o{ contributions : authors
     members ||--o{ tenant_weights : has_weight
@@ -123,6 +127,52 @@ erDiagram
 
 Индексы: `uq_tenant_settings_tenant_key (tenant_id, key)`,
 `idx_tenant_settings_tenant_updated (tenant_id, updated_at)`.
+
+### 4.1.1. Tenant Marketplace
+
+Статус: baseline для issue #100. Эти таблицы поддерживают каталог tenant'ов,
+самостоятельное подключение кооперативов и модерацию заявок без публикации ПДн
+или секретов.
+
+**`tenant_marketplace_profiles`** - публичные профили tenant'ов для каталога.
+
+| Поле | Тип | Правило |
+|------|-----|---------|
+| `tenant_id` | `String(64)` | PK/FK на `tenants`, создаётся только после модерации |
+| `slug` | `String(64)` | Unique, публичный человекочитаемый идентификатор |
+| `name` | `String(256)` | Отображаемое имя кооператива |
+| `region` | `String(64)` | Фильтр каталога |
+| `cooperative_type` | `String(64)` | Тип кооператива/сообщества |
+| `description` | `Text` | Публичное описание без ПДн |
+| `member_count_range` | `String(32)` | Диапазон размера, без точного раскрытия состава |
+| `capabilities_json` | `JSONB` | Включённые возможности платформы |
+| `status` | `String(32)` | `published`, `hidden`, `suspended` |
+| `resource_plan` | `String(64)` | Имя tenant resource plan |
+| `published_at` | `DateTime(timezone=True)` | UTC |
+
+Индексы: `uq_tenant_marketplace_profiles_slug (slug)`,
+`idx_tenant_marketplace_profiles_status_region (status, region)`,
+`idx_tenant_marketplace_profiles_type_status (cooperative_type, status)`.
+
+**`tenant_onboarding_applications`** - заявки на самостоятельное подключение.
+
+Ключевые поля: `application_id`, `slug`, `name`, `region`, `cooperative_type`,
+`expected_members`, `capabilities_json`, `contact_ref`, `requested_plan_json`,
+`checklist_json`, `status`, `applicant_subject`, `moderation_history_json`,
+`created_at`, `updated_at`.
+
+Правила:
+
+- `contact_ref` хранит только ссылку на секретный контур (`vault://...`);
+- `tenant_id` не задаётся заявителем и появляется только при `approve`;
+- статусный цикл: `submitted` -> `needs_changes` / `rejected` / `provisioned`;
+- `approve` требует заполненного checklist и роли модератора `council`,
+  `presidium` или `board`;
+- публичный каталог читает только `tenant_marketplace_profiles` со статусом
+  `published`.
+
+Индексы: `idx_tenant_onboarding_applications_status_created (status, created_at)`,
+`idx_tenant_onboarding_applications_slug_status (slug, status)`.
 
 ### 4.2. Участники, согласия и роли
 

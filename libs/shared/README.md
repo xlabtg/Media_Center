@@ -182,6 +182,20 @@
   трёх owned-таблиц Contribution Ledger: `contributions`, `tenant_weights`,
   `payout_distributions`.
 
+## Реализовано для issue #100
+
+- `InMemoryTenantMarketplace` задаёт backend-контракт каталога tenant'ов,
+  самостоятельных заявок и модерации подключения для tenant foundation слоя;
+- `TenantMarketplaceSubmission` фиксирует заявку кооператива с checklist,
+  `contact_ref` в секретном контуре и выбранным `TenantResourcePlan`;
+- `TenantMarketplaceDecision` ограничивает статусы модерации значениями
+  `approve`, `request_changes` и `reject`, а одобрение создаёт public profile
+  со статусом `published`;
+- публичный payload `TenantMarketplaceProfile.as_public_dict()` не раскрывает
+  `contact_ref`, ПДн или секреты;
+- при наличии `InMemoryTenantResourceManager` одобренный tenant сразу получает
+  tenant-local `resource_plan`.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более
