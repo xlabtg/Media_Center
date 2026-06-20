@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from collections.abc import Iterator, Mapping
 from typing import Final, Self
 
 from jinja2 import StrictUndefined, TemplateError, TemplateSyntaxError, nodes
+from jinja2.environment import Template
 from jinja2.exceptions import SecurityError
 from jinja2.sandbox import SandboxedEnvironment
 from pydantic import Field, field_validator, model_validator
@@ -158,8 +160,12 @@ class TemplateRenderResult(SharedBaseModel):
 class TemplateEngine:
     """Sandboxed Jinja2 renderer with explicit output validation."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_cache_size: int = 256) -> None:
+        if max_cache_size < 0:
+            raise ValueError("max_cache_size не может быть отрицательным")
         self._environment = _create_sandbox_environment()
+        self._max_cache_size = max_cache_size
+        self._template_cache: OrderedDict[str, Template] = OrderedDict()
 
     def render(
         self,
@@ -170,10 +176,9 @@ class TemplateEngine:
             if isinstance(payload, TemplateRenderRequest)
             else TemplateRenderRequest.model_validate(payload)
         )
-        self._validate_template_ast(request.template_body)
 
         try:
-            template = self._environment.from_string(request.template_body)
+            template = self._compiled_template(request.template_body)
             content = template.render(request.context)
         except SecurityError as exc:
             raise TemplateSecurityError("шаблон нарушает правила песочницы") from exc
@@ -186,6 +191,20 @@ class TemplateEngine:
             content_length=len(content),
             required_blocks=request.validation.required_blocks,
         )
+
+    def _compiled_template(self, template_body: str) -> Template:
+        cached = self._template_cache.get(template_body)
+        if cached is not None:
+            self._template_cache.move_to_end(template_body)
+            return cached
+
+        self._validate_template_ast(template_body)
+        template = self._environment.from_string(template_body)
+        if self._max_cache_size > 0:
+            self._template_cache[template_body] = template
+            if len(self._template_cache) > self._max_cache_size:
+                self._template_cache.popitem(last=False)
+        return template
 
     def _validate_template_ast(self, template_body: str) -> None:
         try:
