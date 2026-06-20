@@ -3,7 +3,13 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-from hitl_payout_gateway import HITL_PAYOUT_GATEWAY_SERVICE_NAME
+from hitl_payout_gateway import (
+    HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+    PaymentConnector,
+    RFPayoutGatewayConfig,
+    RFPayoutGatewayConnector,
+)
+from pydantic import SecretStr
 
 from libs.shared import ServiceTemplateConfig
 
@@ -41,6 +47,37 @@ def build_totp_secrets(
         )
 
     return {(tenant_id, subject): secret}
+
+
+def build_payment_connector(
+    environ: Mapping[str, str] | None = None,
+) -> PaymentConnector | None:
+    values = os.environ if environ is None else environ
+    if not _bool_env(values, "RF_PAYMENT_GATEWAY_ENABLED", default=False):
+        return None
+
+    return RFPayoutGatewayConnector(
+        config=RFPayoutGatewayConfig(
+            provider=_env(
+                values,
+                "RF_PAYMENT_GATEWAY_PROVIDER",
+                default="rf_payment_gateway",
+            ),
+            base_url=_required_env(values, "RF_PAYMENT_GATEWAY_BASE_URL"),
+            merchant_id=_required_env(values, "RF_PAYMENT_GATEWAY_MERCHANT_ID"),
+            api_key=SecretStr(_required_env(values, "RF_PAYMENT_GATEWAY_API_KEY")),
+            execute_path=_env(
+                values,
+                "RF_PAYMENT_GATEWAY_EXECUTE_PATH",
+                default="/payouts",
+            ),
+            status_path_template=_env(
+                values,
+                "RF_PAYMENT_GATEWAY_STATUS_PATH_TEMPLATE",
+                default="/payouts/{payment_id}",
+            ),
+        )
+    )
 
 
 def _env(values: Mapping[str, str], name: str, *, default: str) -> str:
