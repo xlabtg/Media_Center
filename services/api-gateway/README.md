@@ -42,11 +42,17 @@ tenant-aware маршрутизацию, проверку JWT/RBAC, rate limitin
 - Локальный `InMemoryRateLimiter` реализует fixed-window лимиты по ключу
   `tenant_id + subject + service`; production-реализация должна заменить store
   на Redis или другой общий backend.
+- Опциональный `resource_manager` подключает tenant-level admission control:
+  `TenantResourcePlan` ограничивает request window, `concurrent_operations`,
+  `storage_bytes` и `queue_depth`, а `InMemoryTenantResourceManager` даёт
+  локальный контракт для CI. В production этот backend должен быть общим для
+  всех replica Gateway/worker'ов.
 - Превышение лимита возвращает `429 rate_limited` с `Retry-After` и
   `X-RateLimit-*` headers.
 
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/api-gateway.md)
+- [Мультитенантное масштабирование](../../docs/MULTITENANT_SCALING.md)
 - [Синхронные контракты](../../docs/contracts/sync-api.md)
 - [ADR-0003: tenant-изоляция](../../docs/adr/0003-tenant-isolation-by-design.md)

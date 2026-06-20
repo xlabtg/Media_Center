@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from libs.shared.tenant import TenantContext, TenantCoreError, require_tenant_context
+from libs.shared.tenant_resources import (
+    TenantResourceLimitError,
+    TenantResourceManager,
+)
 
 RATE_LIMITED_CODE = "rate_limited"
 SERVICE_NOT_FOUND_CODE = "service_not_found"
@@ -216,6 +220,7 @@ class APIGatewayASGIMiddleware:
         *,
         routes: Iterable[GatewayRoute],
         rate_limiter: RateLimiter,
+        resource_manager: TenantResourceManager | None = None,
     ) -> None:
         normalized_routes = tuple(
             sorted(routes, key=lambda route: len(route.path_prefix), reverse=True)
@@ -225,6 +230,7 @@ class APIGatewayASGIMiddleware:
 
         self._routes = normalized_routes
         self._rate_limiter = rate_limiter
+        self._resource_manager = resource_manager
 
     async def __call__(
         self,
@@ -242,9 +248,14 @@ class APIGatewayASGIMiddleware:
             )
             return
 
+        context: TenantContext | None = None
+        operation_name: str | None = None
+        operation_slot_acquired = False
+
         try:
             context = require_tenant_context()
             route = self._route_for_scope(scope, context)
+            operation_name = _operation_name(scope, route)
             decision = self._rate_limiter.check(
                 _rate_limit_key(
                     context=context,
@@ -258,6 +269,29 @@ class APIGatewayASGIMiddleware:
                     correlation_id=context.correlation_id,
                 )
 
+            if self._resource_manager is not None:
+                request_decision = self._resource_manager.admit_request(
+                    context,
+                    service_name=route.service_name,
+                    operation=operation_name,
+                )
+                if not request_decision.allowed:
+                    raise TenantResourceLimitError(
+                        request_decision,
+                        correlation_id=context.correlation_id,
+                    )
+
+                operation_decision = self._resource_manager.acquire_operation_slot(
+                    context,
+                    operation=operation_name,
+                )
+                if not operation_decision.allowed:
+                    raise TenantResourceLimitError(
+                        operation_decision,
+                        correlation_id=context.correlation_id,
+                    )
+                operation_slot_acquired = True
+
             downstream_scope = _downstream_scope(
                 scope,
                 route=route,
@@ -267,7 +301,19 @@ class APIGatewayASGIMiddleware:
             await _send_error(send, error)
             return
 
-        await route.downstream_app(downstream_scope, receive, send)
+        try:
+            await route.downstream_app(downstream_scope, receive, send)
+        finally:
+            if (
+                operation_slot_acquired
+                and self._resource_manager is not None
+                and context is not None
+                and operation_name is not None
+            ):
+                self._resource_manager.release_operation_slot(
+                    context,
+                    operation=operation_name,
+                )
 
     def _route_for_scope(
         self,
@@ -289,6 +335,11 @@ def _rate_limit_key(
 ) -> str:
     subject = context.subject or "anonymous"
     return f"tenant:{context.tenant_id}:subject:{subject}:service:{route.service_name}"
+
+
+def _operation_name(scope: ASGIScope, route: GatewayRoute) -> str:
+    method = _scope_string(scope, "method").lower() or "http"
+    return f"{method}.{route.service_name}"
 
 
 def _rate_limit_policy(rate_limiter: RateLimiter) -> RateLimitPolicy:

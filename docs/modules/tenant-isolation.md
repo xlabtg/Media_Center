@@ -14,6 +14,10 @@
 ## Основные интерфейсы
 - Библиотечный слой (middleware/зависимости FastAPI), не публичный REST
 - Контракт: отсутствие `tenant_id` в контексте → отказ обработки
+- Масштабирование #97: `TenantResourcePlan` и `InMemoryTenantResourceManager`
+  задают tenant-local quotas для `request_limit`, `concurrent_operations`,
+  `storage_bytes` и `queue_depth`; API Gateway может подключать этот слой через
+  `resource_manager`.
 
 ## Зависимости
 - Общая библиотека `shared`, API Gateway, все слои хранения
@@ -35,6 +39,7 @@
 - [DATA_MODEL.md](../DATA_MODEL.md)
 - [ADR-0007](../adr/0007-data-model-and-tenant-storage.md)
 - [COMPLIANCE.md](../COMPLIANCE.md)
+- [MULTITENANT_SCALING.md](../MULTITENANT_SCALING.md)
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
 ---

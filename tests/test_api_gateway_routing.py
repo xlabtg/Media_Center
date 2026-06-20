@@ -10,8 +10,11 @@ from libs.shared import (
     APIGatewayASGIMiddleware,
     GatewayRoute,
     InMemoryRateLimiter,
+    InMemoryTenantResourceManager,
     RateLimitPolicy,
+    TenantContext,
     TenantContextASGIMiddleware,
+    TenantResourcePlan,
     encode_hs256_jwt,
 )
 
@@ -72,6 +75,7 @@ def _gateway_app(
     downstream: ASGIApp,
     *,
     limit: int = 10,
+    resource_manager: InMemoryTenantResourceManager | None = None,
 ) -> TenantContextASGIMiddleware:
     return TenantContextASGIMiddleware(
         APIGatewayASGIMiddleware(
@@ -86,6 +90,7 @@ def _gateway_app(
                 RateLimitPolicy(limit=limit, window_seconds=60),
                 clock=lambda: NOW,
             ),
+            resource_manager=resource_manager,
         ),
         jwt_secret=SECRET,
         expected_issuer="nmc",
@@ -216,6 +221,42 @@ async def _run_gateway_rate_limit_scenario() -> None:
     assert response_body["error"]["code"] == "rate_limited"
     assert other_tenant_messages[0]["status"] == 200
     assert len(downstream.calls) == 3
+
+
+def test_gateway_applies_tenant_resource_plan_before_downstream_call() -> None:
+    asyncio.run(_run_gateway_tenant_resource_plan_scenario())
+
+
+async def _run_gateway_tenant_resource_plan_scenario() -> None:
+    downstream = CapturingDownstream()
+    resource_manager = InMemoryTenantResourceManager(
+        default_plan=TenantResourcePlan(
+            name="tiny",
+            request_limit=1,
+            window_seconds=60,
+            concurrent_operations=1,
+            storage_bytes=1_024,
+            queue_depth=1,
+        ),
+        clock=lambda: NOW,
+    )
+    app = _gateway_app(downstream, resource_manager=resource_manager)
+
+    first_messages = await _call(app)
+    second_messages = await _call(app)
+
+    assert first_messages[0]["status"] == 200
+    assert second_messages[0]["status"] == 429
+    response_body = json.loads(cast(bytes, second_messages[1]["body"]))
+    assert response_body["error"]["code"] == "rate_limited"
+    assert response_body["error"]["details"]["reason"] == "request_limit_exceeded"
+    assert len(downstream.calls) == 1
+    assert (
+        resource_manager.snapshot(
+            TenantContext(tenant_id="tenant-a"),
+        ).concurrent_operations
+        == 0
+    )
 
 
 def _header_count(headers: list[tuple[bytes, bytes]], name: bytes) -> int:
