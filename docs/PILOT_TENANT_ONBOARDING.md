@@ -93,12 +93,35 @@ Rollback выполняется как отключение tenant features бе
 - выгрузить обезличенную ретроспективу для Совета;
 - не переносить synthetic handles в production без отдельной проверки ПДн.
 
-## 6. Локальная проверка
+## 6. Документация issue #93
+
+Пакет пользовательских материалов для пилота опубликован в основных docs и
+связан с этим launch packet:
+
+- [docs/USER_GUIDE.md](USER_GUIDE.md) - руководство участника: быстрый старт,
+  онбординг 12-36 часов, ежедневные сценарии, вклад, ПДн и поддержка.
+- [docs/COUNCIL_GUIDE.md](COUNCIL_GUIDE.md) - отдельная инструкция Совета:
+  роли, HITL, окно вето 8 часов, 2FA, политики, KPI, ручной go/no-go и
+  compliance gate.
+- [docs/FAQ.md](FAQ.md) - вопросы участников, Совета, безопасности и поддержки
+  пилота.
+
+Эти документы не заменяют [docs/GOVERNANCE.md](GOVERNANCE.md) и
+[docs/COMPLIANCE.md](COMPLIANCE.md): они переводят уже принятые правила в
+практические инструкции для запуска `nmc-pilot`.
+
+## 7. Локальная проверка
 
 Минимальный контракт issue #91:
 
 ```bash
 pytest tests/test_pilot_tenant_issue91_acceptance_contract.py
+```
+
+Минимальный контракт issue #93:
+
+```bash
+pytest tests/test_user_docs_issue93_acceptance_contract.py
 ```
 
 Перед ревью PR также проходит общий локальный CI:
