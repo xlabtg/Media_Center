@@ -41,6 +41,7 @@ flowchart TB
 
     subgraph NMC["Платформа НМЦ (мультитенантная)"]
         Gateway["API Gateway (tenant-aware)"]
+        Marketplace["Tenant Marketplace\n(catalog, onboarding, moderation)"]
         Core["Ядро: 5 ключевых микросервисов"]
         Ext["Расширенные модули (AI, голос, автоматизация)"]
     end
@@ -54,6 +55,7 @@ flowchart TB
     Council --> Gateway
     Member --> Gateway
     Audience --> Platforms
+    Gateway --> Marketplace
     Gateway --> Core
     Gateway --> Ext
     Core --> Chain
@@ -69,6 +71,7 @@ flowchart TB
 flowchart LR
     Client["Клиентские приложения\n(веб-кабинет, панель Совета,\nTelegram-бот, голос. ассистент)"]
     GW["API Gateway\n(tenant routing, rate limit, authz)"]
+    TM["Tenant Marketplace\n(каталог tenant'ов,\nсамостоятельные заявки,\nмодерация)"]
 
     subgraph CoreServices["Ключевые микросервисы"]
         CL["Contribution Ledger\n& Weight Engine"]
@@ -86,7 +89,8 @@ flowchart LR
         S3[("S3 / MinIO")]
     end
 
-    Client --> GW --> CoreServices
+    Client --> GW --> TM
+    GW --> CoreServices
     CL --- PG
     CL --- REDIS
     CGLR --- VDB
@@ -211,6 +215,7 @@ flowchart LR
 | Unified Messenger Adapter | Публикация и реестр площадок | `base_adapter`, площадочные адаптеры, `content_transformer`, `link_injector`, `platform_registry` | `platform_registry`, `platform_tokens`, `publication_jobs` | `publication.requested`, `publication.succeeded`, `publication.failed` |
 | HITL Payout Gateway | Очередь выплат, вето, 2FA | `queue_manager`, `veto_manager`, `notification_adapter`, `wallet_connector`, `blockchain_writer` | `payouts`, `veto_decisions`, `approval_sessions` | `payout.queued`, `payout.vetoed`, `payout.confirmed`, `payout.executed`, `audit.record.requested` |
 | Private Blockchain Auditor | Запись и проверка audit hash | `hash_generator`, `access_controller`, `batch_writer`, `blockchain_connector`, `verify_api` | `audit_records`, `audit_batches` | `audit.recorded`, `audit.verify_requested`, `audit.verify_completed` |
+| Tenant Marketplace | Каталог tenant'ов, самостоятельные заявки, модерация подключения | `tenant_marketplace`, moderation workflow, resource plan binding | `tenant_marketplace_profiles`, `tenant_onboarding_applications` | `tenant.application_submitted`, `tenant.application_moderated`, `tenant.provisioned` |
 
 ### 4.2. Правила взаимодействия компонентов
 
