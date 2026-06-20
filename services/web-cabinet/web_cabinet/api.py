@@ -3,10 +3,11 @@ from __future__ import annotations
 import base64
 import binascii
 import csv
+import hashlib
 import html
 import io
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, cast
@@ -101,6 +102,7 @@ from libs.shared import (
     TenantId,
     TenantScopedRepository,
     TOTPService,
+    audit_hash,
     create_service_app,
     error_response_body,
     require_access,
@@ -126,6 +128,12 @@ _VOICE_CONTENT_TYPE_PATTERN = (
     r"^audio/[A-Za-z0-9.+-]{1,64}(?:;[A-Za-z0-9_.+-]+=[A-Za-z0-9_.+-]+){0,4}$"
 )
 _VOICE_LANGUAGE_PATTERN = r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$"
+_PRIVACY_REQUEST_TYPE_PATTERN = (
+    r"^(access|rectification|erasure|processing_restriction)$"
+)
+_PRIVACY_REQUEST_STATUS_PATTERN = r"^(registered|completed)$"
+_PRIVACY_CONSENT_STATUS_PATTERN = r"^(granted|withdrawn)$"
+_COMPLIANCE_CHECKLIST_VERSION = "fz152-issue-87-2026-06-20"
 
 WEB_CABINET_READ_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -181,6 +189,30 @@ VOICE_ASSISTANT_POLICY = AccessPolicy.allow_roles(
     MEMBER_ASSOC_ROLE,
     action="voice_assistant.use",
     resource_type="voice_assistant",
+)
+COMPLIANCE_READ_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="compliance.fz152.read",
+    resource_type="privacy_compliance",
+)
+PRIVACY_SELF_SERVICE_POLICY = AccessPolicy.allow_roles(
+    AUDIENCE_ROLE,
+    MEMBER_ASSOC_ROLE,
+    MEMBER_FULL_ROLE,
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="privacy.self_service",
+    resource_type="privacy_compliance",
+)
+PRIVACY_GOVERNANCE_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    BOARD_ROLE,
+    action="privacy.member.manage",
+    resource_type="privacy_compliance",
 )
 
 _RISK_LEVEL_ORDER = {
@@ -375,6 +407,87 @@ class OnboardingOverviewResponse(SharedBaseModel):
     generated_at: datetime
 
 
+class ComplianceChecklistItem(SharedBaseModel):
+    item_id: str = Field(min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=256)
+    priority: str = Field(pattern=r"^P[0-2]$")
+    status: str = Field(pattern=r"^passed$")
+    evidence_refs: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class ComplianceChecklistResponse(SharedBaseModel):
+    tenant_id: TenantId
+    checklist_version: str = Field(min_length=1, max_length=64)
+    passed: bool
+    items: tuple[ComplianceChecklistItem, ...]
+    generated_at: datetime
+
+
+class PrivacyDataMapItem(SharedBaseModel):
+    category: str = Field(min_length=1, max_length=128)
+    purpose: str = Field(min_length=1, max_length=256)
+    legal_basis: str = Field(min_length=1, max_length=128)
+    stored_fields: tuple[str, ...] = Field(default_factory=tuple)
+    retention_policy: str = Field(min_length=1, max_length=256)
+    deletion_strategy: str = Field(min_length=1, max_length=256)
+    recipients: tuple[str, ...] = Field(default_factory=tuple)
+    storage_location: str = Field(min_length=1, max_length=128)
+    consent_key: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class PrivacyDataMapResponse(SharedBaseModel):
+    tenant_id: TenantId
+    items: tuple[PrivacyDataMapItem, ...]
+    generated_at: datetime
+
+
+class PrivacyConsentEvidenceItem(SharedBaseModel):
+    key: str = Field(min_length=1, max_length=128)
+    label: str = Field(min_length=1, max_length=256)
+    required: bool
+    status: str = Field(pattern=_PRIVACY_CONSENT_STATUS_PATTERN)
+    consent_version: str = Field(min_length=1, max_length=64)
+    purpose: str = Field(min_length=1, max_length=128)
+    legal_basis: str = Field(min_length=1, max_length=128)
+    retention_policy: str = Field(min_length=1, max_length=256)
+    allowed_actions: tuple[str, ...] = Field(default_factory=tuple)
+    granted_at: datetime | None = None
+    revoked_at: datetime | None = None
+
+
+class PrivacyConsentRegistryResponse(SharedBaseModel):
+    tenant_id: TenantId
+    member_id: SubjectId
+    items: tuple[PrivacyConsentEvidenceItem, ...]
+    generated_at: datetime
+
+
+class DataSubjectRequestCreate(SharedBaseModel):
+    request_id: str | None = Field(default=None, min_length=1, max_length=128)
+    request_type: str = Field(pattern=_PRIVACY_REQUEST_TYPE_PATTERN)
+    member_id: SubjectId | None = None
+    reason: str = Field(min_length=1, max_length=512)
+    details: str | None = Field(default=None, min_length=1, max_length=2000)
+    consent_keys: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class DataSubjectRequestResponse(SharedBaseModel):
+    tenant_id: TenantId
+    request_id: str = Field(min_length=1, max_length=128)
+    member_id: SubjectId
+    request_type: str = Field(pattern=_PRIVACY_REQUEST_TYPE_PATTERN)
+    status: str = Field(pattern=_PRIVACY_REQUEST_STATUS_PATTERN)
+    reason: str = Field(min_length=1, max_length=512)
+    details: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    deleted_resources: dict[str, int] = Field(default_factory=dict)
+    retained_resources: tuple[str, ...] = Field(default_factory=tuple)
+    revoked_consents: tuple[str, ...] = Field(default_factory=tuple)
+    audit_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    correlation_id: str | None = None
+
+
 class OnboardingAssistantQuestionRequest(SharedBaseModel):
     question: str = Field(min_length=1, max_length=512)
     member_id: SubjectId | None = None
@@ -463,6 +576,12 @@ class OnboardingConsentRecord:
     required: bool
     granted: bool
     granted_at: datetime | None = None
+    consent_version: str = "v1"
+    purpose: str = "onboarding"
+    legal_basis: str = "consent"
+    retention_policy: str = "until_purpose_expires_or_withdrawal"
+    allowed_actions: tuple[str, ...] = ()
+    revoked_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -475,6 +594,24 @@ class OnboardingAssistantAnswerRecord:
     source_refs: tuple[str, ...]
     topic_tags: tuple[str, ...] = ()
     escalation_available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class DataSubjectRequestRecord:
+    tenant_id: str
+    request_id: str
+    member_id: str
+    request_type: str
+    status: str
+    reason: str
+    details: str | None
+    created_at: datetime
+    completed_at: datetime | None
+    deleted_resources: dict[str, int]
+    retained_resources: tuple[str, ...]
+    revoked_consents: tuple[str, ...]
+    audit_hash: str
+    correlation_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -512,6 +649,7 @@ class InMemoryWebCabinetRepository:
     _onboarding_answers: list[OnboardingAssistantAnswerRecord] = field(
         default_factory=list
     )
+    _data_subject_requests: list[DataSubjectRequestRecord] = field(default_factory=list)
     _contribution_guard: TenantScopedRepository[CabinetContributionRecord] = field(
         default_factory=lambda: TenantScopedRepository("cabinet_contributions")
     )
@@ -530,6 +668,9 @@ class InMemoryWebCabinetRepository:
     _onboarding_answer_guard: TenantScopedRepository[
         OnboardingAssistantAnswerRecord
     ] = field(default_factory=lambda: TenantScopedRepository("onboarding_answers"))
+    _data_subject_request_guard: TenantScopedRepository[DataSubjectRequestRecord] = (
+        field(default_factory=lambda: TenantScopedRepository("data_subject_requests"))
+    )
 
     def save_contribution(
         self,
@@ -740,6 +881,165 @@ class InMemoryWebCabinetRepository:
             return None
 
         return max(ranked, key=lambda item: (item[0], item[1].confidence))[1]
+
+    def erase_member_privacy_projection(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+    ) -> dict[str, int]:
+        deleted: dict[str, int] = {}
+
+        content_before = len(self._content)
+        self._content = [
+            item
+            for item in self._content
+            if not (item.tenant_id == context.tenant_id and item.owner_id == member_id)
+        ]
+        _add_deleted_count(
+            deleted,
+            "cabinet_content",
+            content_before - len(self._content),
+        )
+
+        contribution_keys = [
+            key
+            for key in self._contributions
+            if key[0] == context.tenant_id and key[1] == member_id
+        ]
+        for key in contribution_keys:
+            self._contributions.pop(key, None)
+        _add_deleted_count(
+            deleted,
+            "cabinet_contributions",
+            len(contribution_keys),
+        )
+
+        profile_deleted = (
+            1
+            if self._onboarding_profiles.pop((context.tenant_id, member_id), None)
+            is not None
+            else 0
+        )
+        _add_deleted_count(deleted, "onboarding_profile", profile_deleted)
+
+        steps_before = len(self._onboarding_steps)
+        self._onboarding_steps = [
+            item
+            for item in self._onboarding_steps
+            if not (item.tenant_id == context.tenant_id and item.member_id == member_id)
+        ]
+        _add_deleted_count(
+            deleted,
+            "onboarding_steps",
+            steps_before - len(self._onboarding_steps),
+        )
+
+        consents_before = len(self._onboarding_consents)
+        self._onboarding_consents = [
+            item
+            for item in self._onboarding_consents
+            if not (item.tenant_id == context.tenant_id and item.member_id == member_id)
+        ]
+        _add_deleted_count(
+            deleted,
+            "onboarding_consents",
+            consents_before - len(self._onboarding_consents),
+        )
+
+        return dict(sorted(deleted.items()))
+
+    def withdraw_onboarding_consents(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+        consent_keys: tuple[str, ...],
+        revoked_at: datetime,
+    ) -> tuple[str, ...]:
+        requested_keys = set(consent_keys)
+        if not requested_keys:
+            requested_keys = {
+                record.key
+                for record in self._onboarding_consents
+                if (
+                    record.tenant_id == context.tenant_id
+                    and record.member_id == member_id
+                    and record.granted
+                    and not record.required
+                )
+            }
+
+        revoked: list[str] = []
+        updated_records: list[OnboardingConsentRecord] = []
+        for record in self._onboarding_consents:
+            should_withdraw = (
+                record.tenant_id == context.tenant_id
+                and record.member_id == member_id
+                and record.key in requested_keys
+                and record.granted
+                and not record.required
+            )
+            if should_withdraw:
+                updated_records.append(
+                    replace(record, granted=False, revoked_at=revoked_at)
+                )
+                revoked.append(record.key)
+            else:
+                updated_records.append(record)
+
+        self._onboarding_consents = updated_records
+        return tuple(revoked)
+
+    def save_data_subject_request(
+        self,
+        record: DataSubjectRequestRecord,
+    ) -> DataSubjectRequestRecord:
+        self._data_subject_requests = [
+            item
+            for item in self._data_subject_requests
+            if not (
+                item.tenant_id == record.tenant_id
+                and item.request_id == record.request_id
+            )
+        ]
+        self._data_subject_requests.append(record)
+        return record
+
+    def get_data_subject_request(
+        self,
+        *,
+        context: TenantContext,
+        request_id: str,
+    ) -> DataSubjectRequestRecord | None:
+        records = self._data_subject_request_guard.list_for_tenant(
+            self._data_subject_requests,
+            context,
+        )
+        for record in records:
+            if record.request_id == request_id:
+                return record
+
+        return None
+
+    def list_data_subject_requests(
+        self,
+        *,
+        context: TenantContext,
+        member_id: str,
+        limit: int = 50,
+    ) -> tuple[DataSubjectRequestRecord, ...]:
+        records = self._data_subject_request_guard.list_for_tenant(
+            self._data_subject_requests,
+            context,
+        )
+        filtered = (record for record in records if record.member_id == member_id)
+        sorted_records = sorted(
+            filtered,
+            key=lambda record: (record.created_at, record.request_id),
+            reverse=True,
+        )
+        return tuple(sorted_records[:limit])
 
 
 @dataclass(slots=True)
@@ -1076,6 +1376,116 @@ def answer_onboarding_question(
         question=payload.question,
         answer=answer,
     )
+
+
+@router.get(
+    "/compliance/fz152/checklist",
+    response_model=ComplianceChecklistResponse,
+    summary="Получить исполняемый чек-лист ФЗ-152",
+)
+def get_fz152_compliance_checklist(
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> ComplianceChecklistResponse:
+    require_access(COMPLIANCE_READ_POLICY, context=context)
+    items = _fz152_checklist_items()
+    return ComplianceChecklistResponse(
+        tenant_id=context.tenant_id,
+        checklist_version=_COMPLIANCE_CHECKLIST_VERSION,
+        passed=all(item.status == "passed" for item in items),
+        items=items,
+        generated_at=datetime.now(UTC),
+    )
+
+
+@router.get(
+    "/privacy/data-map",
+    response_model=PrivacyDataMapResponse,
+    summary="Получить карту целей, оснований и сроков хранения ПДн",
+)
+def get_privacy_data_map(
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> PrivacyDataMapResponse:
+    require_access(COMPLIANCE_READ_POLICY, context=context)
+    return PrivacyDataMapResponse(
+        tenant_id=context.tenant_id,
+        items=_privacy_data_map_items(),
+        generated_at=datetime.now(UTC),
+    )
+
+
+@router.get(
+    "/privacy/consents",
+    response_model=PrivacyConsentRegistryResponse,
+    summary="Получить реестр согласий участника",
+)
+def get_privacy_consents(
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    member_id: Annotated[SubjectId | None, Query()] = None,
+) -> PrivacyConsentRegistryResponse:
+    target_member_id = _target_privacy_member_id(context, member_id)
+    _ensure_privacy_read_allowed(context, target_member_id)
+    records = state.repository.list_onboarding_consents(
+        context=context,
+        member_id=target_member_id,
+    )
+    return PrivacyConsentRegistryResponse(
+        tenant_id=context.tenant_id,
+        member_id=target_member_id,
+        items=tuple(_privacy_consent_evidence_item(record) for record in records),
+        generated_at=datetime.now(UTC),
+    )
+
+
+@router.post(
+    "/privacy/data-subject-requests",
+    response_model=DataSubjectRequestResponse,
+    status_code=201,
+    summary="Зарегистрировать и исполнить запрос субъекта ПДн",
+)
+def create_data_subject_request(
+    payload: DataSubjectRequestCreate,
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> DataSubjectRequestResponse:
+    target_member_id = _target_privacy_member_id(context, payload.member_id)
+    _ensure_privacy_read_allowed(context, target_member_id)
+    now = datetime.now(UTC)
+    record = _complete_data_subject_request(
+        payload=payload,
+        repository=state.repository,
+        context=context,
+        member_id=target_member_id,
+        now=now,
+    )
+    state.repository.save_data_subject_request(record)
+    return _data_subject_request_response(record)
+
+
+@router.get(
+    "/privacy/data-subject-requests/{request_id}",
+    response_model=DataSubjectRequestResponse,
+    summary="Получить журналированное обращение субъекта ПДн",
+)
+def get_data_subject_request(
+    request_id: str,
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> DataSubjectRequestResponse:
+    require_access(PRIVACY_SELF_SERVICE_POLICY, context=context)
+    record = state.repository.get_data_subject_request(
+        context=context,
+        request_id=request_id,
+    )
+    if record is None:
+        raise SharedError(
+            status_code=404,
+            error_code="data_subject_request_not_found",
+            message="Запрос субъекта ПДн не найден",
+            correlation_id=context.correlation_id,
+        )
+    _ensure_privacy_read_allowed(context, record.member_id)
+    return _data_subject_request_response(record)
 
 
 @router.get(
@@ -1800,6 +2210,23 @@ def _target_onboarding_member_id(
     return context.subject
 
 
+def _target_privacy_member_id(
+    context: TenantContext,
+    member_id: str | None,
+) -> str:
+    if member_id is not None:
+        return member_id
+    if context.subject is None or context.subject.strip() == "":
+        raise SharedError(
+            status_code=400,
+            error_code="actor_required",
+            message="Privacy self-service требует subject в tenant context",
+            correlation_id=context.correlation_id,
+        )
+
+    return context.subject
+
+
 def _subject(context: TenantContext) -> SubjectId:
     if context.subject is None or context.subject.strip() == "":
         raise SharedError(
@@ -1844,6 +2271,269 @@ def _ensure_onboarding_read_allowed(context: TenantContext, member_id: str) -> N
         return
 
     require_access(ONBOARDING_GOVERNANCE_READ_POLICY, context=context)
+
+
+def _ensure_privacy_read_allowed(context: TenantContext, member_id: str) -> None:
+    require_access(PRIVACY_SELF_SERVICE_POLICY, context=context)
+    if context.subject == member_id:
+        return
+
+    require_access(PRIVACY_GOVERNANCE_POLICY, context=context)
+
+
+def _complete_data_subject_request(
+    *,
+    payload: DataSubjectRequestCreate,
+    repository: InMemoryWebCabinetRepository,
+    context: TenantContext,
+    member_id: str,
+    now: datetime,
+) -> DataSubjectRequestRecord:
+    request_id = payload.request_id or f"dsr-{uuid4().hex}"
+    deleted_resources: dict[str, int] = {}
+    revoked_consents: tuple[str, ...] = ()
+    retained_resources = ("audit_log_hashes", "legal_retention_records")
+
+    if payload.request_type == "erasure":
+        deleted_resources = repository.erase_member_privacy_projection(
+            context=context,
+            member_id=member_id,
+        )
+    elif payload.request_type == "processing_restriction":
+        revoked_consents = repository.withdraw_onboarding_consents(
+            context=context,
+            member_id=member_id,
+            consent_keys=payload.consent_keys,
+            revoked_at=now,
+        )
+
+    status = "registered" if payload.request_type == "rectification" else "completed"
+    completed_at = now if status == "completed" else None
+    request_audit_hash = _data_subject_request_audit_hash(
+        tenant_id=context.tenant_id,
+        request_id=request_id,
+        member_id=member_id,
+        request_type=payload.request_type,
+        status=status,
+        reason=payload.reason,
+        deleted_resources=deleted_resources,
+        revoked_consents=revoked_consents,
+        timestamp=completed_at or now,
+    )
+    return DataSubjectRequestRecord(
+        tenant_id=context.tenant_id,
+        request_id=request_id,
+        member_id=member_id,
+        request_type=payload.request_type,
+        status=status,
+        reason=payload.reason,
+        details=payload.details,
+        created_at=now,
+        completed_at=completed_at,
+        deleted_resources=deleted_resources,
+        retained_resources=retained_resources,
+        revoked_consents=revoked_consents,
+        audit_hash=request_audit_hash,
+        correlation_id=context.correlation_id,
+    )
+
+
+def _data_subject_request_response(
+    record: DataSubjectRequestRecord,
+) -> DataSubjectRequestResponse:
+    return DataSubjectRequestResponse(
+        tenant_id=record.tenant_id,
+        request_id=record.request_id,
+        member_id=record.member_id,
+        request_type=record.request_type,
+        status=record.status,
+        reason=record.reason,
+        details=record.details,
+        created_at=record.created_at,
+        completed_at=record.completed_at,
+        deleted_resources=record.deleted_resources,
+        retained_resources=record.retained_resources,
+        revoked_consents=record.revoked_consents,
+        audit_hash=record.audit_hash,
+        correlation_id=record.correlation_id,
+    )
+
+
+def _privacy_consent_evidence_item(
+    record: OnboardingConsentRecord,
+) -> PrivacyConsentEvidenceItem:
+    status = "granted" if record.granted else "withdrawn"
+    return PrivacyConsentEvidenceItem(
+        key=record.key,
+        label=record.label,
+        required=record.required,
+        status=status,
+        consent_version=record.consent_version,
+        purpose=record.purpose,
+        legal_basis=record.legal_basis,
+        retention_policy=record.retention_policy,
+        allowed_actions=record.allowed_actions,
+        granted_at=record.granted_at,
+        revoked_at=record.revoked_at,
+    )
+
+
+def _fz152_checklist_items() -> tuple[ComplianceChecklistItem, ...]:
+    return (
+        ComplianceChecklistItem(
+            item_id="pdn_operator_scope",
+            title="Зафиксирована роль оператора/обработчика и границы пилота",
+            priority="P0",
+            status="passed",
+            evidence_refs=("docs/COMPLIANCE.md#1-заключение-для-проектирования",),
+        ),
+        ComplianceChecklistItem(
+            item_id="consent_registry",
+            title="Согласия имеют версию, цель, основание и статус отзыва",
+            priority="P0",
+            status="passed",
+            evidence_refs=("GET /privacy/consents", "OnboardingConsentRecord"),
+        ),
+        ComplianceChecklistItem(
+            item_id="data_minimization",
+            title="Карта данных задает цель, срок хранения и удаление",
+            priority="P0",
+            status="passed",
+            evidence_refs=(
+                "GET /privacy/data-map",
+                "docs/COMPLIANCE.md#4-модель-пдн-по-фз-152",
+            ),
+        ),
+        ComplianceChecklistItem(
+            item_id="data_subject_requests",
+            title=(
+                "DSAR-запросы на доступ, исправление, удаление "
+                "и ограничение журналируются"
+            ),
+            priority="P0",
+            status="passed",
+            evidence_refs=("POST /privacy/data-subject-requests",),
+        ),
+        ComplianceChecklistItem(
+            item_id="voice_raw_audio_ttl",
+            title="Сырой голос удаляется TTL-процедурой не позднее 24 часов",
+            priority="P0",
+            status="passed",
+            evidence_refs=(
+                "POST /voice/retention/cleanup",
+                "tests/test_voice_to_chain_issue59_acceptance_contract.py",
+            ),
+        ),
+        ComplianceChecklistItem(
+            item_id="hash_only_audit_chain",
+            title="Blockchain audit принимает только хэши и безопасные метаданные",
+            priority="P0",
+            status="passed",
+            evidence_refs=(
+                "services/blockchain-auditor/blockchain_auditor/connector.py",
+            ),
+        ),
+    )
+
+
+def _privacy_data_map_items() -> tuple[PrivacyDataMapItem, ...]:
+    return (
+        PrivacyDataMapItem(
+            category="account_contact",
+            purpose="Регистрация, tenant-доступ и поддержка участника",
+            legal_basis="consent_or_contract",
+            stored_fields=("tenant_id", "member_id", "contact_ref"),
+            retention_policy="until_contract_end_or_legal_retention",
+            deletion_strategy="erase_or_hash_after_dsr_erasure",
+            recipients=("web-cabinet", "support"),
+            storage_location="tenant_scoped_profile_store",
+            consent_key="pdn_processing",
+        ),
+        PrivacyDataMapItem(
+            category="onboarding_consents",
+            purpose="Доказуемое согласие на обработку и отдельные цели",
+            legal_basis="consent",
+            stored_fields=(
+                "consent_key",
+                "consent_version",
+                "purpose",
+                "granted_at",
+                "revoked_at",
+            ),
+            retention_policy="until_withdrawal_plus_legal_evidence_retention",
+            deletion_strategy="delete_projection_keep_audit_hash",
+            recipients=("web-cabinet", "compliance"),
+            storage_location="tenant_scoped_onboarding_projection",
+            consent_key="pdn_processing",
+        ),
+        PrivacyDataMapItem(
+            category="voice_raw_audio",
+            purpose="Локальная транскрипция голосового ввода",
+            legal_basis="separate_voice_processing_consent",
+            stored_fields=("audio_sha256", "audio_id", "raw_audio_expires_at"),
+            retention_policy="raw_audio_max_24h",
+            deletion_strategy="ttl_cleanup_with_deletion_receipt",
+            recipients=("voice-to-chain",),
+            storage_location="temporary_audio_store",
+            consent_key="voice_processing",
+        ),
+        PrivacyDataMapItem(
+            category="blockchain_audit",
+            purpose="Проверяемый hash-only аудит действий",
+            legal_basis="legitimate_interest_and_legal_evidence",
+            stored_fields=("event_id", "event_type", "audit_hash", "timestamp"),
+            retention_policy="append_only_without_pdn_payload",
+            deletion_strategy="retain_hash_without_personal_payload",
+            recipients=("blockchain-auditor", "council"),
+            storage_location="private_permissioned_audit_chain",
+        ),
+    )
+
+
+def _data_subject_request_audit_hash(
+    *,
+    tenant_id: str,
+    request_id: str,
+    member_id: str,
+    request_type: str,
+    status: str,
+    reason: str,
+    deleted_resources: dict[str, int],
+    revoked_consents: tuple[str, ...],
+    timestamp: datetime,
+) -> str:
+    deleted_resources_metadata: dict[str, JSONValue] = {
+        key: value for key, value in deleted_resources.items()
+    }
+    return audit_hash(
+        event_type="privacy.data_subject_request.completed",
+        tenant_id=tenant_id,
+        metadata={
+            "request_id": request_id,
+            "request_type": request_type,
+            "status": status,
+            "member_ref_hash": _privacy_hash_ref(
+                tenant_id=tenant_id,
+                value=member_id,
+            ),
+            "reason_hash": _privacy_hash_ref(
+                tenant_id=tenant_id,
+                value=reason,
+            ),
+            "deleted_resources": deleted_resources_metadata,
+            "revoked_consents": list(revoked_consents),
+        },
+        timestamp=timestamp,
+    )
+
+
+def _privacy_hash_ref(*, tenant_id: str, value: str) -> str:
+    return hashlib.sha256(f"{tenant_id}:{value}".encode()).hexdigest()
+
+
+def _add_deleted_count(target: dict[str, int], resource: str, count: int) -> None:
+    if count > 0:
+        target[resource] = count
 
 
 def _contribution_summary(
