@@ -1,0 +1,140 @@
+{
+  "issue": 98,
+  "status": "sre-ready",
+  "updated_at": "2026-06-20",
+  "monitoring_stack": {
+    "metrics": "Prometheus",
+    "dashboards": "Grafana",
+    "alerts": "Alertmanager",
+    "traces": "OpenTelemetry"
+  },
+  "services": [
+    {
+      "service": "api-gateway",
+      "owner_role": "backend-oncall",
+      "business_sla_percent": 99.9,
+      "availability_slo_percent": 99.9,
+      "latency_p95_ms": 250,
+      "error_budget_percent": 0.1,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"api-gateway\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"api-gateway\"}",
+        "errors": "nmc_service_operations_total{service=\"api-gateway\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "sre-oncall",
+      "runbook_sections": ["tenant_isolation", "observability_pipeline_down"]
+    },
+    {
+      "service": "contribution-ledger",
+      "owner_role": "ledger-oncall",
+      "business_sla_percent": 99.5,
+      "availability_slo_percent": 99.5,
+      "latency_p95_ms": 500,
+      "error_budget_percent": 0.5,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"contribution-ledger\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"contribution-ledger\"}",
+        "errors": "nmc_service_operations_total{service=\"contribution-ledger\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "sre-oncall",
+      "runbook_sections": ["tenant_isolation"]
+    },
+    {
+      "service": "hitl-payout-gateway",
+      "owner_role": "payout-oncall",
+      "business_sla_percent": 99.5,
+      "availability_slo_percent": 99.5,
+      "latency_p95_ms": 700,
+      "error_budget_percent": 0.5,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"hitl-payout-gateway\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"hitl-payout-gateway\"}",
+        "errors": "nmc_service_operations_total{service=\"hitl-payout-gateway\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "council-escalation",
+      "runbook_sections": ["payout_halted", "tenant_isolation"]
+    },
+    {
+      "service": "messenger-adapter",
+      "owner_role": "messenger-oncall",
+      "business_sla_percent": 99.0,
+      "availability_slo_percent": 99.0,
+      "latency_p95_ms": 1500,
+      "error_budget_percent": 1.0,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"messenger-adapter\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"messenger-adapter\"}",
+        "errors": "nmc_service_operations_total{service=\"messenger-adapter\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "sre-oncall",
+      "runbook_sections": ["publication_backlog"]
+    },
+    {
+      "service": "blockchain-auditor",
+      "owner_role": "chain-oncall",
+      "business_sla_percent": 99.5,
+      "availability_slo_percent": 99.5,
+      "latency_p95_ms": 1000,
+      "error_budget_percent": 0.5,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"blockchain-auditor\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"blockchain-auditor\"}",
+        "errors": "nmc_service_operations_total{service=\"blockchain-auditor\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "security-privacy",
+      "runbook_sections": ["private_blockchain_degraded"]
+    },
+    {
+      "service": "observability",
+      "owner_role": "sre-oncall",
+      "business_sla_percent": 99.5,
+      "availability_slo_percent": 99.5,
+      "latency_p95_ms": 500,
+      "error_budget_percent": 0.5,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"observability\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"observability\"}",
+        "errors": "nmc_service_operations_total{service=\"observability\",status=~\"error|denied\"}"
+      },
+      "escalation_channel": "sre-oncall",
+      "runbook_sections": ["observability_pipeline_down"]
+    }
+  ],
+  "incident_priorities": [
+    {
+      "priority": "P0",
+      "ack_sla_minutes": 15,
+      "mitigation_sla_minutes": 60,
+      "requires_council_update": true,
+      "requires_postmortem": true
+    },
+    {
+      "priority": "P1",
+      "ack_sla_minutes": 30,
+      "mitigation_sla_minutes": 240,
+      "requires_council_update": true,
+      "requires_postmortem": true
+    },
+    {
+      "priority": "P2",
+      "ack_sla_minutes": 240,
+      "mitigation_sla_minutes": 1440,
+      "requires_council_update": false,
+      "requires_postmortem": false
+    },
+    {
+      "priority": "P3",
+      "ack_sla_minutes": 1440,
+      "mitigation_sla_minutes": 10080,
+      "requires_council_update": false,
+      "requires_postmortem": false
+    }
+  ],
+  "evidence_policy": "no_pdn_no_secrets"
+}

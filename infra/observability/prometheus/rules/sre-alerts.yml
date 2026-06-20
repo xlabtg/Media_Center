@@ -1,0 +1,90 @@
+groups:
+  - name: nmc-sre-slo
+    rules:
+      - record: nmc:slo_availability:ratio5m
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{status!~"error|denied"}[5m])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total[5m])
+            ),
+            1
+          )
+
+      - record: nmc:slo_error_budget_burn:ratio5m
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{status=~"error|denied"}[5m])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total[5m])
+            ),
+            1
+          )
+
+      - alert: NmcSloAvailabilityBurnRateHigh
+        expr: |
+          nmc:slo_error_budget_burn:ratio5m > 0.01
+        for: 15m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "SLO burn rate выше бюджета для tenant {{ $labels.tenant_id }}"
+          description: "service={{ $labels.service }} расходует error budget быстрее допустимого."
+          runbook_url: "docs/SRE_RUNBOOK.md#3-slaslo-и-error-budget"
+
+      - alert: NmcServiceLatencySloBreached
+        expr: |
+          nmc:service_operation_duration:p95_5m > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Latency p95 выше SLO для tenant {{ $labels.tenant_id }}"
+          description: "Проверьте service={{ $labels.service }} operation={{ $labels.operation }}."
+          runbook_url: "docs/SRE_RUNBOOK.md#5-runbooks-типовых-инцидентов"
+
+      - alert: NmcTenantOperationErrors
+        expr: |
+          sum by (tenant_id, service, operation) (
+            nmc:service_operations:rate5m{status=~"error|denied"}
+          ) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Ошибки операций НМЦ для tenant {{ $labels.tenant_id }}"
+          description: "Проверьте service={{ $labels.service }} operation={{ $labels.operation }}."
+          runbook_url: "docs/SRE_RUNBOOK.md#51-tenant_isolation"
+
+      - alert: NmcObservabilityPipelineDown
+        expr: |
+          up{job=~"prometheus|otel-collector"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Недоступен компонент observability pipeline"
+          description: "Проверьте job={{ $labels.job }} instance={{ $labels.instance }}."
+          runbook_url: "docs/SRE_RUNBOOK.md#55-observability_pipeline_down"
+
+      - alert: NmcIncidentResponseSlaAtRisk
+        expr: |
+          ALERTS{alertstate="firing",severity="critical"} > 0
+        for: 15m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "P0/P1 incident response SLA под риском"
+          description: "Critical alert горит дольше 15 минут; проверьте ack и mitigation owner."
+          runbook_url: "docs/SRE_RUNBOOK.md#4-приоритеты-инцидентов"
