@@ -64,6 +64,23 @@
   raw content) отклоняются до transport, batch-запись использует один
   transport-вызов, а записанная запись верифицируется через `/audit/verify`.
 
+## Реализовано в issue #79
+- `infra/blockchain` добавляет optional compose-профиль Hyperledger Besu
+  26.6.1/QBFT с четырьмя validator-нодами, bootstrap генерацией `genesis.json`,
+  `static-nodes.json`, node keys и `permissions_config.toml` без коммита
+  приватных ключей.
+- Внутренний endpoint для auditor зафиксирован как
+  `BLOCKCHAIN_AUDITOR_URL=grpc://besu-auditor.internal:50051`; низкоуровневый
+  Besu RPC alias `besu-rpc` остаётся внутри docker-compose сети.
+- RPC/P2P порты Besu не публикуются на host, peer-доступ ограничен
+  `nodes-allowlist`, а операции audit records по-прежнему проходят через
+  council-only RBAC сервиса `blockchain-auditor`.
+- `infra/observability/prometheus/prometheus.blockchain.yml` и rules
+  `blockchain-auditor.yml` добавляют monitoring job `private-blockchain-besu`
+  и alerts на недоступность нод или риск потери QBFT-кворума.
+- Runbook описывает snapshot/restore Docker volume с genesis, permissioning и
+  node keys как секретного операционного артефакта вне репозитория.
+
 ## Модель данных (черновик)
 - **audit_records** — `tenant_id`, `event_type`, `hash`, `metadata`, `block_ref`, `created_at`
 
@@ -91,6 +108,7 @@
 - [SECURITY.md](../SECURITY.md)
 - [GOVERNANCE.md](../GOVERNANCE.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [infra/blockchain](../../infra/blockchain)
 - [ADR-0006](../adr/0006-technology-stack-and-versions.md)
 - [Детальный план разработки](../DEVELOPMENT_PLAN.md)
 
