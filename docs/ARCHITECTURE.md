@@ -383,8 +383,12 @@ sequenceDiagram
 - **Хранилище:** объекты S3 разделяются по префиксу `tenant_id/`.
 - **Логи и метрики:** содержат `tenant_id` как обязательный label.
 - **Контроль:** middleware проверяет соответствие `tenant_id` запроса и ресурса; нарушение → `403 tenant_isolation_violation`.
+- **Масштабирование:** per-tenant resource plan ограничивает request window,
+  concurrency, storage quota и queue depth; превышение tenant-local лимита не
+  влияет на доступность других tenant'ов.
 
-Подробнее — [modules/tenant-isolation.md](modules/tenant-isolation.md) и [SECURITY.md](SECURITY.md).
+Подробнее — [modules/tenant-isolation.md](modules/tenant-isolation.md),
+[MULTITENANT_SCALING.md](MULTITENANT_SCALING.md) и [SECURITY.md](SECURITY.md).
 
 ---
 

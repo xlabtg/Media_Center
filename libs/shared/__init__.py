@@ -231,6 +231,14 @@ from libs.shared.tenant import (
     tenant_context_scope,
     tenant_headers_from_context,
 )
+from libs.shared.tenant_resources import (
+    InMemoryTenantResourceManager,
+    TenantResourceDecision,
+    TenantResourceLimitError,
+    TenantResourceManager,
+    TenantResourcePlan,
+    TenantResourceSnapshot,
+)
 from libs.shared.testing import (
     DEFAULT_TEST_JWT_SECRET,
     DEFAULT_TEST_NOW,
@@ -333,6 +341,7 @@ __all__ = [
     "InMemoryRefreshTokenStore",
     "InMemoryTenantCache",
     "InMemoryTenantObjectStorage",
+    "InMemoryTenantResourceManager",
     "InMemoryTenantVectorStore",
     "JSONValue",
     "AsyncLoadOperation",
@@ -413,6 +422,11 @@ __all__ = [
     "TenantScopedRepository",
     "TenantScopedSQLAlchemyRepository",
     "TenantScopedModel",
+    "TenantResourceDecision",
+    "TenantResourceLimitError",
+    "TenantResourceManager",
+    "TenantResourcePlan",
+    "TenantResourceSnapshot",
     "TenantId",
     "TenantSetting",
     "TenantSpan",
