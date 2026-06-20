@@ -130,6 +130,24 @@ Telethon-интеграция для issue #75 использует пользо
 - обновлённый Telethon `StringSession` после успешного подключения
   перезаписывается в session store только в зашифрованном виде.
 
+### 4.4. VK API
+
+VK API-интеграция для issue #76 использует тот же контур platform tokens, что и
+остальные площадки Messenger Adapter:
+
+- raw VK access token хранится только в `platform_tokens`/secret vault и
+  расшифровывается внутри tenant-scoped `PlatformTokenRepository`;
+- `VKWallPublisher` вызывает `wall.post` через `BasePlatformAdapter`, поэтому
+  публикация наследует retry policy, audit/event контур и запрет на raw token в
+  публичных моделях;
+- `VKPostMetricsCollector` собирает агрегированные счётчики через
+  `stats.getPostReach` и `wall.getById`, но возвращает только SHA-256 хэши
+  target/platform ref, `post_id`, счётчики и ошибки без raw token и текста
+  публикации;
+- `VKAPIRateLimiter` обязан применяться перед publish/metrics вызовами, а
+  ответы VK с кодами rate limit нормализуются в `rate_limited` без попыток
+  обхода ограничений площадки.
+
 ---
 
 ## 5. Детальная модель угроз STRIDE

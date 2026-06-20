@@ -123,7 +123,16 @@ from messenger_adapter.unified_adapter import (
     UnifiedMessengerAdapter,
     UnifiedMessengerAdapterError,
 )
-from messenger_adapter.vk_adapter import VKWallPublisher
+from messenger_adapter.vk_adapter import (
+    VKAPIRateLimit,
+    VKAPIRateLimiter,
+    VKPostMetrics,
+    VKPostMetricsBatch,
+    VKPostMetricsCollector,
+    VKPostMetricsFailure,
+    VKPostMetricsRequest,
+    VKWallPublisher,
+)
 
 __all__ = [
     "DEFAULT_PLATFORM_LIMITS",
@@ -223,6 +232,13 @@ __all__ = [
     "TelegramTelethonUpdateFailure",
     "TransformedContent",
     "TelethonClientFactory",
+    "VKAPIRateLimit",
+    "VKAPIRateLimiter",
+    "VKPostMetrics",
+    "VKPostMetricsBatch",
+    "VKPostMetricsCollector",
+    "VKPostMetricsFailure",
+    "VKPostMetricsRequest",
     "VKWallPublisher",
     "UnifiedMessengerAdapter",
     "UnifiedMessengerAdapterError",

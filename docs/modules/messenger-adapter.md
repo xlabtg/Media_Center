@@ -94,6 +94,27 @@
   чтение и ответ на `/balance`, pacing лимитов и tenant-scoped шифрование
   Telethon-сессий.
 
+## VK API (issue #76)
+- `VKWallPublisher` реализует production-контур публикации через VK API 5.199:
+  метод `wall.post`, поля `attachments`, `from_group`, `guid`,
+  delayed/signed/ads metadata и общий маппинг ошибок VK в
+  `PlatformPublicationError`.
+- `VKAPIRateLimiter` применяет локальный tenant/target/action scoped pacing до
+  вызовов VK API, чтобы не провоцировать retry storm; серверные лимиты VK
+  (`6`, `9`, `29`, HTTP `429`) нормализуются в `rate_limited` и учитываются
+  общей retry policy.
+- `VKPostMetricsCollector` собирает метрики опубликованных записей через
+  `stats.getPostReach` и `wall.getById`: `reach_total`,
+  `reach_subscribers`, viral/ads reach, views, likes, comments, reposts,
+  clicks (`links`), переходы в группу, вступления, скрытия, жалобы и отписки.
+- `VKPostMetricsBatch` возвращает только агрегированные счётчики, ошибки по
+  `post_id`, tenant-scoped SHA-256 хэши target/platform ref и служебные
+  timestamps; raw VK token, исходный текст публикации и raw target ref в
+  результате не раскрываются.
+- Acceptance-контракт issue #76 покрывает публикацию `wall.post`, сбор метрик
+  поста, локальный pacing лимитов и отсутствие raw token/content в публичных
+  результатах.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
 - Telethon 1.44.0 (Telegram), VK API, политики ретраев и резервные разрешенные
@@ -127,4 +148,4 @@
 - [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74 и Telethon-интеграцией issue #75.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74, Telethon-интеграцией issue #75 и VK API-интеграцией issue #76.</sub>
