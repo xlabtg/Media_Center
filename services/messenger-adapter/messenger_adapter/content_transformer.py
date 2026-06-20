@@ -26,6 +26,12 @@ DEFAULT_PLATFORM_LIMITS: dict[str, PlatformContentLimits] = {
     "vk": PlatformContentLimits(max_text_length=16_384, max_media_items=10),
     "dzen": PlatformContentLimits(max_text_length=1500, max_media_items=10),
     "ok": PlatformContentLimits(max_text_length=4000, max_media_items=10),
+    "rutube": PlatformContentLimits(max_text_length=5000, max_media_items=5),
+    "vc": PlatformContentLimits(max_text_length=8000, max_media_items=8),
+    "pikabu": PlatformContentLimits(max_text_length=8000, max_media_items=10),
+    "habr": PlatformContentLimits(max_text_length=8000, max_media_items=3),
+    "tenchat": PlatformContentLimits(max_text_length=7000, max_media_items=10),
+    "livejournal": PlatformContentLimits(max_text_length=12_000, max_media_items=20),
 }
 
 
