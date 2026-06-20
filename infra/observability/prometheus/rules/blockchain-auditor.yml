@@ -1,0 +1,22 @@
+groups:
+  - name: private-blockchain-auditor
+    rules:
+      - alert: NmcPrivateBlockchainNodeDown
+        expr: |
+          up{job="private-blockchain-besu"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Недоступна нода приватной blockchain-сети"
+          description: "Проверьте {{ $labels.instance }} в job=\"private-blockchain-besu\"."
+
+      - alert: NmcPrivateBlockchainQuorumAtRisk
+        expr: |
+          count(up{job="private-blockchain-besu"} == 1) < 3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "QBFT-кворум приватной blockchain-сети под риском"
+          description: "Для 4 валидаторов требуется минимум 3 доступных Besu-ноды."

@@ -1,0 +1,126 @@
+# Optional Hyperledger Besu/QBFT profile for issue #79.
+# Use together with infra/local/docker-compose.yml:
+# docker compose -f infra/local/docker-compose.yml -f infra/blockchain/docker-compose.yml --profile blockchain up -d
+
+services:
+  besu-qbft-bootstrap:
+    image: hyperledger/besu:${BESU_IMAGE_TAG:-26.6.1}
+    profiles:
+      - blockchain
+    user: root
+    entrypoint: ["/bin/sh", "/config/bootstrap_qbft.sh"]
+    environment:
+      BESU_VALIDATOR_COUNT: "4"
+      BESU_QBFT_CONFIG_FILE: /config/qbft-network.json
+      BESU_QBFT_OUTPUT_DIR: /network
+    volumes:
+      - besu-qbft-network:/network
+      - ../blockchain/qbft-network.json:/config/qbft-network.json:ro
+      - ../blockchain/scripts/bootstrap_qbft.sh:/config/bootstrap_qbft.sh:ro
+
+  besu-validator-1:
+    image: hyperledger/besu:${BESU_IMAGE_TAG:-26.6.1}
+    profiles:
+      - blockchain
+    restart: unless-stopped
+    depends_on:
+      besu-qbft-bootstrap:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/run_besu_node.sh"]
+    environment:
+      BESU_NODE_ID: validator-1
+      BESU_NETWORK_ID: ${BESU_NETWORK_ID:-20260679}
+      BESU_RPC_HTTP_ENABLED: "true"
+      BESU_RPC_HTTP_API: ETH,NET,QBFT,WEB3
+      BESU_HOST_ALLOWLIST: besu-rpc,besu-auditor.internal,besu-validator-1,localhost,127.0.0.1
+    expose:
+      - "30303"
+      - "8545"
+      - "9545"
+    volumes:
+      - besu-qbft-network:/network:ro
+      - besu-validator-1-data:/var/lib/besu
+      - ../blockchain/scripts/run_besu_node.sh:/config/run_besu_node.sh:ro
+    networks:
+      default:
+        aliases:
+          - besu-rpc
+          - besu-auditor.internal
+
+  besu-validator-2:
+    image: hyperledger/besu:${BESU_IMAGE_TAG:-26.6.1}
+    profiles:
+      - blockchain
+    restart: unless-stopped
+    depends_on:
+      besu-qbft-bootstrap:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/run_besu_node.sh"]
+    environment:
+      BESU_NODE_ID: validator-2
+      BESU_NETWORK_ID: ${BESU_NETWORK_ID:-20260679}
+      BESU_RPC_HTTP_ENABLED: "false"
+      BESU_HOST_ALLOWLIST: besu-validator-2,localhost,127.0.0.1
+    expose:
+      - "30303"
+      - "9545"
+    volumes:
+      - besu-qbft-network:/network:ro
+      - besu-validator-2-data:/var/lib/besu
+      - ../blockchain/scripts/run_besu_node.sh:/config/run_besu_node.sh:ro
+
+  besu-validator-3:
+    image: hyperledger/besu:${BESU_IMAGE_TAG:-26.6.1}
+    profiles:
+      - blockchain
+    restart: unless-stopped
+    depends_on:
+      besu-qbft-bootstrap:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/run_besu_node.sh"]
+    environment:
+      BESU_NODE_ID: validator-3
+      BESU_NETWORK_ID: ${BESU_NETWORK_ID:-20260679}
+      BESU_RPC_HTTP_ENABLED: "false"
+      BESU_HOST_ALLOWLIST: besu-validator-3,localhost,127.0.0.1
+    expose:
+      - "30303"
+      - "9545"
+    volumes:
+      - besu-qbft-network:/network:ro
+      - besu-validator-3-data:/var/lib/besu
+      - ../blockchain/scripts/run_besu_node.sh:/config/run_besu_node.sh:ro
+
+  besu-validator-4:
+    image: hyperledger/besu:${BESU_IMAGE_TAG:-26.6.1}
+    profiles:
+      - blockchain
+    restart: unless-stopped
+    depends_on:
+      besu-qbft-bootstrap:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/run_besu_node.sh"]
+    environment:
+      BESU_NODE_ID: validator-4
+      BESU_NETWORK_ID: ${BESU_NETWORK_ID:-20260679}
+      BESU_RPC_HTTP_ENABLED: "false"
+      BESU_HOST_ALLOWLIST: besu-validator-4,localhost,127.0.0.1
+    expose:
+      - "30303"
+      - "9545"
+    volumes:
+      - besu-qbft-network:/network:ro
+      - besu-validator-4-data:/var/lib/besu
+      - ../blockchain/scripts/run_besu_node.sh:/config/run_besu_node.sh:ro
+
+  prometheus:
+    volumes:
+      - ../observability/prometheus/prometheus.blockchain.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus/rules:/etc/prometheus/rules:ro
+
+volumes:
+  besu-qbft-network:
+  besu-validator-1-data:
+  besu-validator-2-data:
+  besu-validator-3-data:
+  besu-validator-4-data:

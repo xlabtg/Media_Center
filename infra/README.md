@@ -14,6 +14,7 @@
 | Каталог | Назначение |
 |---------|------------|
 | `local/` | docker-compose для локальной разработки и smoke-проверок. |
+| `blockchain/` | Optional compose-профиль Hyperledger Besu/QBFT для приватной audit-chain issue #79. |
 | `deploy/` | Будущие deployment-манифесты и окружения. |
 | `observability/` | Конфигурации Prometheus, Grafana и OpenTelemetry Collector для метрик, логов и трейсинга. |
 | `docker/` | Общие Dockerfile для CI-сборки сервисных образов. |
@@ -53,6 +54,22 @@ make down
 Подробности, порты, env-шаблон, миграции, сиды и фикстуры описаны в
 [local/README.md](local/README.md).
 
+## Приватная blockchain-сеть
+
+[blockchain/](blockchain/) содержит локальный deploy-контур issue #79:
+Hyperledger Besu 26.6.1, QBFT с 4 валидаторами, node permissioning,
+внутренний alias `besu-auditor.internal` для `blockchain-auditor` и
+Prometheus job `private-blockchain-besu`. Контур запускается явно:
+
+```bash
+make blockchain-config
+make blockchain-up
+```
+
+RPC и P2P порты не публикуются на host; доступ к audit operations остается за
+сервисом `blockchain-auditor`, где включены tenant isolation и council-only
+RBAC.
+
 ## Наблюдаемость
 
 `observability/` фиксирует локальный контракт issue #24:
@@ -60,6 +77,8 @@ make down
 - `prometheus/prometheus.yml` собирает `nmc_service_operations_total` и
   `nmc_service_operation_duration_seconds` с labels `tenant_id`, `service`,
   `operation`, `status`;
+- `prometheus/prometheus.blockchain.yml` добавляет scrape job
+  `private-blockchain-besu` для Besu-нод при запуске blockchain-профиля;
 - `grafana/` содержит provisioning datasource и дашборд tenant overview;
 - `otel-collector.yml` принимает OpenTelemetry traces/logs/metrics через OTLP и
   сохраняет только технические attributes без ПДн.

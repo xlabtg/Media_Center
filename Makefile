@@ -1,12 +1,15 @@
 LOCAL_COMPOSE_FILE ?= infra/local/docker-compose.yml
 LOCAL_ENV_FILE ?= infra/local/.env.local.example
 LOCAL_PROJECT_NAME ?= media-center-local
+BLOCKCHAIN_COMPOSE_FILE ?= infra/blockchain/docker-compose.yml
+BLOCKCHAIN_PROFILE ?= blockchain
 
 COMPOSE = docker compose --project-name $(LOCAL_PROJECT_NAME) --env-file $(LOCAL_ENV_FILE) -f $(LOCAL_COMPOSE_FILE)
+BLOCKCHAIN_COMPOSE = $(COMPOSE) -f $(BLOCKCHAIN_COMPOSE_FILE)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down migrate seed test ps logs clean
+.PHONY: help up down migrate seed test ps logs clean blockchain-up blockchain-down blockchain-config blockchain-logs
 
 help:
 	@printf '%s\n' \
@@ -15,7 +18,10 @@ help:
 		'  make migrate  Apply the local PostgreSQL schema and dev seed data' \
 		'  make test     Validate the local environment contract' \
 		'  make down     Stop the local stack' \
-		'  make clean    Stop the local stack and remove volumes'
+		'  make clean    Stop the local stack and remove volumes' \
+		'  make blockchain-config  Validate the private blockchain compose contract' \
+		'  make blockchain-up      Start local stack with Besu/QBFT profile' \
+		'  make blockchain-down    Stop local stack with Besu/QBFT profile'
 
 up:
 	$(COMPOSE) up -d
@@ -46,3 +52,15 @@ logs:
 
 clean:
 	$(COMPOSE) down -v --remove-orphans
+
+blockchain-up:
+	$(BLOCKCHAIN_COMPOSE) --profile $(BLOCKCHAIN_PROFILE) up -d
+
+blockchain-down:
+	$(BLOCKCHAIN_COMPOSE) --profile $(BLOCKCHAIN_PROFILE) down
+
+blockchain-config:
+	bash experiments/validate_issue79_blockchain_network.sh
+
+blockchain-logs:
+	$(BLOCKCHAIN_COMPOSE) --profile $(BLOCKCHAIN_PROFILE) logs -f --tail=200 besu-validator-1 besu-validator-2 besu-validator-3 besu-validator-4

@@ -48,6 +48,23 @@ LOCAL_ENV_FILE=infra/local/.env.local make migrate
 Файл `.env.local` игнорируется git. Коммитить можно только шаблоны без реальных
 секретов.
 
+## Приватная blockchain-сеть
+
+Для issue #79 есть отдельный optional profile в
+`infra/blockchain/docker-compose.yml`. Он поднимает 4 validator-ноды
+Hyperledger Besu/QBFT, не публикует RPC/P2P порты на host и добавляет
+Prometheus job `private-blockchain-besu`.
+
+```bash
+make blockchain-config
+make blockchain-up
+make blockchain-down
+```
+
+`BLOCKCHAIN_AUDITOR_URL` в dev-шаблоне указывает на внутренний
+`grpc://besu-auditor.internal:50051`; низкоуровневый Besu RPC остается внутри
+compose-сети как `http://besu-rpc:8545`.
+
 ## Сервисы и порты
 
 | Сервис | Образ | Локальный адрес |

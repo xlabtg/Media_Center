@@ -34,6 +34,12 @@ Grafana автоматически подключает Prometheus и дашбо
 `НМЦ / Tenant Observability`. Dev-учётные данные задаются только в
 `infra/local/.env.local.example` и предназначены для локального запуска.
 
+Для приватной blockchain-сети issue #79 используется compose override
+`infra/observability/prometheus/prometheus.blockchain.yml`: он сохраняет
+базовые scrape jobs и добавляет job `private-blockchain-besu` для Besu metrics
+валидаторов. Alert rules лежат в
+`infra/observability/prometheus/rules/blockchain-auditor.yml`.
+
 ## Метрики сервисов
 
 Shared-библиотека публикует базовые метрики:
