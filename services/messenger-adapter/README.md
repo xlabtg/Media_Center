@@ -47,6 +47,24 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
   токенов, tenant isolation, retry policy, события и audit остаются едиными для
   всех площадок.
 
+## VK API
+
+- `VKWallPublisher` поддерживает production-контур публикации в VK API 5.199:
+  `wall.post`, `attachments`, `from_group`, `guid` и другие разрешённые поля
+  берутся из `PublicationRequest.metadata["vk"]`, а raw access token остаётся
+  внутри `PlatformPublishCommand`.
+- `VKAPIRateLimiter` добавляет локальный tenant/target/action scoped pacing
+  перед вызовами `wall.post`, `stats.getPostReach` и `wall.getById`; ответы VK
+  с rate limit дополнительно нормализуются в общий `rate_limited` для retry
+  policy `BasePlatformAdapter`.
+- `VKPostMetricsCollector` собирает показатели поста через
+  `stats.getPostReach` и `wall.getById`: `reach_total`, reach по подписчикам,
+  views, likes, comments, reposts, clicks (`links`), переходы в группу,
+  вступления, скрытия, жалобы и отписки.
+- Результаты `VKPostMetricsBatch` содержат tenant-scoped SHA-256 хэши target и
+  platform ref, агрегированные счётчики и ошибки по `post_id`; raw token и
+  исходный текст публикации в них не попадают.
+
 ## Трансформация контента и адаптеры Dzen/OK
 
 - `PlatformContentTransformer` обрезает текст и список медиа по лимитам
