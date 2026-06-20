@@ -2,7 +2,7 @@
 
 Дата фиксации: 2026-06-20.
 
-Статус: acceptance snapshot для issue #91.
+Статус: acceptance snapshot для issue #91 и issue #92.
 
 Документ фиксирует готовность ограниченного пилотного запуска на tenant
 `nmc-pilot`. Он не является разрешением на production launch: реальные ПДн,
@@ -21,7 +21,7 @@
   `ready_for_review`;
 - Роли и пороги Совета заданы: `council`, `presidium`, `board`,
   `member_full`, `member_assoc`, кворум 2/3 и окно вето 8 часов;
-- KPI пилота зафиксированы для tenant dashboard;
+- KPI пилота собираются через telemetry collector и доступны в отчёте Совету;
 - rollback описан без удаления audit history.
 
 ## 2. Критерии приемки issue #91
@@ -32,7 +32,15 @@
 | 15-25 участников зарегистрированы и онбордятся | Выполнено: в pilot fixture 20 участников, каждый имеет `registered` status, роль, куратора и обязательный onboarding checklist. | [tests/test_pilot_tenant_issue91_acceptance_contract.py](../tests/test_pilot_tenant_issue91_acceptance_contract.py) |
 | Роли и пороги Совета заданы | Выполнено: fixture задает RBAC-распределение, стратегический кворум 2/3, 8-часовое окно вето, 2FA и approvals для чувствительных операций. | [docs/GOVERNANCE.md](GOVERNANCE.md), [infra/local/fixtures/pilot-tenant.json](../infra/local/fixtures/pilot-tenant.json) |
 
-## 3. Gate перед фактическим запуском
+## 3. Критерии приемки issue #92
+
+| Критерий | Статус | Проверяемые ссылки |
+|----------|--------|--------------------|
+| KPI и телеметрия собираются автоматически | Выполнено: `POST /analytics/pilot/telemetry/collect` принимает batch collector, превращает KPI в `analytics.event_recorded` и сохраняет usage/incidents telemetry. | [services/analytics-engine/README.md](../services/analytics-engine/README.md), [tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py](../tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py) |
+| Отчёты доступны Совету | Выполнено: `GET /analytics/pilot/reports?period=` доступен роли `council` и возвращает KPI, агрегаты, usage summary, incidents summary и feedback-loop статус. | [docs/modules/analytics-engine.md](modules/analytics-engine.md), [tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py](../tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py) |
+| Данные изолированы по тенанту | Выполнено: tenant-isolation контракт #92 проверяет, что данные другого tenant не попадают в council report, а подмена `X-Tenant-Id` возвращает `403 tenant_isolation_violation`. | [tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py](../tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py) |
+
+## 4. Gate перед фактическим запуском
 
 Перед включением реальных каналов Совет проводит ручной go/no-go:
 
@@ -42,13 +50,16 @@
 - выплаты остаются в HITL-контуре с 2FA и окном вето;
 - tenant dashboard показывает labels `tenant_id`, `service`, `operation`,
   `status`;
+- pilot telemetry collector пишет usage/incidents без ПДн и публикует отчёт
+  Совету по расписанию weekly/monthly;
 - audit trail содержит только SHA256-хэши и metadata;
 - rollback plan проверен на dry-run.
 
-## 4. Локальная проверка
+## 5. Локальная проверка
 
 ```bash
 pytest tests/test_pilot_tenant_issue91_acceptance_contract.py
+pytest tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py
 ```
 
 Полный PR gate остается стандартным:

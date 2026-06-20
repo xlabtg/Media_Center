@@ -50,8 +50,14 @@ ANALYTICS_ENGINE_SERVICE_NAME = "analytics-engine"
 ANALYTICS_ENGINE_SOURCE = "analytics-engine"
 ANALYTICS_ENGINE_SCHEMA_VERSION = "1.0"
 ANALYTICS_EVENT_RECORDED_EVENT = "analytics.event_recorded"
+PILOT_TELEMETRY_BATCH_COLLECTED_EVENT = "analytics.pilot_batch_collected"
+PILOT_USAGE_RECORDED_EVENT = "analytics.pilot_usage_recorded"
+PILOT_INCIDENT_RECORDED_EVENT = "analytics.pilot_incident_recorded"
 
 _PERIOD_PATTERN = r"^\d{4}-((0[1-9]|1[0-2])|W(0[1-9]|[1-4][0-9]|5[0-3]))$"
+_PILOT_SOURCE_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
+_PILOT_SIGNAL_PATTERN = r"^[a-z][a-z0-9_:-]{0,127}$"
+_PILOT_UNIT_PATTERN = r"^[A-Za-z][A-Za-z0-9_/%-]{0,31}$"
 
 ANALYTICS_EVENT_RECORD_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -67,6 +73,17 @@ ANALYTICS_READ_POLICY = AccessPolicy.allow_roles(
     BOARD_ROLE,
     action="analytics.read",
     resource_type="analytics",
+)
+PILOT_TELEMETRY_COLLECT_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    action="analytics.pilot.collect",
+    resource_type="pilot_telemetry",
+)
+PILOT_COUNCIL_REPORT_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    action="analytics.pilot.report",
+    resource_type="pilot_report",
 )
 
 
@@ -92,6 +109,18 @@ class KPIStatus(StrEnum):
     BELOW_TARGET = "below_target"
     ON_TRACK = "on_track"
     ABOVE_TARGET = "above_target"
+
+
+class PilotIncidentSeverity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class PilotIncidentStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
 
 
 _EVENT_CATEGORIES: dict[AnalyticsEventType, AnalyticsCategory] = {
@@ -276,6 +305,162 @@ class AnalyticsAggregatesResponse(SharedBaseModel):
     categories: tuple[AnalyticsCategoryAggregate, ...]
 
 
+class PilotTelemetryKPIRequest(SharedBaseModel):
+    active_members: float | None = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    new_members: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    materials_published: float | None = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    content_views: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    reading_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    reading_sessions: int | None = Field(default=None, ge=1)
+    comments: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    tasks_completed: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    initiatives_created: float | None = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+    )
+
+
+class PilotUsageTelemetryCreate(SharedBaseModel):
+    signal_id: IdempotencyKey | None = None
+    name: str = Field(pattern=_PILOT_SIGNAL_PATTERN)
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: str = Field(pattern=_PILOT_UNIT_PATTERN)
+    occurred_at: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _normalize_name(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("occurred_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class PilotIncidentCreate(SharedBaseModel):
+    incident_id: IdempotencyKey | None = None
+    severity: PilotIncidentSeverity
+    status: PilotIncidentStatus
+    title: str = Field(min_length=1, max_length=256)
+    impact: str = Field(min_length=1, max_length=512)
+    occurred_at: datetime | None = None
+    resolved_at: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("severity", "status", mode="before")
+    @classmethod
+    def _normalize_enum(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("occurred_at", "resolved_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class PilotTelemetryCollectionRequest(SharedBaseModel):
+    batch_id: IdempotencyKey | None = None
+    source: str = Field(pattern=_PILOT_SOURCE_PATTERN)
+    period: str = Field(pattern=_PERIOD_PATTERN)
+    kpi: PilotTelemetryKPIRequest = Field(default_factory=PilotTelemetryKPIRequest)
+    usage: tuple[PilotUsageTelemetryCreate, ...] = Field(default_factory=tuple)
+    incidents: tuple[PilotIncidentCreate, ...] = Field(default_factory=tuple)
+    collected_at: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _normalize_source(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("collected_at")
+    @classmethod
+    def _normalize_optional_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return _normalize_datetime(value)
+
+
+class PilotTelemetryCollectionResponse(SharedBaseModel):
+    batch_id: IdempotencyKey
+    tenant_id: TenantId
+    period: str
+    source: str
+    kpi_events_recorded: int = Field(ge=0)
+    usage_signals_recorded: int = Field(ge=0)
+    incidents_recorded: int = Field(ge=0)
+
+
+class PilotUsageMetricSummary(SharedBaseModel):
+    name: str = Field(pattern=_PILOT_SIGNAL_PATTERN)
+    unit: str = Field(pattern=_PILOT_UNIT_PATTERN)
+    value: float = Field(ge=0, allow_inf_nan=False)
+    signal_count: int = Field(ge=0)
+    sources: tuple[str, ...]
+
+
+class PilotUsageTelemetrySummary(SharedBaseModel):
+    signals_total: int = Field(ge=0)
+    metrics: tuple[PilotUsageMetricSummary, ...]
+
+
+class PilotIncidentReportItem(SharedBaseModel):
+    incident_id: IdempotencyKey
+    severity: PilotIncidentSeverity
+    status: PilotIncidentStatus
+    title: str
+    impact: str
+    occurred_at: datetime
+    resolved_at: datetime | None = None
+
+
+class PilotIncidentSummary(SharedBaseModel):
+    incidents_total: int = Field(ge=0)
+    open_incidents: int = Field(ge=0)
+    resolved_incidents: int = Field(ge=0)
+    severity_counts: dict[str, int] = Field(default_factory=dict)
+    latest: tuple[PilotIncidentReportItem, ...] = Field(default_factory=tuple)
+
+
+class PilotFeedbackLoopSummary(SharedBaseModel):
+    status: str
+    signals: tuple[str, ...]
+
+
+class PilotCouncilReportResponse(SharedBaseModel):
+    tenant_id: TenantId
+    period: str
+    report_frequency: str
+    recipients: tuple[str, ...]
+    kpi: AnalyticsKPIResponse
+    aggregates: AnalyticsAggregatesResponse
+    usage: PilotUsageTelemetrySummary
+    incidents: PilotIncidentSummary
+    feedback_loop: PilotFeedbackLoopSummary
+    generated_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class AnalyticsEventRecord:
     event_id: str
@@ -292,11 +477,69 @@ class AnalyticsEventRecord:
     metadata: dict[str, JSONValue]
 
 
+@dataclass(frozen=True, slots=True)
+class PilotUsageTelemetryRecord:
+    signal_id: str
+    tenant_id: str
+    source: str
+    period: str
+    name: str
+    value: float
+    unit: str
+    audit_hash: str
+    correlation_id: str
+    occurred_at: datetime
+    metadata: dict[str, JSONValue]
+
+
+@dataclass(frozen=True, slots=True)
+class PilotIncidentRecord:
+    incident_id: str
+    tenant_id: str
+    source: str
+    period: str
+    severity: str
+    status: str
+    title: str
+    impact: str
+    audit_hash: str
+    correlation_id: str
+    occurred_at: datetime
+    resolved_at: datetime | None
+    metadata: dict[str, JSONValue]
+
+
+@dataclass(frozen=True, slots=True)
+class PilotTelemetryBatchRecord:
+    batch_id: str
+    tenant_id: str
+    source: str
+    period: str
+    kpi_event_ids: tuple[str, ...]
+    usage_signal_ids: tuple[str, ...]
+    incident_ids: tuple[str, ...]
+    audit_hash: str
+    correlation_id: str
+    collected_at: datetime
+    metadata: dict[str, JSONValue]
+
+
 @dataclass(slots=True)
 class InMemoryAnalyticsRepository:
     _events: list[AnalyticsEventRecord] = field(default_factory=list)
+    _pilot_batches: dict[tuple[str, str], PilotTelemetryBatchRecord] = field(
+        default_factory=dict
+    )
+    _usage_signals: list[PilotUsageTelemetryRecord] = field(default_factory=list)
+    _incidents: list[PilotIncidentRecord] = field(default_factory=list)
     _tenant_guard: TenantScopedRepository[AnalyticsEventRecord] = field(
         default_factory=lambda: TenantScopedRepository("analytics_events")
+    )
+    _usage_guard: TenantScopedRepository[PilotUsageTelemetryRecord] = field(
+        default_factory=lambda: TenantScopedRepository("pilot_usage_telemetry")
+    )
+    _incident_guard: TenantScopedRepository[PilotIncidentRecord] = field(
+        default_factory=lambda: TenantScopedRepository("pilot_incidents")
     )
 
     def event_exists(self, *, tenant_id: str, event_id: str) -> bool:
@@ -314,6 +557,56 @@ class InMemoryAnalyticsRepository:
             )
 
         self._events.append(record)
+        return record
+
+    def pilot_batch_exists(self, *, tenant_id: str, batch_id: str) -> bool:
+        return (tenant_id, batch_id) in self._pilot_batches
+
+    def add_pilot_batch(
+        self,
+        record: PilotTelemetryBatchRecord,
+    ) -> PilotTelemetryBatchRecord:
+        key = (record.tenant_id, record.batch_id)
+        if key in self._pilot_batches:
+            raise SharedError(
+                status_code=409,
+                error_code="pilot_telemetry_batch_conflict",
+                message="Пакет телеметрии пилота с таким batch_id уже существует",
+            )
+
+        self._pilot_batches[key] = record
+        return record
+
+    def add_usage_signal(
+        self,
+        record: PilotUsageTelemetryRecord,
+    ) -> PilotUsageTelemetryRecord:
+        if any(
+            item.tenant_id == record.tenant_id and item.signal_id == record.signal_id
+            for item in self._usage_signals
+        ):
+            raise SharedError(
+                status_code=409,
+                error_code="pilot_usage_signal_conflict",
+                message="Usage telemetry signal с таким signal_id уже существует",
+            )
+
+        self._usage_signals.append(record)
+        return record
+
+    def add_incident(self, record: PilotIncidentRecord) -> PilotIncidentRecord:
+        if any(
+            item.tenant_id == record.tenant_id
+            and item.incident_id == record.incident_id
+            for item in self._incidents
+        ):
+            raise SharedError(
+                status_code=409,
+                error_code="pilot_incident_conflict",
+                message="Инцидент пилота с таким incident_id уже существует",
+            )
+
+        self._incidents.append(record)
         return record
 
     def list_events(
@@ -338,6 +631,34 @@ class InMemoryAnalyticsRepository:
     ) -> tuple[str, ...]:
         records = self._tenant_guard.list_for_tenant(self._events, context)
         return tuple(sorted({event.period for event in records}, reverse=True))
+
+    def list_usage_signals(
+        self,
+        *,
+        context: TenantContext,
+        period: str,
+    ) -> tuple[PilotUsageTelemetryRecord, ...]:
+        records = self._usage_guard.list_for_tenant(self._usage_signals, context)
+        filtered = (signal for signal in records if signal.period == period)
+        return tuple(
+            sorted(filtered, key=lambda signal: (signal.name, signal.signal_id))
+        )
+
+    def list_incidents(
+        self,
+        *,
+        context: TenantContext,
+        period: str,
+    ) -> tuple[PilotIncidentRecord, ...]:
+        records = self._incident_guard.list_for_tenant(self._incidents, context)
+        filtered = (incident for incident in records if incident.period == period)
+        return tuple(
+            sorted(
+                filtered,
+                key=lambda incident: (incident.occurred_at, incident.incident_id),
+                reverse=True,
+            )
+        )
 
 
 @dataclass(slots=True)
@@ -398,51 +719,17 @@ async def record_analytics_event(
 ) -> AnalyticsEventResponse:
     require_access(ANALYTICS_EVENT_RECORD_POLICY, context=context)
     event_id = payload.event_id or _new_id("analytics-event")
-    if state.repository.event_exists(tenant_id=context.tenant_id, event_id=event_id):
-        raise SharedError(
-            status_code=409,
-            error_code="analytics_event_conflict",
-            message="Аналитическое событие с таким event_id уже существует",
-            correlation_id=context.correlation_id,
-        )
-
-    occurred_at = payload.occurred_at or datetime.now(UTC)
-    event_type = payload.type
-    category = _EVENT_CATEGORIES[event_type]
-    member_hash = _member_hash_from_payload(context=context, payload=payload)
-    audit_record = state.audit_logger.record(
-        event_type=ANALYTICS_EVENT_RECORDED_EVENT,
-        tenant_id=context.tenant_id,
-        metadata={
-            "event_id": event_id,
-            "type": event_type.value,
-            "category": category.value,
-            "period": payload.period,
-            "value": payload.value,
-            "sample_count": payload.sample_count,
-            "member_hash": member_hash,
-            "metadata": payload.metadata,
-        },
-        timestamp=occurred_at,
-        correlation_id=_correlation_id(context),
-        actor_hash=_actor_hash(context),
-        source=ANALYTICS_ENGINE_SOURCE,
-    )
-    record = state.repository.add_event(
-        AnalyticsEventRecord(
-            event_id=event_id,
-            tenant_id=context.tenant_id,
-            type=event_type.value,
-            category=category.value,
-            period=payload.period,
-            value=payload.value,
-            sample_count=payload.sample_count,
-            member_hash=member_hash,
-            audit_hash=audit_record.audit_hash,
-            correlation_id=_correlation_id(context),
-            occurred_at=occurred_at,
-            metadata=payload.metadata,
-        )
+    record = _add_analytics_event(
+        state=state,
+        context=context,
+        event_id=event_id,
+        event_type=payload.type,
+        period=payload.period,
+        value=payload.value,
+        sample_count=payload.sample_count,
+        member_hash=_member_hash_from_payload(context=context, payload=payload),
+        occurred_at=payload.occurred_at or datetime.now(UTC),
+        metadata=payload.metadata,
     )
     await state.publisher.publish(_event_envelope(record))
     return _event_response(record)
@@ -481,6 +768,166 @@ def get_analytics_aggregates(
         tenant_id=context.tenant_id,
         period=period,
         events=state.repository.list_events(context=context, period=period),
+    )
+
+
+@router.post(
+    "/analytics/pilot/telemetry/collect",
+    response_model=PilotTelemetryCollectionResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    summary="Собрать batch KPI и телеметрии пилота",
+)
+async def collect_pilot_telemetry(
+    payload: PilotTelemetryCollectionRequest,
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> PilotTelemetryCollectionResponse:
+    require_access(PILOT_TELEMETRY_COLLECT_POLICY, context=context)
+    batch_id = payload.batch_id or _new_id("pilot-telemetry-batch")
+    if state.repository.pilot_batch_exists(
+        tenant_id=context.tenant_id,
+        batch_id=batch_id,
+    ):
+        raise SharedError(
+            status_code=409,
+            error_code="pilot_telemetry_batch_conflict",
+            message="Пакет телеметрии пилота с таким batch_id уже существует",
+            correlation_id=context.correlation_id,
+        )
+
+    collected_at = payload.collected_at or datetime.now(UTC)
+    kpi_records: list[AnalyticsEventRecord] = []
+    for event_type, value, sample_count in _pilot_kpi_event_specs(payload.kpi):
+        record = _add_analytics_event(
+            state=state,
+            context=context,
+            event_id=f"{batch_id}:{event_type.value}",
+            event_type=event_type,
+            period=payload.period,
+            value=value,
+            sample_count=sample_count,
+            member_hash=None,
+            occurred_at=collected_at,
+            metadata={
+                "batch_id": batch_id,
+                "source": payload.source,
+                "collector": "pilot_telemetry",
+            },
+        )
+        await state.publisher.publish(_event_envelope(record))
+        kpi_records.append(record)
+
+    usage_records = tuple(
+        _add_pilot_usage_signal(
+            state=state,
+            context=context,
+            batch_id=batch_id,
+            source=payload.source,
+            period=payload.period,
+            payload=usage,
+            index=index,
+            collected_at=collected_at,
+        )
+        for index, usage in enumerate(payload.usage, start=1)
+    )
+    incident_records = tuple(
+        _add_pilot_incident(
+            state=state,
+            context=context,
+            batch_id=batch_id,
+            source=payload.source,
+            period=payload.period,
+            payload=incident,
+            index=index,
+            collected_at=collected_at,
+        )
+        for index, incident in enumerate(payload.incidents, start=1)
+    )
+    batch_audit_record = state.audit_logger.record(
+        event_type=PILOT_TELEMETRY_BATCH_COLLECTED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "batch_id": batch_id,
+            "source": payload.source,
+            "period": payload.period,
+            "kpi_events_recorded": len(kpi_records),
+            "usage_signals_recorded": len(usage_records),
+            "incidents_recorded": len(incident_records),
+            "metadata": payload.metadata,
+        },
+        timestamp=collected_at,
+        correlation_id=_correlation_id(context),
+        actor_hash=_actor_hash(context),
+        source=payload.source,
+    )
+    state.repository.add_pilot_batch(
+        PilotTelemetryBatchRecord(
+            batch_id=batch_id,
+            tenant_id=context.tenant_id,
+            source=payload.source,
+            period=payload.period,
+            kpi_event_ids=tuple(record.event_id for record in kpi_records),
+            usage_signal_ids=tuple(record.signal_id for record in usage_records),
+            incident_ids=tuple(record.incident_id for record in incident_records),
+            audit_hash=batch_audit_record.audit_hash,
+            correlation_id=_correlation_id(context),
+            collected_at=collected_at,
+            metadata=payload.metadata,
+        )
+    )
+    return PilotTelemetryCollectionResponse(
+        batch_id=batch_id,
+        tenant_id=context.tenant_id,
+        period=payload.period,
+        source=payload.source,
+        kpi_events_recorded=len(kpi_records),
+        usage_signals_recorded=len(usage_records),
+        incidents_recorded=len(incident_records),
+    )
+
+
+@router.get(
+    "/analytics/pilot/reports",
+    response_model=PilotCouncilReportResponse,
+    summary="Получить регулярный отчёт пилота для Совета",
+)
+def get_pilot_council_report(
+    state: Annotated[AnalyticsEngineAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+    period: Annotated[str, Query(pattern=_PERIOD_PATTERN)],
+) -> PilotCouncilReportResponse:
+    require_access(PILOT_COUNCIL_REPORT_POLICY, context=context)
+    events = state.repository.list_events(context=context, period=period)
+    kpi = build_analytics_kpi_response(
+        tenant_id=context.tenant_id,
+        period=period,
+        events=events,
+    )
+    aggregates = build_analytics_aggregates_response(
+        tenant_id=context.tenant_id,
+        period=period,
+        events=events,
+    )
+    usage = _build_pilot_usage_summary(
+        state.repository.list_usage_signals(context=context, period=period)
+    )
+    incidents = _build_pilot_incident_summary(
+        state.repository.list_incidents(context=context, period=period)
+    )
+    return PilotCouncilReportResponse(
+        tenant_id=context.tenant_id,
+        period=period,
+        report_frequency=_report_frequency(period),
+        recipients=(COUNCIL_ROLE,),
+        kpi=kpi,
+        aggregates=aggregates,
+        usage=usage,
+        incidents=incidents,
+        feedback_loop=_build_pilot_feedback_loop(
+            kpi=kpi,
+            incidents=incidents,
+        ),
+        generated_at=datetime.now(UTC),
     )
 
 
@@ -584,6 +1031,307 @@ def _event_envelope(record: AnalyticsEventRecord) -> EventEnvelope:
         occurred_at=record.occurred_at,
         payload=payload,
     )
+
+
+def _add_analytics_event(
+    *,
+    state: AnalyticsEngineAPIState,
+    context: TenantContext,
+    event_id: str,
+    event_type: AnalyticsEventType,
+    period: str,
+    value: float,
+    sample_count: int | None,
+    member_hash: str | None,
+    occurred_at: datetime,
+    metadata: dict[str, JSONValue],
+) -> AnalyticsEventRecord:
+    if state.repository.event_exists(tenant_id=context.tenant_id, event_id=event_id):
+        raise SharedError(
+            status_code=409,
+            error_code="analytics_event_conflict",
+            message="Аналитическое событие с таким event_id уже существует",
+            correlation_id=context.correlation_id,
+        )
+
+    category = _EVENT_CATEGORIES[event_type]
+    correlation_id = _correlation_id(context)
+    audit_record = state.audit_logger.record(
+        event_type=ANALYTICS_EVENT_RECORDED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "event_id": event_id,
+            "type": event_type.value,
+            "category": category.value,
+            "period": period,
+            "value": value,
+            "sample_count": sample_count,
+            "member_hash": member_hash,
+            "metadata": metadata,
+        },
+        timestamp=occurred_at,
+        correlation_id=correlation_id,
+        actor_hash=_actor_hash(context),
+        source=ANALYTICS_ENGINE_SOURCE,
+    )
+    return state.repository.add_event(
+        AnalyticsEventRecord(
+            event_id=event_id,
+            tenant_id=context.tenant_id,
+            type=event_type.value,
+            category=category.value,
+            period=period,
+            value=value,
+            sample_count=sample_count,
+            member_hash=member_hash,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+            metadata=metadata,
+        )
+    )
+
+
+def _add_pilot_usage_signal(
+    *,
+    state: AnalyticsEngineAPIState,
+    context: TenantContext,
+    batch_id: str,
+    source: str,
+    period: str,
+    payload: PilotUsageTelemetryCreate,
+    index: int,
+    collected_at: datetime,
+) -> PilotUsageTelemetryRecord:
+    signal_id = payload.signal_id or f"{batch_id}:usage:{index}"
+    occurred_at = payload.occurred_at or collected_at
+    correlation_id = _correlation_id(context)
+    audit_record = state.audit_logger.record(
+        event_type=PILOT_USAGE_RECORDED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "batch_id": batch_id,
+            "signal_id": signal_id,
+            "source": source,
+            "period": period,
+            "name": payload.name,
+            "value": payload.value,
+            "unit": payload.unit,
+            "metadata": payload.metadata,
+        },
+        timestamp=occurred_at,
+        correlation_id=correlation_id,
+        actor_hash=_actor_hash(context),
+        source=source,
+    )
+    return state.repository.add_usage_signal(
+        PilotUsageTelemetryRecord(
+            signal_id=signal_id,
+            tenant_id=context.tenant_id,
+            source=source,
+            period=period,
+            name=payload.name,
+            value=payload.value,
+            unit=payload.unit,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+            metadata=payload.metadata,
+        )
+    )
+
+
+def _add_pilot_incident(
+    *,
+    state: AnalyticsEngineAPIState,
+    context: TenantContext,
+    batch_id: str,
+    source: str,
+    period: str,
+    payload: PilotIncidentCreate,
+    index: int,
+    collected_at: datetime,
+) -> PilotIncidentRecord:
+    incident_id = payload.incident_id or f"{batch_id}:incident:{index}"
+    occurred_at = payload.occurred_at or collected_at
+    correlation_id = _correlation_id(context)
+    audit_record = state.audit_logger.record(
+        event_type=PILOT_INCIDENT_RECORDED_EVENT,
+        tenant_id=context.tenant_id,
+        metadata={
+            "batch_id": batch_id,
+            "incident_id": incident_id,
+            "source": source,
+            "period": period,
+            "severity": payload.severity.value,
+            "status": payload.status.value,
+            "title": payload.title,
+            "impact": payload.impact,
+            "metadata": payload.metadata,
+        },
+        timestamp=occurred_at,
+        correlation_id=correlation_id,
+        actor_hash=_actor_hash(context),
+        source=source,
+    )
+    return state.repository.add_incident(
+        PilotIncidentRecord(
+            incident_id=incident_id,
+            tenant_id=context.tenant_id,
+            source=source,
+            period=period,
+            severity=payload.severity.value,
+            status=payload.status.value,
+            title=payload.title,
+            impact=payload.impact,
+            audit_hash=audit_record.audit_hash,
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+            resolved_at=payload.resolved_at,
+            metadata=payload.metadata,
+        )
+    )
+
+
+def _pilot_kpi_event_specs(
+    payload: PilotTelemetryKPIRequest,
+) -> tuple[tuple[AnalyticsEventType, float, int | None], ...]:
+    specs: list[tuple[AnalyticsEventType, float, int | None]] = []
+    _append_kpi_spec(specs, AnalyticsEventType.MEMBER_ACTIVE, payload.active_members)
+    _append_kpi_spec(specs, AnalyticsEventType.MEMBER_JOINED, payload.new_members)
+    _append_kpi_spec(
+        specs,
+        AnalyticsEventType.MATERIAL_PUBLISHED,
+        payload.materials_published,
+    )
+    _append_kpi_spec(specs, AnalyticsEventType.CONTENT_VIEWED, payload.content_views)
+    _append_kpi_spec(
+        specs,
+        AnalyticsEventType.READING_TIME_RECORDED,
+        payload.reading_seconds,
+        payload.reading_sessions,
+    )
+    _append_kpi_spec(specs, AnalyticsEventType.COMMENT_CREATED, payload.comments)
+    _append_kpi_spec(
+        specs,
+        AnalyticsEventType.TASK_COMPLETED,
+        payload.tasks_completed,
+    )
+    _append_kpi_spec(
+        specs,
+        AnalyticsEventType.INITIATIVE_CREATED,
+        payload.initiatives_created,
+    )
+    return tuple(specs)
+
+
+def _append_kpi_spec(
+    specs: list[tuple[AnalyticsEventType, float, int | None]],
+    event_type: AnalyticsEventType,
+    value: float | None,
+    sample_count: int | None = None,
+) -> None:
+    if value is None:
+        return
+
+    specs.append((event_type, value, sample_count))
+
+
+def _build_pilot_usage_summary(
+    records: Iterable[PilotUsageTelemetryRecord],
+) -> PilotUsageTelemetrySummary:
+    record_list = tuple(records)
+    grouped: dict[tuple[str, str], list[PilotUsageTelemetryRecord]] = {}
+    for record in record_list:
+        grouped.setdefault((record.name, record.unit), []).append(record)
+
+    metrics = tuple(
+        PilotUsageMetricSummary(
+            name=name,
+            unit=unit,
+            value=_round_metric(sum(record.value for record in records_for_metric)),
+            signal_count=len(records_for_metric),
+            sources=tuple(
+                sorted({record.source for record in records_for_metric}),
+            ),
+        )
+        for (name, unit), records_for_metric in sorted(grouped.items())
+    )
+    return PilotUsageTelemetrySummary(
+        signals_total=len(record_list),
+        metrics=metrics,
+    )
+
+
+def _build_pilot_incident_summary(
+    records: Iterable[PilotIncidentRecord],
+) -> PilotIncidentSummary:
+    record_list = tuple(records)
+    severity_counts: dict[str, int] = {}
+    for record in record_list:
+        severity_counts[record.severity] = severity_counts.get(record.severity, 0) + 1
+
+    return PilotIncidentSummary(
+        incidents_total=len(record_list),
+        open_incidents=sum(
+            1
+            for record in record_list
+            if record.status == PilotIncidentStatus.OPEN.value
+        ),
+        resolved_incidents=sum(
+            1
+            for record in record_list
+            if record.status == PilotIncidentStatus.RESOLVED.value
+        ),
+        severity_counts={
+            severity: severity_counts[severity] for severity in sorted(severity_counts)
+        },
+        latest=tuple(_pilot_incident_item(record) for record in record_list[:5]),
+    )
+
+
+def _pilot_incident_item(record: PilotIncidentRecord) -> PilotIncidentReportItem:
+    return PilotIncidentReportItem(
+        incident_id=record.incident_id,
+        severity=PilotIncidentSeverity(record.severity),
+        status=PilotIncidentStatus(record.status),
+        title=record.title,
+        impact=record.impact,
+        occurred_at=record.occurred_at,
+        resolved_at=record.resolved_at,
+    )
+
+
+def _build_pilot_feedback_loop(
+    *,
+    kpi: AnalyticsKPIResponse,
+    incidents: PilotIncidentSummary,
+) -> PilotFeedbackLoopSummary:
+    signals: list[str] = []
+    if kpi.summary.metrics_below_target > 0:
+        signals.append("kpi:below_target")
+    else:
+        signals.append("kpi:on_track")
+
+    if incidents.open_incidents > 0:
+        signals.append("incidents:open")
+    elif incidents.incidents_total > 0:
+        signals.append("incidents:resolved")
+    else:
+        signals.append("incidents:none")
+
+    status = "ready_for_council_review"
+    if kpi.summary.metrics_below_target > 0 or incidents.open_incidents > 0:
+        status = "needs_council_attention"
+
+    return PilotFeedbackLoopSummary(status=status, signals=tuple(signals))
+
+
+def _report_frequency(period: str) -> str:
+    if "-W" in period:
+        return "weekly"
+
+    return "monthly"
 
 
 def _build_kpi_metrics(
