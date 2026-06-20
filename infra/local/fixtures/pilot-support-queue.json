@@ -1,0 +1,224 @@
+{
+  "tenant": {
+    "slug": "nmc-pilot",
+    "environment": "pilot",
+    "data_policy": "synthetic_no_pdn"
+  },
+  "support_channels": [
+    {
+      "channel_id": "support-intake",
+      "name": "Pilot support intake",
+      "purpose": "Первичный прием обращений участников пилота",
+      "owner_role": "board",
+      "response_sla_hours": 4,
+      "allowed_data": "tenant_slug, role, scenario, step, expected_result, actual_result"
+    },
+    {
+      "channel_id": "security-privacy",
+      "name": "Security and privacy escalation",
+      "purpose": "ПДн, tenant isolation, секреты, 2FA и утечки",
+      "owner_role": "security",
+      "response_sla_hours": 1,
+      "allowed_data": "tenant_slug, event_time, category, impact, redacted_evidence"
+    },
+    {
+      "channel_id": "council-escalation",
+      "name": "Council escalation queue",
+      "purpose": "Вето, go/no-go, спорные роли, политики и массовые действия",
+      "owner_role": "council",
+      "response_sla_hours": 4,
+      "allowed_data": "tenant_slug, decision_type, risk, redacted_evidence"
+    },
+    {
+      "channel_id": "ci-release-gate",
+      "name": "CI release gate",
+      "purpose": "Проверка исправлений перед выпуском в пилот",
+      "owner_role": "qa",
+      "response_sla_hours": 4,
+      "allowed_data": "branch, pull_request, checks, rollback"
+    }
+  ],
+  "severity_matrix": [
+    {
+      "priority": "P0",
+      "label": "critical",
+      "criteria": "tenant leak, token leak, ПДн-инцидент, обход HITL/2FA, массовый сбой доступа",
+      "response_sla_hours": 1,
+      "fix_sla_hours": 24,
+      "requires_council_escalation": true,
+      "requires_ci": true,
+      "default_channel": "security-privacy"
+    },
+    {
+      "priority": "P1",
+      "label": "high",
+      "criteria": "несколько участников заблокированы, критичное уведомление не доставлено, публикация требует срочного veto",
+      "response_sla_hours": 4,
+      "fix_sla_hours": 48,
+      "requires_council_escalation": true,
+      "requires_ci": true,
+      "default_channel": "support-intake"
+    },
+    {
+      "priority": "P2",
+      "label": "medium",
+      "criteria": "один участник заблокирован, есть workaround, KPI или FAQ требуют уточнения",
+      "response_sla_hours": 8,
+      "fix_sla_hours": 120,
+      "requires_council_escalation": false,
+      "requires_ci": true,
+      "default_channel": "support-intake"
+    },
+    {
+      "priority": "P3",
+      "label": "low",
+      "criteria": "документация, косметика, вопрос без влияния на запуск",
+      "response_sla_hours": 24,
+      "fix_sla_hours": 240,
+      "requires_council_escalation": false,
+      "requires_ci": false,
+      "default_channel": "support-intake"
+    }
+  ],
+  "support_cases": [
+    {
+      "case_id": "pilot-support-001",
+      "tenant_slug": "nmc-pilot",
+      "category": "tenant_isolation",
+      "priority": "P0",
+      "status": "fix_ready",
+      "owner_role": "security",
+      "opened_at": "2026-06-22T09:00:00Z",
+      "first_response_at": "2026-06-22T09:40:00Z",
+      "escalation_channel": "security-privacy",
+      "impact": "Участник сообщил о признаке чужого tenant_id в интерфейсе",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": true
+    },
+    {
+      "case_id": "pilot-support-002",
+      "tenant_slug": "nmc-pilot",
+      "category": "onboarding",
+      "priority": "P1",
+      "status": "workaround_ready",
+      "owner_role": "board",
+      "opened_at": "2026-06-22T10:00:00Z",
+      "first_response_at": "2026-06-22T12:00:00Z",
+      "escalation_channel": "council-escalation",
+      "impact": "Пять участников не прошли шаг channels за 36 часов",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": true
+    },
+    {
+      "case_id": "pilot-support-003",
+      "tenant_slug": "nmc-pilot",
+      "category": "notification",
+      "priority": "P1",
+      "status": "monitoring",
+      "owner_role": "qa",
+      "opened_at": "2026-06-22T11:15:00Z",
+      "first_response_at": "2026-06-22T14:20:00Z",
+      "escalation_channel": "support-intake",
+      "impact": "Критичное уведомление задержалось для нескольких участников",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": true
+    },
+    {
+      "case_id": "pilot-support-004",
+      "tenant_slug": "nmc-pilot",
+      "category": "hitl_payout",
+      "priority": "P2",
+      "status": "triaged",
+      "owner_role": "council",
+      "opened_at": "2026-06-22T12:00:00Z",
+      "first_response_at": "2026-06-22T17:10:00Z",
+      "escalation_channel": "council-escalation",
+      "impact": "Совет запросил уточнение текста veto reason без сумм и ПДн",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": true
+    },
+    {
+      "case_id": "pilot-support-005",
+      "tenant_slug": "nmc-pilot",
+      "category": "publication_review",
+      "priority": "P2",
+      "status": "resolved",
+      "owner_role": "board",
+      "opened_at": "2026-06-22T13:00:00Z",
+      "first_response_at": "2026-06-22T18:30:00Z",
+      "escalation_channel": "support-intake",
+      "impact": "Материал отправлен на ручной review из-за юридического риска",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": true
+    },
+    {
+      "case_id": "pilot-support-006",
+      "tenant_slug": "nmc-pilot",
+      "category": "faq",
+      "priority": "P3",
+      "status": "resolved",
+      "owner_role": "support",
+      "opened_at": "2026-06-22T15:00:00Z",
+      "first_response_at": "2026-06-23T10:00:00Z",
+      "escalation_channel": "support-intake",
+      "impact": "Повторяющийся вопрос о порядке обращения без влияния на запуск",
+      "evidence_policy": "no_pdn_no_secrets",
+      "ci_required": false
+    }
+  ],
+  "bugfixes": [
+    {
+      "fix_id": "pilot-bugfix-tenant-isolation-banner",
+      "case_id": "pilot-support-001",
+      "priority": "P0",
+      "status": "fix_ready",
+      "verification": {
+        "reproducing_test": "tests/test_pilot_support_issue94_acceptance_contract.py",
+        "ci_workflow": "CI",
+        "rollback": "pause pilot tenant features and keep hash-only audit history",
+        "post_release_monitoring_hours": 48
+      }
+    },
+    {
+      "fix_id": "pilot-bugfix-onboarding-channel-sla",
+      "case_id": "pilot-support-002",
+      "priority": "P1",
+      "status": "monitoring",
+      "verification": {
+        "reproducing_test": "tests/test_pilot_support_issue94_acceptance_contract.py",
+        "ci_workflow": "CI",
+        "rollback": "return participants to manual mentor assignment",
+        "post_release_monitoring_hours": 24
+      }
+    },
+    {
+      "fix_id": "pilot-bugfix-notification-delay",
+      "case_id": "pilot-support-003",
+      "priority": "P1",
+      "status": "released",
+      "verification": {
+        "reproducing_test": "tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py",
+        "ci_workflow": "CI",
+        "rollback": "switch critical notices to backup channel",
+        "post_release_monitoring_hours": 24
+      }
+    }
+  ],
+  "release_gate": {
+    "workflow": "CI",
+    "pull_request": "https://github.com/xlabtg/Media_Center/pull/194",
+    "required_local_checks": [
+      "ruff check .",
+      "ruff format --check .",
+      "black --check .",
+      "mypy .",
+      "pytest",
+      "bash experiments/validate_issue9_ci.sh"
+    ],
+    "required_ci_jobs": [
+      "Lint, types, tests",
+      "Security scan",
+      "Build service image"
+    ]
+  }
+}

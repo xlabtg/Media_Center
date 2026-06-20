@@ -45,6 +45,7 @@
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Руководство участника пилота: быстрый старт, онбординг, вклад, безопасность |
 | [docs/COUNCIL_GUIDE.md](docs/COUNCIL_GUIDE.md) | Инструкция Совета: HITL, вето, 2FA, политики, KPI и compliance gate |
 | [docs/FAQ.md](docs/FAQ.md) | FAQ пилота для участников, Совета, Правления и поддержки |
+| [docs/PILOT_SUPPORT_RUNBOOK.md](docs/PILOT_SUPPORT_RUNBOOK.md) | Runbook поддержки пилота, SLA, triage, баг-фиксов и CI-gate |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
