@@ -103,6 +103,12 @@ pytest
 bash experiments/validate_issue9_ci.sh
 ```
 
+Для проверки покрытия используйте тот же gate, что и CI:
+
+```bash
+pytest --cov=libs --cov=services --cov-report=term-missing:skip-covered --cov-report=xml:coverage.xml --cov-fail-under=35
+```
+
 `pre-commit` запускает базовые проверки автоматически; вручную весь набор можно
 выполнить командой `pre-commit run --all-files`.
 
@@ -115,6 +121,8 @@ bash experiments/validate_issue9_ci.sh
 - **Обязательны тесты мультитенантной изоляции** (cross-tenant → `403`).
 - Исправление бага сопровождается тестом, воспроизводящим проблему.
 - Задавайте разумные таймауты на тестах, чтобы сбои выявлялись быстро.
+- Единая пирамида тестов, coverage gate и tenant-aware фикстуры описаны в
+  [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md).
 
 ---
 

@@ -48,8 +48,20 @@ jobs:
       - name: Mypy
         run: mypy .
 
-      - name: Pytest
-        run: pytest
+      - name: Pytest with coverage
+        run: >
+          pytest --cov=libs --cov=services
+          --cov-report=term-missing:skip-covered
+          --cov-report=xml:coverage.xml
+          --cov-fail-under=35
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: warn
 
   security:
     name: Security scan

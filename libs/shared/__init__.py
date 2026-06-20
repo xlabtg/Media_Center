@@ -216,6 +216,14 @@ from libs.shared.tenant import (
     tenant_context_scope,
     tenant_headers_from_context,
 )
+from libs.shared.testing import (
+    DEFAULT_TEST_JWT_SECRET,
+    DEFAULT_TEST_NOW,
+    TenantTestDataset,
+    TenantTestIdentity,
+    assert_only_tenant_records,
+    build_tenant_test_dataset,
+)
 from libs.shared.vector import (
     CHROMA_HOST_ENV,
     CHROMA_PORT_ENV,
@@ -277,6 +285,8 @@ __all__ = [
     "DEFAULT_S3_REGION",
     "DEFAULT_S3_TENANT_PREFIX",
     "DEFAULT_SERVICE_TEMPLATE_PUBLIC_PATHS",
+    "DEFAULT_TEST_JWT_SECRET",
+    "DEFAULT_TEST_NOW",
     "CacheSettings",
     "ChromaSettings",
     "ChromaTenantVectorStore",
@@ -371,6 +381,8 @@ __all__ = [
     "TenantContext",
     "TenantContextASGIMiddleware",
     "TenantCoreError",
+    "TenantTestDataset",
+    "TenantTestIdentity",
     "TenantIsolationError",
     "TenantMetricRegistry",
     "TenantObject",
@@ -398,6 +410,7 @@ __all__ = [
     "VectorSearchResult",
     "WalletOperation",
     "assert_requested_tenant",
+    "assert_only_tenant_records",
     "audit_hash",
     "audit_hash_from_payload",
     "build_audit_payload",
@@ -406,6 +419,7 @@ __all__ = [
     "build_tenant_object_key",
     "build_tenant_object_prefix",
     "build_tenant_s3_prefix_policy",
+    "build_tenant_test_dataset",
     "build_tenant_vector_collection_name",
     "build_structured_log_entry",
     "chroma_host_from_env",

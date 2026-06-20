@@ -46,6 +46,7 @@
 | [docs/RISK_REGISTER.md](docs/RISK_REGISTER.md) | Реестр рисков ToS, ПДн, финансов, контента, владельцы и меры митигирования |
 | [docs/SECURITY.md](docs/SECURITY.md) | Модель безопасности, мультитенантная изоляция, угрозы |
 | [docs/CODE_STYLE.md](docs/CODE_STYLE.md) | Гайд по стилю кода, pre-commit и локальные проверки |
+| [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Пирамида тестирования, coverage gate в CI и tenant-aware фикстуры |
 | [docs/modules/](docs/modules/) | Технические спецификации модулей (по одному файлу на модуль) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Как участвовать в разработке, стандарты кода и процесс |
 | [LICENSE](LICENSE) | Лицензия проекта: GNU AGPL-3.0-only |
@@ -84,10 +85,12 @@
 ## ✅ CI/CD
 
 Базовый workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-запускается на PR и push в `main`: `ruff`, `mypy`, `pytest`, SCA через
-`pip-audit`, secret scan через `gitleaks`, Trivy scan репозитория и сборку
-Docker-образов для всех сервисных каталогов. На push в `main` сервисные образы
-публикуются в GHCR.
+запускается на PR и push в `main`: `ruff`, `mypy`, `pytest` с coverage gate
+`35 %` и артефактом `coverage.xml`, SCA через `pip-audit`, secret scan через
+`gitleaks`, Trivy scan репозитория и сборку Docker-образов для всех сервисных
+каталогов. На push в `main` сервисные образы публикуются в GHCR. Пирамида
+тестирования и целевые пороги описаны в
+[docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md).
 
 Локальная проверка базового CI и стандартов качества:
 
@@ -98,7 +101,7 @@ ruff check .
 ruff format --check .
 black --check .
 mypy .
-pytest
+pytest --cov=libs --cov=services --cov-report=term-missing:skip-covered --cov-report=xml:coverage.xml --cov-fail-under=35
 bash experiments/validate_issue9_ci.sh
 ```
 
