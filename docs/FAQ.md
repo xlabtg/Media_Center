@@ -4,7 +4,9 @@
 
 FAQ дополняет [docs/USER_GUIDE.md](USER_GUIDE.md) и
 [docs/COUNCIL_GUIDE.md](COUNCIL_GUIDE.md). Он отвечает на вопросы участников,
-Совета, Правления и поддержки пилота `nmc-pilot`.
+Совета, Правления и поддержки пилота `nmc-pilot`. Операционный порядок SLA,
+triage, P0-P3, CI-gate и выпуска исправлений описан в
+[docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md).
 
 ## 1. Участникам
 

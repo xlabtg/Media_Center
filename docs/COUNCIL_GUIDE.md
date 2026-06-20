@@ -10,7 +10,8 @@ tenant `nmc-pilot`. Он фиксирует отдельный рабочий п
 Связанные документы: [docs/GOVERNANCE.md](GOVERNANCE.md),
 [docs/STAGE_7_ACCEPTANCE.md](STAGE_7_ACCEPTANCE.md),
 [docs/PILOT_TENANT_ONBOARDING.md](PILOT_TENANT_ONBOARDING.md),
-[docs/COMPLIANCE.md](COMPLIANCE.md), [docs/FAQ.md](FAQ.md).
+[docs/COMPLIANCE.md](COMPLIANCE.md), [docs/FAQ.md](FAQ.md),
+[docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md).
 
 ## 1. Роли и ответственность
 
@@ -41,6 +42,8 @@ tenant `nmc-pilot`. Он фиксирует отдельный рабочий п
 
 Для еженедельной ретроспективы Совет сравнивает фактические KPI с целями
 пилота, просматривает инциденты, спорные решения, отказы каналов и вопросы FAQ.
+P0/P1 обращения, SLA и CI-backed bugfix records сверяются по
+[docs/PILOT_SUPPORT_RUNBOOK.md](PILOT_SUPPORT_RUNBOOK.md).
 
 ## 3. HITL, вето и 2FA
 
