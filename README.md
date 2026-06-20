@@ -40,6 +40,8 @@
 | [docs/STAGE_1_ACCEPTANCE.md](docs/STAGE_1_ACCEPTANCE.md) | Итоговая фиксация готовности базовой инфраструктуры и мультитенантности |
 | [docs/STAGE_2_ACCEPTANCE.md](docs/STAGE_2_ACCEPTANCE.md) | Итоговая фиксация готовности ключевых микросервисов и сквозных сценариев |
 | [docs/STAGE_3_ACCEPTANCE.md](docs/STAGE_3_ACCEPTANCE.md) | Итоговая фиксация готовности расширенных модулей AI, голоса, KPI и уведомлений |
+| [docs/STAGE_7_ACCEPTANCE.md](docs/STAGE_7_ACCEPTANCE.md) | Итоговая фиксация готовности пилотного tenant и онбординга |
+| [docs/PILOT_TENANT_ONBOARDING.md](docs/PILOT_TENANT_ONBOARDING.md) | Runbook пилотного tenant `nmc-pilot`, ролей, порогов Совета и онбординга |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |

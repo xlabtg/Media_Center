@@ -1,0 +1,498 @@
+{
+  "schema_version": "issue-91.pilot-tenant.v1",
+  "generated_at": "2026-06-20T12:00:00Z",
+  "tenant": {
+    "tenant_id": "00000000-0000-4000-8000-000000000001",
+    "slug": "nmc-pilot",
+    "name": "НМЦ pilot tenant",
+    "status": "pilot_ready",
+    "environment": "pilot",
+    "data_policy": "synthetic_no_pdn",
+    "owner_role": "council",
+    "timezone": "Europe/Moscow",
+    "launch_window": {
+      "start": "2026-06-22T09:00:00+03:00",
+      "finish": "2026-06-26T18:00:00+03:00"
+    }
+  },
+  "council_thresholds": {
+    "strategic_quorum": {
+      "numerator": 2,
+      "denominator": 3
+    },
+    "veto_window_hours": 8,
+    "veto_window_bounds_hours": {
+      "min": 4,
+      "max": 12
+    },
+    "payout_confirmation": {
+      "requires_2fa": true,
+      "approvals_required": 2,
+      "sensitive_operations": [
+        "payout.execute",
+        "policy.threshold.update"
+      ]
+    },
+    "policy_update": {
+      "approvals_required": 3,
+      "audit_target": "blockchain-auditor",
+      "requires_explanation": true
+    },
+    "content_release": {
+      "draft_review_required": true,
+      "max_unsupervised_posts_per_day": 0,
+      "escalation_role": "board"
+    }
+  },
+  "onboarding": {
+    "target_window_hours": 24,
+    "window_bounds_hours": {
+      "min": 12,
+      "max": 36
+    },
+    "steps": [
+      {
+        "step_id": "profile",
+        "title": "Анкета участника",
+        "required": true,
+        "owner_role": "board",
+        "sla_hours": 4
+      },
+      {
+        "step_id": "consents",
+        "title": "Согласия и правила контента",
+        "required": true,
+        "owner_role": "board",
+        "sla_hours": 4
+      },
+      {
+        "step_id": "channels",
+        "title": "Каналы уведомлений",
+        "required": true,
+        "owner_role": "notification-gateway",
+        "sla_hours": 8
+      },
+      {
+        "step_id": "mentor_intro",
+        "title": "Знакомство с куратором",
+        "required": true,
+        "owner_role": "council",
+        "sla_hours": 12
+      },
+      {
+        "step_id": "council_review",
+        "title": "Проверка статуса Советом",
+        "required": true,
+        "owner_role": "council",
+        "sla_hours": 24
+      },
+      {
+        "step_id": "first_task",
+        "title": "Первое действие",
+        "required": false,
+        "owner_role": "member_full",
+        "sla_hours": 36
+      }
+    ],
+    "mentor_rotation": [
+      "council-01",
+      "council-02",
+      "council-03",
+      "council-04",
+      "council-05",
+      "council-06"
+    ],
+    "assistant_topics": [
+      "governance",
+      "contribution-points",
+      "content-rules",
+      "privacy"
+    ]
+  },
+  "participants": [
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000101",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-01",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "ready_for_review",
+      "registered_at": "2026-06-20T09:00:00Z",
+      "mentor_handle": "council-02",
+      "contact_ref_hash": "sha256:101",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "completed",
+        "council_review": "in_review"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000102",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-02",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "ready_for_review",
+      "registered_at": "2026-06-20T09:05:00Z",
+      "mentor_handle": "council-03",
+      "contact_ref_hash": "sha256:102",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "completed",
+        "council_review": "in_review"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000103",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-03",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T09:10:00Z",
+      "mentor_handle": "council-04",
+      "contact_ref_hash": "sha256:103",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "scheduled",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000104",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-04",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T09:15:00Z",
+      "mentor_handle": "council-05",
+      "contact_ref_hash": "sha256:104",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000105",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-05",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T09:20:00Z",
+      "mentor_handle": "council-06",
+      "contact_ref_hash": "sha256:105",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000106",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "council-06",
+      "role": "council",
+      "status": "registered",
+      "onboarding_status": "scheduled",
+      "registered_at": "2026-06-20T09:25:00Z",
+      "mentor_handle": "council-01",
+      "contact_ref_hash": "sha256:106",
+      "onboarding_checklist": {
+        "profile": "scheduled",
+        "consents": "pending",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000107",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "presidium-01",
+      "role": "presidium",
+      "status": "registered",
+      "onboarding_status": "ready_for_review",
+      "registered_at": "2026-06-20T09:30:00Z",
+      "mentor_handle": "council-01",
+      "contact_ref_hash": "sha256:107",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "completed",
+        "council_review": "in_review"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000108",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "presidium-02",
+      "role": "presidium",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T09:35:00Z",
+      "mentor_handle": "council-02",
+      "contact_ref_hash": "sha256:108",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000109",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "board-01",
+      "role": "board",
+      "status": "registered",
+      "onboarding_status": "ready_for_review",
+      "registered_at": "2026-06-20T09:40:00Z",
+      "mentor_handle": "council-03",
+      "contact_ref_hash": "sha256:109",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "completed",
+        "council_review": "in_review"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000110",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "board-02",
+      "role": "board",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T09:45:00Z",
+      "mentor_handle": "council-04",
+      "contact_ref_hash": "sha256:110",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000111",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "board-03",
+      "role": "board",
+      "status": "registered",
+      "onboarding_status": "scheduled",
+      "registered_at": "2026-06-20T09:50:00Z",
+      "mentor_handle": "council-05",
+      "contact_ref_hash": "sha256:111",
+      "onboarding_checklist": {
+        "profile": "scheduled",
+        "consents": "pending",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000112",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-full-01",
+      "role": "member_full",
+      "status": "registered",
+      "onboarding_status": "ready_for_review",
+      "registered_at": "2026-06-20T09:55:00Z",
+      "mentor_handle": "council-06",
+      "contact_ref_hash": "sha256:112",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "completed",
+        "mentor_intro": "completed",
+        "council_review": "in_review"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000113",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-full-02",
+      "role": "member_full",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T10:00:00Z",
+      "mentor_handle": "council-01",
+      "contact_ref_hash": "sha256:113",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000114",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-full-03",
+      "role": "member_full",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T10:05:00Z",
+      "mentor_handle": "council-02",
+      "contact_ref_hash": "sha256:114",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000115",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-full-04",
+      "role": "member_full",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T10:10:00Z",
+      "mentor_handle": "council-03",
+      "contact_ref_hash": "sha256:115",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "scheduled",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000116",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-full-05",
+      "role": "member_full",
+      "status": "registered",
+      "onboarding_status": "scheduled",
+      "registered_at": "2026-06-20T10:15:00Z",
+      "mentor_handle": "council-04",
+      "contact_ref_hash": "sha256:116",
+      "onboarding_checklist": {
+        "profile": "scheduled",
+        "consents": "pending",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000117",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-assoc-01",
+      "role": "member_assoc",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T10:20:00Z",
+      "mentor_handle": "council-05",
+      "contact_ref_hash": "sha256:117",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "completed",
+        "channels": "scheduled",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000118",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-assoc-02",
+      "role": "member_assoc",
+      "status": "registered",
+      "onboarding_status": "in_progress",
+      "registered_at": "2026-06-20T10:25:00Z",
+      "mentor_handle": "council-06",
+      "contact_ref_hash": "sha256:118",
+      "onboarding_checklist": {
+        "profile": "completed",
+        "consents": "scheduled",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000119",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-assoc-03",
+      "role": "member_assoc",
+      "status": "registered",
+      "onboarding_status": "scheduled",
+      "registered_at": "2026-06-20T10:30:00Z",
+      "mentor_handle": "council-01",
+      "contact_ref_hash": "sha256:119",
+      "onboarding_checklist": {
+        "profile": "scheduled",
+        "consents": "pending",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    },
+    {
+      "participant_id": "00000000-0000-4000-8000-000000000120",
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "handle": "member-assoc-04",
+      "role": "member_assoc",
+      "status": "registered",
+      "onboarding_status": "scheduled",
+      "registered_at": "2026-06-20T10:35:00Z",
+      "mentor_handle": "council-02",
+      "contact_ref_hash": "sha256:120",
+      "onboarding_checklist": {
+        "profile": "scheduled",
+        "consents": "pending",
+        "channels": "pending",
+        "mentor_intro": "pending",
+        "council_review": "pending"
+      }
+    }
+  ],
+  "kpi_targets": {
+    "content_items_per_week": {
+      "min": 20,
+      "max": 30
+    },
+    "views_per_week_min": 10000,
+    "average_read_minutes_min": 3,
+    "comments_per_week_min": 50,
+    "tasks_per_week_min": 10,
+    "initiatives_per_month": {
+      "min": 1,
+      "max": 2
+    }
+  },
+  "observability": {
+    "metrics_labels": [
+      "tenant_id",
+      "service",
+      "operation",
+      "status"
+    ],
+    "audit_policy": "hash_only_no_pdn",
+    "dashboard": "tenant-overview"
+  }
+}
