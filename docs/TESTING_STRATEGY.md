@@ -114,5 +114,8 @@ foreign tenant. Для этого используется общий helper
   `pytest tests/test_tenant_isolation_layer.py`
 - CI contract:
   `pytest tests/test_ci_contract.py`
+- Нагрузочные цели этапа 6:
+  [docs/LOAD_TESTING.md](LOAD_TESTING.md),
+  `pytest tests/test_load_testing_issue85_acceptance_contract.py`
 - Контракт этой стратегии:
   `pytest tests/test_testing_strategy_issue83_contract.py`
