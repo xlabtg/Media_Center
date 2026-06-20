@@ -31,6 +31,16 @@
 - Исходное аудио хранится во временном tenant-scoped хранилище; TTL-очистка
   `POST /voice/retention/cleanup` удаляет его не позднее 24 часов.
 
+## UI-слой #72
+- UI голосового ассистента реализован в Web Cabinet для #72 через
+  `GET /voice-assistant` и `POST /voice-assistant/transcribe`.
+- Web Cabinet принимает запись браузерного MediaRecorder, передаёт audio payload
+  в `VoiceToChainService` и показывает пользователю Voice-to-Chain receipt:
+  transcript, `transcript_sha256`, `audit_hash`, `block_ref`,
+  `raw_audio_status` и `raw_audio_expires_at`.
+- Сырой звук не сохраняется в Web Cabinet; TTL и hash-only audit остаются в зоне
+  ответственности Voice-to-Chain.
+
 ## Безопасность и мультитенантность
 - Транскрипция выполняется локально (данные не покидают периметр)
 - Исходное аудио удаляется автоматически (минимизация ПДн, ФЗ-152)
