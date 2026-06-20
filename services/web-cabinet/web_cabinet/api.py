@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import csv
 import html
 import io
@@ -9,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, cast
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from analytics_engine import (
     AnalyticsCategory,
@@ -20,6 +23,14 @@ from analytics_engine import (
     KPISummary,
     build_analytics_aggregates_response,
     build_analytics_kpi_response,
+)
+from blockchain_auditor import (
+    AuditBatchError,
+    AuditMetadataPolicyError,
+    AuditRecordConflictError,
+    GrpcBlockchainAuditConnector,
+    InMemoryGrpcBlockchainAuditTransport,
+    build_blockchain_auditor_settings,
 )
 from fastapi import APIRouter, Depends, FastAPI, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -52,6 +63,15 @@ from policy_manager import (
     UpdatePolicyRequest,
 )
 from pydantic import Field
+from voice_to_chain import (
+    AudioRetentionError,
+    InMemoryWhisperCppTranscriber,
+    VoiceToChainError,
+    VoiceToChainService,
+    VoiceTranscriptionCommand,
+    VoiceTranscriptionReceipt,
+    WhisperCppTranscriptionError,
+)
 from wallet import (
     InMemoryWalletRepository,
     WalletBalance,
@@ -71,6 +91,7 @@ from libs.shared import (
     VALIDATION_ERROR_CODE,
     AccessPolicy,
     InMemoryAuditSink,
+    JSONValue,
     ServiceTemplateConfig,
     SharedBaseModel,
     SharedError,
@@ -94,6 +115,10 @@ _REFERRAL_LEVEL_PATTERN = r"^L[1-3]$"
 _PLATFORM_TARGET_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 _ONBOARDING_STEP_STATUS_PATTERN = r"^(available|in_progress|completed|blocked)$"
 _ONBOARDING_READINESS_STATUS_PATTERN = r"^(in_progress|ready_for_review)$"
+_VOICE_CONTENT_TYPE_PATTERN = (
+    r"^audio/[A-Za-z0-9.+-]{1,64}(?:;[A-Za-z0-9_.+-]+=[A-Za-z0-9_.+-]+){0,4}$"
+)
+_VOICE_LANGUAGE_PATTERN = r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$"
 
 WEB_CABINET_READ_POLICY = AccessPolicy.allow_roles(
     COUNCIL_ROLE,
@@ -141,6 +166,14 @@ ONBOARDING_GOVERNANCE_READ_POLICY = AccessPolicy.allow_roles(
     BOARD_ROLE,
     action="onboarding.member.read",
     resource_type="onboarding",
+)
+VOICE_ASSISTANT_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    BOARD_ROLE,
+    MEMBER_FULL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    action="voice_assistant.use",
+    resource_type="voice_assistant",
 )
 
 _RISK_LEVEL_ORDER = {
@@ -348,6 +381,20 @@ class OnboardingAssistantAnswerResponse(SharedBaseModel):
     source_refs: tuple[str, ...] = Field(default_factory=tuple)
     escalation_available: bool
     generated_at: datetime
+
+
+class VoiceAssistantTranscriptionRequest(SharedBaseModel):
+    audio_id: str | None = Field(default=None, min_length=1, max_length=128)
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+    content_type: str = Field(pattern=_VOICE_CONTENT_TYPE_PATTERN)
+    audio_base64: str = Field(min_length=1, max_length=20_000_000)
+    language: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=16,
+        pattern=_VOICE_LANGUAGE_PATTERN,
+    )
+    captured_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -752,6 +799,7 @@ class WebCabinetAPIState:
     repository: InMemoryWebCabinetRepository
     wallet_repository: InMemoryWalletRepository
     analytics_repository: InMemoryAnalyticsRepository
+    voice_to_chain_service: VoiceToChainService
     tenant_audit_sink: InMemoryAuditSink
     payout_queue_manager: PayoutQueueManager
     veto_manager: VetoManager
@@ -776,6 +824,7 @@ def create_web_cabinet_app(
     confirmation_manager: PayoutConfirmationManager | None = None,
     policy_manager: PolicyManager | None = None,
     council_panel_repository: InMemoryCouncilPanelRepository | None = None,
+    voice_to_chain_service: VoiceToChainService | None = None,
     totp_secrets: dict[tuple[str, str], str] | None = None,
 ) -> FastAPI:
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
@@ -807,6 +856,8 @@ def create_web_cabinet_app(
         repository=repository or InMemoryWebCabinetRepository(),
         wallet_repository=wallet_repository or InMemoryWalletRepository(),
         analytics_repository=analytics_repository or InMemoryAnalyticsRepository(),
+        voice_to_chain_service=voice_to_chain_service
+        or _default_voice_to_chain_service(),
         tenant_audit_sink=resolved_tenant_audit_sink,
         payout_queue_manager=resolved_payout_queue_manager,
         veto_manager=resolved_veto_manager,
@@ -826,6 +877,21 @@ def create_web_cabinet_app(
     app.add_exception_handler(PayoutQueueError, _payout_queue_error_handler)
     app.add_exception_handler(PolicyNotFoundError, _policy_not_found_handler)
     app.add_exception_handler(PolicyManagerError, _policy_manager_error_handler)
+    app.add_exception_handler(VoiceToChainError, _voice_to_chain_error_handler)
+    app.add_exception_handler(AudioRetentionError, _audio_retention_error_handler)
+    app.add_exception_handler(
+        WhisperCppTranscriptionError,
+        _whisper_cpp_error_handler,
+    )
+    app.add_exception_handler(
+        AuditMetadataPolicyError,
+        _audit_metadata_policy_error_handler,
+    )
+    app.add_exception_handler(AuditBatchError, _audit_batch_error_handler)
+    app.add_exception_handler(
+        AuditRecordConflictError,
+        _audit_record_conflict_error_handler,
+    )
     app.include_router(router)
     return app
 
@@ -879,6 +945,47 @@ def get_cabinet_page(
         content_limit=content_limit,
     )
     return HTMLResponse(_render_cabinet_html(overview))
+
+
+@router.get(
+    "/voice-assistant",
+    response_class=HTMLResponse,
+    summary="Открыть UI голосового ассистента",
+)
+def get_voice_assistant_page(
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> HTMLResponse:
+    require_access(VOICE_ASSISTANT_POLICY, context=context)
+    return HTMLResponse(_render_voice_assistant_html(context))
+
+
+@router.post(
+    "/voice-assistant/transcribe",
+    response_model=VoiceTranscriptionReceipt,
+    status_code=201,
+    summary="Отправить голос из UI в Voice-to-Chain",
+)
+async def transcribe_voice_assistant(
+    payload: VoiceAssistantTranscriptionRequest,
+    state: Annotated[WebCabinetAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> VoiceTranscriptionReceipt:
+    actor_context = require_access(VOICE_ASSISTANT_POLICY, context=context)
+    audio_id = payload.audio_id or f"audio-{uuid4().hex}"
+    event_id = payload.event_id or f"evt-{audio_id}"
+    return await state.voice_to_chain_service.transcribe(
+        VoiceTranscriptionCommand(
+            tenant_id=context.tenant_id,
+            audio_id=audio_id,
+            event_id=event_id,
+            content_type=payload.content_type,
+            audio_bytes=_decode_voice_audio(payload.audio_base64),
+            language=payload.language,
+            received_at=None,
+            metadata=_voice_request_metadata(payload),
+        ),
+        actor_context=actor_context,
+    )
 
 
 @router.get(
@@ -1131,6 +1238,48 @@ async def council_panel_update_policy(
         updated_at=payload.updated_at,
         event_id=payload.event_id,
     )
+
+
+def _default_voice_to_chain_service() -> VoiceToChainService:
+    return VoiceToChainService(
+        transcriber=InMemoryWhisperCppTranscriber(),
+        blockchain_connector=GrpcBlockchainAuditConnector(
+            settings=build_blockchain_auditor_settings(),
+            transport=InMemoryGrpcBlockchainAuditTransport(),
+        ),
+    )
+
+
+def _decode_voice_audio(value: str) -> bytes:
+    try:
+        audio_bytes = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise SharedError(
+            status_code=400,
+            error_code="voice_audio_invalid",
+            message="audio_base64 должен быть корректной base64-строкой",
+        ) from error
+
+    if not audio_bytes:
+        raise SharedError(
+            status_code=400,
+            error_code="voice_audio_empty",
+            message="audio_base64 не должен быть пустым",
+        )
+
+    return audio_bytes
+
+
+def _voice_request_metadata(
+    payload: VoiceAssistantTranscriptionRequest,
+) -> dict[str, JSONValue]:
+    if payload.captured_at is None:
+        return {}
+
+    captured_at = _normalize_datetime(payload.captured_at)
+    return {
+        "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
+    }
 
 
 def _build_overview(
@@ -1914,6 +2063,414 @@ def _dashboard_export_filename(
 ) -> str:
     suffix = category.value if category is not None else "all"
     return f"analytics-dashboard-{period}-{suffix}.csv"
+
+
+def _render_voice_assistant_html(context: TenantContext) -> str:
+    identity = f"{_escape(_subject(context))} · {_escape(context.tenant_id)}"
+    tenant_id = _escape(context.tenant_id)
+    correlation_id = _escape(_correlation_id(context))
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Голосовой ассистент</title>
+  <style>
+    :root {{
+      --page: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #17191f;
+      --muted: #5d6675;
+      --line: #d9dde5;
+      --accent: #146c62;
+      --accent-soft: #e6f1ee;
+      --danger: #9f2f24;
+      --danger-soft: #f8e8e5;
+      --warning: #8a5a00;
+      --warning-soft: #fff2cc;
+      --info: #315078;
+      --info-soft: #e8eef8;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }}
+    main {{
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }}
+    h1, h2, h3, p {{ margin: 0; }}
+    header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 16px;
+    }}
+    h1 {{ font-size: 28px; line-height: 1.15; }}
+    h2 {{ font-size: 17px; margin-bottom: 10px; }}
+    h3 {{ font-size: 15px; margin-bottom: 4px; }}
+    .muted {{ color: var(--muted); }}
+    .status-line {{
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }}
+    .summary-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }}
+    .metric, .panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(23, 25, 31, 0.04);
+    }}
+    .metric {{ min-height: 96px; padding: 12px; }}
+    .metric-label {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }}
+    .metric-value {{
+      font-size: 22px;
+      line-height: 1.15;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }}
+    .metric-note {{
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }}
+    .assistant-shell {{
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+      gap: 14px;
+      align-items: start;
+    }}
+    .stack {{ display: grid; gap: 14px; }}
+    .panel {{ padding: 14px; }}
+    .controls {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }}
+    button {{
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    button:disabled {{
+      cursor: not-allowed;
+      opacity: 0.5;
+    }}
+    button.primary {{
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }}
+    button.danger {{
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      background: var(--info-soft);
+      color: var(--info);
+    }}
+    .badge-ok {{
+      background: var(--accent-soft);
+      color: var(--accent);
+    }}
+    .badge-warn {{
+      background: var(--warning-soft);
+      color: var(--warning);
+    }}
+    .badge-error {{
+      background: var(--danger-soft);
+      color: var(--danger);
+    }}
+    audio {{
+      width: 100%;
+      min-height: 44px;
+      margin-top: 12px;
+    }}
+    .result-grid {{
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 10px 12px;
+      margin: 0;
+    }}
+    dt {{
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    dd {{
+      margin: 0;
+      min-height: 20px;
+      overflow-wrap: anywhere;
+    }}
+    .hash {{
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }}
+    .transcript {{
+      min-height: 128px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 12px;
+      white-space: pre-wrap;
+    }}
+    @media (max-width: 760px) {{
+      main {{ width: min(100% - 20px, 1120px); padding-top: 18px; }}
+      header {{ display: grid; align-items: start; }}
+      .status-line {{ text-align: left; }}
+      .summary-grid, .assistant-shell, .result-grid {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+  </style>
+</head>
+<body data-tenant-id="{tenant_id}" data-correlation-id="{correlation_id}">
+  <main>
+    <header>
+      <div>
+        <h1>Голосовой ассистент</h1>
+        <p class="muted">{identity}</p>
+      </div>
+      <p class="status-line">Voice-to-Chain · voice.transcript.recorded</p>
+    </header>
+    <section class="summary-grid" aria-label="Сводка голосового ввода">
+      <article class="metric">
+        <p class="metric-label">Транскрипция</p>
+        <p class="metric-value" data-summary="transcript">ожидает запись</p>
+        <p class="metric-note">Whisper.cpp локально</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Hash audit</p>
+        <p class="metric-value" data-summary="audit">не зафиксирован</p>
+        <p class="metric-note">только SHA256 metadata</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Удаление аудио</p>
+        <p class="metric-value" data-summary="retention">pending_deletion</p>
+        <p class="metric-note">raw_audio_status</p>
+      </article>
+    </section>
+    <section class="assistant-shell">
+      <article class="panel">
+        <h2>Запись</h2>
+        <p class="badge" data-status>готов</p>
+        <div class="controls">
+          <button class="primary" type="button" data-record>Начать</button>
+          <button class="danger" type="button" data-stop disabled>Стоп</button>
+          <button type="button" data-send disabled>Отправить</button>
+        </div>
+        <audio controls data-audio></audio>
+      </article>
+      <article class="panel">
+        <h2>Результат</h2>
+        <p class="transcript" data-field="transcript"></p>
+        <dl class="result-grid">
+          <dt>transcript_sha256</dt>
+          <dd class="hash" data-field="transcript_sha256"></dd>
+          <dt>audit_hash</dt>
+          <dd class="hash" data-field="audit_hash"></dd>
+          <dt>block_ref</dt>
+          <dd class="hash" data-field="block_ref"></dd>
+          <dt>raw_audio_status</dt>
+          <dd data-field="raw_audio_status"></dd>
+          <dt>raw_audio_expires_at</dt>
+          <dd data-field="raw_audio_expires_at"></dd>
+        </dl>
+      </article>
+    </section>
+  </main>
+  <script>
+    (() => {{
+      const endpoint = "/voice-assistant/transcribe";
+      const page = document.body.dataset;
+      const status = document.querySelector("[data-status]");
+      const recordButton = document.querySelector("[data-record]");
+      const stopButton = document.querySelector("[data-stop]");
+      const sendButton = document.querySelector("[data-send]");
+      const audio = document.querySelector("[data-audio]");
+      const summaries = {{
+        transcript: document.querySelector('[data-summary="transcript"]'),
+        audit: document.querySelector('[data-summary="audit"]'),
+        retention: document.querySelector('[data-summary="retention"]'),
+      }};
+      const fields = {{
+        transcript: document.querySelector('[data-field="transcript"]'),
+        transcript_sha256: document.querySelector('[data-field="transcript_sha256"]'),
+        audit_hash: document.querySelector('[data-field="audit_hash"]'),
+        block_ref: document.querySelector('[data-field="block_ref"]'),
+        raw_audio_status: document.querySelector('[data-field="raw_audio_status"]'),
+        raw_audio_expires_at: document.querySelector(
+          '[data-field="raw_audio_expires_at"]'
+        ),
+      }};
+      const state = {{ recorder: null, chunks: [], stream: null, blob: null }};
+
+      function setStatus(value, tone) {{
+        status.textContent = value;
+        status.className = "badge" + (tone ? " badge-" + tone : "");
+      }}
+
+      function authHeaders() {{
+        const headers = {{
+          "Content-Type": "application/json",
+          "X-Tenant-Id": page.tenantId || "",
+          "X-Correlation-Id": page.correlationId || "corr-voice-assistant-ui",
+        }};
+        const token = window.localStorage.getItem("media_center_jwt")
+          || window.localStorage.getItem("mediaCenterToken");
+        if (token) {{
+          headers.Authorization = "Bearer " + token;
+        }}
+        return headers;
+      }}
+
+      function preferredMimeType() {{
+        if (!window.MediaRecorder) {{
+          return "";
+        }}
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {{
+          return "audio/webm;codecs=opus";
+        }}
+        if (MediaRecorder.isTypeSupported("audio/webm")) {{
+          return "audio/webm";
+        }}
+        return "";
+      }}
+
+      function blobToBase64(blob) {{
+        return new Promise((resolve, reject) => {{
+          const reader = new FileReader();
+          reader.onloadend = () => {{
+            const result = String(reader.result || "");
+            resolve(result.includes(",") ? result.split(",")[1] : result);
+          }};
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        }});
+      }}
+
+      async function startRecording() {{
+        if (!navigator.mediaDevices || !window.MediaRecorder) {{
+          setStatus("запись недоступна", "error");
+          return;
+        }}
+        state.stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+        state.chunks = [];
+        const mimeType = preferredMimeType();
+        state.recorder = new MediaRecorder(
+          state.stream,
+          mimeType ? {{ mimeType }} : undefined,
+        );
+        state.recorder.addEventListener("dataavailable", (event) => {{
+          if (event.data.size > 0) {{
+            state.chunks.push(event.data);
+          }}
+        }});
+        state.recorder.addEventListener("stop", () => {{
+          const type = state.recorder.mimeType || "audio/webm";
+          state.blob = new Blob(state.chunks, {{ type }});
+          audio.src = URL.createObjectURL(state.blob);
+          sendButton.disabled = false;
+          recordButton.disabled = false;
+          stopButton.disabled = true;
+          if (state.stream) {{
+            state.stream.getTracks().forEach((track) => track.stop());
+          }}
+          setStatus("готово к отправке", "warn");
+        }});
+        state.recorder.start();
+        recordButton.disabled = true;
+        stopButton.disabled = false;
+        sendButton.disabled = true;
+        setStatus("идёт запись", "warn");
+      }}
+
+      async function sendRecording() {{
+        if (!state.blob) {{
+          return;
+        }}
+        sendButton.disabled = true;
+        setStatus("отправка", "warn");
+        const audioBase64 = await blobToBase64(state.blob);
+        const response = await fetch(endpoint, {{
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({{
+            content_type: state.blob.type || "audio/webm",
+            audio_base64: audioBase64,
+            captured_at: new Date().toISOString(),
+          }}),
+        }});
+        const payload = await response.json();
+        if (!response.ok) {{
+          const message = payload.error ? payload.error.message : "ошибка";
+          setStatus(message, "error");
+          sendButton.disabled = false;
+          return;
+        }}
+        fields.transcript.textContent = payload.transcript || "";
+        fields.transcript_sha256.textContent = payload.transcript_sha256 || "";
+        fields.audit_hash.textContent = payload.audit_hash || "";
+        fields.block_ref.textContent = payload.block_ref || "";
+        fields.raw_audio_status.textContent = payload.raw_audio_status || "";
+        fields.raw_audio_expires_at.textContent = payload.raw_audio_expires_at || "";
+        summaries.transcript.textContent = "готово";
+        summaries.audit.textContent = "зафиксирован";
+        summaries.retention.textContent =
+          payload.raw_audio_status || "pending_deletion";
+        setStatus("готово", "ok");
+      }}
+
+      recordButton.addEventListener("click", () => {{
+        startRecording().catch((error) => setStatus(error.message, "error"));
+      }});
+      stopButton.addEventListener("click", () => {{
+        if (state.recorder && state.recorder.state !== "inactive") {{
+          state.recorder.stop();
+        }}
+      }});
+      sendButton.addEventListener("click", () => {{
+        sendRecording().catch((error) => {{
+          setStatus(error.message, "error");
+          sendButton.disabled = false;
+        }});
+      }});
+    }})();
+  </script>
+</body>
+</html>"""
 
 
 def _render_analytics_dashboard_html(
@@ -3400,6 +3957,84 @@ async def _policy_manager_error_handler(
         status_code=400,
         content=error_response_body(
             code="policy_manager_error",
+            message=str(exc),
+        ),
+    )
+
+
+async def _voice_to_chain_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content=error_response_body(
+            code="voice_to_chain_error",
+            message=str(exc),
+        ),
+    )
+
+
+async def _audio_retention_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content=error_response_body(
+            code="voice_audio_retention_conflict",
+            message=str(exc),
+        ),
+    )
+
+
+async def _whisper_cpp_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=502,
+        content=error_response_body(
+            code="voice_transcription_failed",
+            message=str(exc),
+        ),
+    )
+
+
+async def _audit_metadata_policy_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content=error_response_body(
+            code="audit_metadata_policy_violation",
+            message=str(exc),
+        ),
+    )
+
+
+async def _audit_batch_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content=error_response_body(
+            code="audit_batch_invalid",
+            message=str(exc),
+        ),
+    )
+
+
+async def _audit_record_conflict_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content=error_response_body(
+            code="audit_record_conflict",
             message=str(exc),
         ),
     )

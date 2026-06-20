@@ -1,10 +1,11 @@
 # Web Cabinet
 
 Сервис личного кабинета пайщика для #67, панели Совета для #68, дашборда KPI
-для #69 и онбординга для #70. Он собирает tenant-scoped проекцию вклада,
+для #69, онбординга для #70 и UI голосового ассистента для #72. Он собирает
+tenant-scoped проекцию вклада,
 баланса МСЦ, истории операций, контента, реферальных ссылок, HITL-очереди,
-метрик Analytics Engine, шагов онбординга и AI-подсказок в формат, удобный для
-клиентского веб-экрана.
+метрик Analytics Engine, шагов онбординга, AI-подсказок и Voice-to-Chain
+receipt в формат, удобный для клиентского веб-экрана.
 
 ## Интерфейсы
 
@@ -31,6 +32,11 @@
   онбординга участника.
 - `POST /onboarding/assistant/answer` возвращает ответ AI-ассистента на
   типовой вопрос из tenant-scoped базы FAQ.
+- `GET /voice-assistant` возвращает адаптивный HTML-экран голосового
+  ассистента с записью через MediaRecorder.
+- `POST /voice-assistant/transcribe` принимает audio payload из UI, передаёт
+  его в `VoiceToChainService` и возвращает transcript, hash evidence,
+  `raw_audio_status` и срок TTL-удаления исходного аудио.
 
 ## Данные
 
@@ -51,6 +57,9 @@
   `OnboardingConsentRecord` и `OnboardingAssistantAnswerRecord` хранят
   tenant-scoped projection онбординга: окно 12–36 ч, шаги, согласия, readiness
   и ответы AI-ассистента на типовые вопросы.
+- UI голосового ассистента не хранит raw audio в Web Cabinet: endpoint
+  `/voice-assistant/transcribe` передаёт аудио в `VoiceToChainService`, а
+  клиент получает тот же receipt, что и Voice-to-Chain.
 
 Баланс и история операций читаются из `InMemoryWalletRepository`, поэтому
 значения МСЦ в кабинете соответствуют контракту Wallet Module.
@@ -83,3 +92,7 @@
 - Tenant-isolation контракт #70: подмена `X-Tenant-Id` возвращает
   `403 tenant_isolation_violation`, а шаги, согласия и ответы AI-ассистента
   другого tenant не попадают в JSON, HTML и ответ ассистента.
+- Голосовой ассистент доступен ролям `member_assoc`, `member_full`, `board` и
+  `council`, как Voice-to-Chain транскрипция.
+- Tenant-isolation контракт #72: подмена `X-Tenant-Id` возвращает
+  `403 tenant_isolation_violation`, а UI не сохраняет сырой звук в Web Cabinet.
