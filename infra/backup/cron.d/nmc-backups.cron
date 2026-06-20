@@ -1,0 +1,5 @@
+MAILTO=""
+SHELL=/bin/bash
+
+15 1 * * * cd /srv/media-center && BACKUP_ROOT=/var/lib/nmc/backups infra/backup/scripts/backup.sh all >> /var/log/nmc-backup.log 2>&1
+30 9 1 * * cd /srv/media-center && RESTORE_DRILL_EVIDENCE_DIR=/var/log/nmc-restore-drills infra/backup/scripts/restore_drill.sh >> /var/log/nmc-restore-drill.log 2>&1

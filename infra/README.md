@@ -17,6 +17,7 @@
 | `blockchain/` | Optional compose-профиль Hyperledger Besu/QBFT для приватной audit-chain issue #79. |
 | `deploy/` | Будущие deployment-манифесты и окружения. |
 | `observability/` | Конфигурации Prometheus, Alertmanager, Grafana и OpenTelemetry Collector для метрик, алертов, логов и трейсинга. |
+| `backup/` | Backup/DR policy issue #99: расписания, scripts, cron template и restore drill для PostgreSQL, ChromaDB и S3/MinIO. |
 | `docker/` | Общие Dockerfile для CI-сборки сервисных образов. |
 
 ## Docker-образы сервисов
@@ -85,6 +86,21 @@ RBAC.
 - `grafana/` содержит provisioning datasource и дашборд tenant overview;
 - `otel-collector.yml` принимает OpenTelemetry traces/logs/metrics через OTLP и
   сохраняет только технические attributes без ПДн.
+
+## Backup и аварийное восстановление
+
+`backup/` фиксирует DR-контур issue #99. Источник истины -
+`infra/backup/backup-policy.json`: расписания UTC, retention, RTO/RPO,
+restore validation и evidence `drill-issue-99-2026-06-20`. Runbook находится в
+[docs/DISASTER_RECOVERY.md](../docs/DISASTER_RECOVERY.md).
+
+Локальная проверка без изменения volumes:
+
+```bash
+make backup-policy
+make backup-local
+make restore-drill
+```
 
 ## Правила
 
