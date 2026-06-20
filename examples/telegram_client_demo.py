@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
+import re
 from datetime import UTC, datetime
 
 from messenger_adapter import (
@@ -174,13 +176,26 @@ async def run_demo() -> InMemoryEventBus:
     return bus
 
 
-def assert_no_sensitive_leak(bus: InMemoryEventBus) -> None:
-    """Проверяет, что в события не утекли сырой ID и учётные данные прокси."""
+# Дайджесты (``sha256:``) и сгенерированные UUID состоят из hex-символов и
+# могут случайно содержать числовые подстроки (баланс/ID). Перед сканом утечек
+# такие непрозрачные токены вырезаются — иначе проверка флэйкует (issue #71).
+_OPAQUE_TOKEN = re.compile(
+    r"sha256:[0-9a-f]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
 
-    events_json = "\n".join(message.envelope.to_json() for message in bus.messages)
-    assert TELEGRAM_USER_ID not in events_json, "Сырой Telegram ID утёк в событие"
-    assert "vault:tenant-a/proxy-a" not in events_json, "secret_ref утёк в событие"
-    assert str(POINTS_BALANCE) not in events_json, "Баланс участника утёк в событие"
+
+def assert_no_sensitive_leak(bus: InMemoryEventBus) -> None:
+    """Проверяет, что в payload событий не утекли сырой ID, секрет и баланс."""
+
+    fragments: list[str] = []
+    for message in bus.messages:
+        payload_json = json.dumps(message.envelope.payload, ensure_ascii=False)
+        fragments.append(_OPAQUE_TOKEN.sub("<opaque>", payload_json))
+    payload_text = "\n".join(fragments)
+
+    assert TELEGRAM_USER_ID not in payload_text, "Сырой Telegram ID утёк в событие"
+    assert "vault:tenant-a/proxy-a" not in payload_text, "secret_ref утёк в событие"
+    assert str(POINTS_BALANCE) not in payload_text, "Баланс участника утёк в событие"
 
 
 async def main() -> None:

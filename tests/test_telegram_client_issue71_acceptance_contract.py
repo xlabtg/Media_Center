@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
+import re
 from pathlib import Path
 
 import pytest
@@ -36,6 +38,32 @@ TENANT_B_TELEGRAM_ID = "20987654322"
 
 def _encryption_key() -> str:
     return base64.b64encode(b"1" * 32).decode("ascii")
+
+
+# Криптографические дайджесты (``sha256:``) и сгенерированные UUID
+# (``event_id``/``link_id``/``lease_id``) состоят из hex-символов и могут
+# случайно содержать короткие числовые подстроки вроде баланса участника.
+# Перед сканом утечек такие непрозрачные токены вырезаются, иначе проверка
+# флэйкует на случайных UUID/хэшах (см. issue #71).
+_OPAQUE_TOKEN = re.compile(
+    r"sha256:[0-9a-f]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
+
+
+def _payload_leak_surface(bus: InMemoryEventBus) -> str:
+    """Возвращает payload всех событий без криптографических токенов.
+
+    Сканируется именно полезная нагрузка (``payload``), а не весь конверт:
+    ``event_id`` и ``occurred_at`` — это метаданные конверта, формируемые
+    шлюзом, и не несут данных участника. Дайджесты и UUID удаляются, чтобы
+    остаток содержал только осмысленный plaintext полезной нагрузки.
+    """
+
+    fragments: list[str] = []
+    for message in bus.messages:
+        payload_json = json.dumps(message.envelope.payload, ensure_ascii=False)
+        fragments.append(_OPAQUE_TOKEN.sub("<opaque>", payload_json))
+    return "\n".join(fragments)
 
 
 def test_issue_71_telegram_client_basic_scenarios_are_available() -> None:
@@ -96,12 +124,14 @@ async def _run_issue_71_basic_scenarios_scenario() -> None:
     assert bus.messages[0].envelope.type == "messenger.telegram_client.account_linked"
     assert bus.messages[-1].envelope.type == "messenger.telegram_client.command_handled"
 
-    # Чувствительные данные не утекают в события: ни сырой Telegram ID,
-    # ни баланс участника не попадают в полезную нагрузку.
-    joined_events = "\n".join(message.envelope.to_json() for message in bus.messages)
-    assert TENANT_A_TELEGRAM_ID not in joined_events
-    assert "4242" not in joined_events
-    assert "Действительный участник" not in joined_events
+    # Чувствительные данные не утекают в полезную нагрузку событий: ни сырой
+    # Telegram ID, ни баланс, ни статус участника. Криптографические токены
+    # (хэши и UUID) исключаются из скана — иначе их hex-символы дают ложные
+    # срабатывания на числовых подстроках вроде баланса (issue #71).
+    payload_text = _payload_leak_surface(bus)
+    assert TENANT_A_TELEGRAM_ID not in payload_text
+    assert "4242" not in payload_text
+    assert "Действительный участник" not in payload_text
 
 
 def test_issue_71_telegram_client_encrypts_identity_per_tenant() -> None:
