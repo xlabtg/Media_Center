@@ -16,7 +16,7 @@
 | `local/` | docker-compose для локальной разработки и smoke-проверок. |
 | `blockchain/` | Optional compose-профиль Hyperledger Besu/QBFT для приватной audit-chain issue #79. |
 | `deploy/` | Будущие deployment-манифесты и окружения. |
-| `observability/` | Конфигурации Prometheus, Grafana и OpenTelemetry Collector для метрик, логов и трейсинга. |
+| `observability/` | Конфигурации Prometheus, Alertmanager, Grafana и OpenTelemetry Collector для метрик, алертов, логов и трейсинга. |
 | `docker/` | Общие Dockerfile для CI-сборки сервисных образов. |
 
 ## Docker-образы сервисов
@@ -41,8 +41,8 @@ docker build \
 ## Локальная среда
 
 `infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
-ChromaDB, MinIO, Prometheus, Grafana и OpenTelemetry Collector с фиксированными
-версиями. Основной workflow:
+ChromaDB, MinIO, Prometheus, Alertmanager, Grafana и OpenTelemetry Collector с
+фиксированными версиями. Основной workflow:
 
 ```bash
 make up
@@ -79,6 +79,9 @@ RBAC.
   `operation`, `status`;
 - `prometheus/prometheus.blockchain.yml` добавляет scrape job
   `private-blockchain-besu` для Besu-нод при запуске blockchain-профиля;
+- `slo-targets.json`, `prometheus/rules/sre-alerts.yml` и `alertmanager.yml`
+  фиксируют SRE-контур issue #98: SLA/SLO, error budget, alert routing и
+  incident runbooks из [docs/SRE_RUNBOOK.md](../docs/SRE_RUNBOOK.md);
 - `grafana/` содержит provisioning datasource и дашборд tenant overview;
 - `otel-collector.yml` принимает OpenTelemetry traces/logs/metrics через OTLP и
   сохраняет только технические attributes без ПДн.

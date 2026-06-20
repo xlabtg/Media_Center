@@ -47,6 +47,7 @@
 | [docs/FAQ.md](docs/FAQ.md) | FAQ пилота для участников, Совета, Правления и поддержки |
 | [docs/PILOT_SUPPORT_RUNBOOK.md](docs/PILOT_SUPPORT_RUNBOOK.md) | Runbook поддержки пилота, SLA, triage, баг-фиксов и CI-gate |
 | [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md) | Ретроспектива пилота, выводы Совета и утверждённый план масштабирования |
+| [docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md) | SRE runbook этапа 8: SLA/SLO, error budget, Alertmanager и incident response |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
@@ -116,7 +117,7 @@ bash experiments/validate_issue9_ci.sh
 
 Для issue #10 добавлена воспроизводимая docker-compose среда:
 PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO, Prometheus, Grafana и
-OpenTelemetry Collector. Стек запускается из корня репозитория:
+OpenTelemetry Collector и Alertmanager. Стек запускается из корня репозитория:
 
 ```bash
 make up
@@ -136,6 +137,9 @@ Observability baseline для issue #24 находится в
 `nmc_service_operation_duration_seconds` с обязательным `tenant_id`, Grafana
 провиженит tenant dashboard, а OpenTelemetry Collector принимает traces/logs по
 OTLP без ПДн, токенов, сырого содержимого и сумм выплат.
+SRE-контур issue #98 добавляет [docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md),
+`infra/observability/slo-targets.json`, Prometheus SLO alerts и Alertmanager
+routes для `sre-oncall`, `security-privacy` и `council-escalation`.
 
 ---
 

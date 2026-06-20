@@ -1,8 +1,9 @@
 # Observability
 
 `infra/observability` содержит локальный baseline для сквозной наблюдаемости
-НМЦ: Prometheus, Grafana и OpenTelemetry Collector. Конфигурации предназначены
-для разработки и smoke-проверок, но фиксируют продуктовый контракт:
+НМЦ: Prometheus, Grafana, Alertmanager и OpenTelemetry Collector. Конфигурации
+предназначены для разработки и smoke-проверок, но фиксируют продуктовый
+контракт:
 
 - метрики экспортируются в формате Prometheus и содержат labels `tenant_id`,
   `service`, `operation`, `status`;
@@ -26,6 +27,7 @@ make up
 | Компонент | Адрес |
 |-----------|-------|
 | Prometheus | `http://localhost:9090` |
+| Alertmanager | `http://localhost:9093` |
 | Grafana | `http://localhost:3000` |
 | OpenTelemetry gRPC | `localhost:4317` |
 | OpenTelemetry HTTP | `http://localhost:4318` |
@@ -39,6 +41,24 @@ Grafana автоматически подключает Prometheus и дашбо
 базовые scrape jobs и добавляет job `private-blockchain-besu` для Besu metrics
 валидаторов. Alert rules лежат в
 `infra/observability/prometheus/rules/blockchain-auditor.yml`.
+
+## SLA/SLO и алертинг
+
+SRE-контур issue #98 опубликован в [docs/SRE_RUNBOOK.md](../../docs/SRE_RUNBOOK.md).
+Числовые business SLA, availability SLO, latency p95 и error budget по
+сервисам зафиксированы в `slo-targets.json`. Prometheus загружает правила из
+`prometheus/rules/sre-alerts.yml`, а Alertmanager использует
+`alertmanager.yml` для маршрутизации:
+
+- `severity="critical"` уходит в `council-escalation` и `sre-oncall`;
+- `team="security"` уходит в `security-privacy`;
+- остальные SRE alerts остаются у `sre-oncall`.
+
+Локальная проверка контракта:
+
+```bash
+pytest tests/test_sre_issue98_acceptance_contract.py
+```
 
 ## Метрики сервисов
 

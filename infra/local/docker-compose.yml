@@ -109,8 +109,26 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - otel-collector
+      - alertmanager
     healthcheck:
       test: ["CMD", "promtool", "check", "config", "/etc/prometheus/prometheus.yml"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  alertmanager:
+    image: prom/alertmanager:v0.29.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ../observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    healthcheck:
+      test: ["CMD", "amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -167,4 +185,5 @@ volumes:
   chroma-data:
   minio-data:
   prometheus-data:
+  alertmanager-data:
   grafana-data:
