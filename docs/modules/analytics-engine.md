@@ -1,6 +1,6 @@
 # Analytics Engine
 
-**Статус:** 🟢 реализовано для #61 · **Этап:** Этап 3 — Расширенные модули · **Компонент:** `component:analytics`
+**Статус:** 🟢 реализовано для #61 и #92 · **Этап:** Этап 3/7 · **Компонент:** `component:analytics`
 
 Расчёт KPI и агрегатов активности, контента и вовлечённости для дашбордов и контуров обратной связи.
 
@@ -13,6 +13,10 @@
 - **POST** `/analytics/events` — запись нормализованных KPI-событий tenant
 - **GET** `/analytics/kpi?period=` — значения KPI за период
 - **GET** `/analytics/aggregates?period=` — агрегаты по категориям
+- **POST** `/analytics/pilot/telemetry/collect` — автоматический batch-сбор
+  KPI, usage telemetry и incidents пилота
+- **GET** `/analytics/pilot/reports?period=` — регулярный отчёт Совету по KPI,
+  usage telemetry, incidents и feedback-loop статусу
 - `build_analytics_kpi_response` и `build_analytics_aggregates_response` —
   публичные builder-функции для клиентского дашборда #69 без дублирования
   формул KPI вне Analytics Engine.
@@ -32,6 +36,22 @@
   участников используется `member_hash`.
 - tenant-isolation контракт #61: данные другого tenant не попадают в KPI и
   агрегаты, а подмена `X-Tenant-Id` возвращает `403 tenant_isolation_violation`.
+
+## Реализованный контракт #92
+- `POST /analytics/pilot/telemetry/collect` принимает tenant-scoped batch от
+  pilot collector и автоматически превращает поле `kpi` в обычные
+  `analytics.event_recorded` события для существующих KPI/aggregate builders.
+- Usage telemetry и incidents сохраняются отдельно в `InMemoryAnalyticsRepository`
+  и фильтруются тем же tenant-aware guard.
+- Для batch пишется hash-only audit trail:
+  `analytics.pilot_usage_recorded`, `analytics.pilot_incident_recorded` и
+  `analytics.pilot_batch_collected`.
+- `GET /analytics/pilot/reports?period=` доступен роли `council` и возвращает
+  KPI, агрегаты, usage summary, incidents summary, weekly/monthly frequency,
+  recipients `council` и `feedback_loop.status`.
+- tenant-isolation контракт #92: KPI, usage telemetry и incidents другого tenant
+  не попадают в отчёт Совету, а подмена `X-Tenant-Id` возвращает
+  `403 tenant_isolation_violation`.
 
 ## Зависимости
 - PostgreSQL, источники событий (вклад, публикации, действия)
