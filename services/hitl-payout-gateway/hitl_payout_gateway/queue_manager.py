@@ -53,6 +53,15 @@ class PayoutStatus(StrEnum):
     EXECUTED = "executed"
 
 
+class PayoutPaymentStatus(StrEnum):
+    ACCEPTED = "accepted"
+    PROCESSING = "processing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    RETURNED = "returned"
+    REFUNDED = "refunded"
+
+
 class PayoutQueueItem(SharedBaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -87,13 +96,25 @@ class PayoutQueueItem(SharedBaseModel):
     audit_chain_ref: str | None = None
     notification_id: IdempotencyKey | None = None
     executed_at: datetime | None = None
+    payment_connector_name: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_-]{0,63}$",
+    )
+    payment_gateway_id: str | None = Field(default=None, min_length=1, max_length=256)
+    payment_status: PayoutPaymentStatus | None = None
+    payment_status_synced_at: datetime | None = None
+    payment_error_code: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9_.-]{0,127}$",
+    )
+    payment_refund_id: str | None = Field(default=None, min_length=1, max_length=256)
 
     @field_validator("veto_until", "created_at", "updated_at")
     @classmethod
     def _normalize_datetime_field(cls, value: datetime) -> datetime:
         return _normalize_datetime(value)
 
-    @field_validator("confirmed_at", "executed_at")
+    @field_validator("confirmed_at", "executed_at", "payment_status_synced_at")
     @classmethod
     def _normalize_optional_datetime_field(
         cls,
@@ -153,6 +174,9 @@ class PayoutQueueItem(SharedBaseModel):
         notification_id: str,
         executed_at: datetime,
         audit_hash: str,
+        payment_connector_name: str | None = None,
+        payment_gateway_id: str | None = None,
+        payment_status: PayoutPaymentStatus | None = None,
     ) -> PayoutQueueItem:
         normalized_executed_at = _normalize_datetime(executed_at)
         return self.model_copy(
@@ -165,6 +189,39 @@ class PayoutQueueItem(SharedBaseModel):
                 "executed_at": normalized_executed_at,
                 "audit_hash": audit_hash,
                 "updated_at": normalized_executed_at,
+                "payment_connector_name": payment_connector_name,
+                "payment_gateway_id": payment_gateway_id,
+                "payment_status": payment_status,
+                "payment_status_synced_at": normalized_executed_at,
+                "payment_error_code": None,
+                "payment_refund_id": None,
+            }
+        )
+
+    def with_payment_status(
+        self,
+        *,
+        payment_status: PayoutPaymentStatus,
+        synced_at: datetime,
+        audit_hash: str,
+        payment_connector_name: str | None = None,
+        payment_gateway_id: str | None = None,
+        payment_error_code: str | None = None,
+        payment_refund_id: str | None = None,
+    ) -> PayoutQueueItem:
+        normalized_synced_at = _normalize_datetime(synced_at)
+        return self.model_copy(
+            update={
+                "payment_status": payment_status,
+                "payment_status_synced_at": normalized_synced_at,
+                "payment_connector_name": (
+                    payment_connector_name or self.payment_connector_name
+                ),
+                "payment_gateway_id": payment_gateway_id or self.payment_gateway_id,
+                "payment_error_code": payment_error_code,
+                "payment_refund_id": payment_refund_id,
+                "audit_hash": audit_hash,
+                "updated_at": normalized_synced_at,
             }
         )
 

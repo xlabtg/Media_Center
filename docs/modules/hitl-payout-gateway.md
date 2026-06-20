@@ -23,6 +23,8 @@
 - **POST** `/payouts/{id}/veto` — наложить вето (роль Совета)
 - **POST** `/payouts/{id}/confirm` — подтвердить выплату через TOTP 2FA
 - **POST** `/payouts/{id}/execute` — исполнить выплату через коннекторы
+- **POST** `/payouts/{id}/sync-status` — сверить статус платежа во внешнем
+  платёжном шлюзе РФ
 
 Все рабочие endpoints требуют JWT tenant context и роль `council`. API строится
 через `hitl_payout_gateway.create_hitl_payout_app`, использует общий
@@ -38,7 +40,12 @@
   `correlation_id`.
 - `execution_manager` — исполнение только после 2FA и окна вето, платёжный
   коннектор, hash-only запись в blockchain audit, уведомление участника,
-  обработка retryable connector failures через `payout.failed`.
+  обработка retryable connector failures через `payout.failed`, сверка внешних
+  статусов через `payout.payment_status_synced`.
+- `rf_payment_gateway` — `RFPayoutGatewayConnector` для HTTP-интеграции с
+  платёжными шлюзами РФ: тестовая выплата через provider API, idempotency header,
+  статусная модель `accepted` / `processing` / `succeeded` / `failed` /
+  `returned` / `refunded`, нормализация ошибок и возвратов.
 - `api` — FastAPI REST-контур поверх shared tenant middleware, JWT/RBAC,
   error envelope и in-memory wiring для E2E-тестов.
 
@@ -46,7 +53,9 @@
 - **payouts** — `tenant_id`, `member_id`, `member_hash`, `period`,
   `payout_share`, `distribution_id`, `distribution_hash`, `status`,
   `veto_until`, `confirmation_id`, `audit_hash`, `execution_ref_hash`,
-  `audit_chain_ref`, `notification_id`, `created_at`, `updated_at`
+  `audit_chain_ref`, `notification_id`, `created_at`, `updated_at`,
+  `payment_connector_name`, `payment_gateway_id`, `payment_status`,
+  `payment_status_synced_at`, `payment_error_code`, `payment_refund_id`
 - **veto_decisions** — `tenant_id`, `payout_id`, `actor_hash`, `reason_code`,
   `reason_hash`, `audit_hash`, `decided_at`, `correlation_id`
 - **payout_confirmations** — `tenant_id`, `payout_id`, `actor_hash`,
@@ -66,6 +75,10 @@
   `tenant_id`, `subject`, `resource_id` и `correlation_id` для аудита
 - В текущем in-memory REST wiring TOTP secret хранится на стороне приложения;
   HTTP-запрос подтверждения передаёт код, а не сам секрет
+- РФ-шлюз получает платёжные параметры только из `metadata["payment"]`: сумма в
+  минорных единицах RUB, `recipient_token` и rails (`sbp`, `bank_card`,
+  `bank_account`). Audit/events/logs получают только очищенную metadata без
+  суммы, токена получателя, raw реквизитов и gateway API key.
 - Все решения (вето/подтверждение/исполнение) фиксируются в аудите
 - Сбои платёжного, blockchain-audit и notification коннекторов логируются,
   получают audit record `payout.failed` и публикуют событие для повторной
@@ -80,6 +93,7 @@
 - [#41](https://github.com/xlabtg/Media_Center/issues/41) — Коннекторы: платёжный, блокчейн-аудит, уведомления (`type:feature`)
 - [#42](https://github.com/xlabtg/Media_Center/issues/42) — REST API + E2E-тесты сценария вето (`type:feature`)
 - [#43](https://github.com/xlabtg/Media_Center/issues/43) — 💸 HITL Payout Gateway (`type:epic`)
+- [#78](https://github.com/xlabtg/Media_Center/issues/78) — Платёжные шлюзы РФ (`type:feature`)
 - [#88](https://github.com/xlabtg/Media_Center/issues/88) — E2E-тесты HITL и выплат (`type:test`)
 
 ## Связанные документы

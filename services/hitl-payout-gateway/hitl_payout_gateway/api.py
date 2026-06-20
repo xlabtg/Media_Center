@@ -44,9 +44,11 @@ from .confirmation_manager import (
     PayoutConfirmationManager,
 )
 from .execution_manager import (
+    PaymentConnector,
     PayoutConnectorError,
     PayoutExecutionManager,
     PayoutExecutionReceipt,
+    PayoutPaymentStatusReceipt,
 )
 from .queue_manager import (
     InMemoryPayoutQueueRepository,
@@ -93,6 +95,11 @@ PAYOUT_EXECUTE_POLICY = AccessPolicy.allow_roles(
     action="payout.execute",
     resource_type="hitl_payout",
 )
+PAYOUT_SYNC_STATUS_POLICY = AccessPolicy.allow_roles(
+    COUNCIL_ROLE,
+    action="payout.sync_status",
+    resource_type="hitl_payout",
+)
 
 
 class QueuePayoutRequest(SharedBaseModel):
@@ -136,6 +143,13 @@ class ExecutePayoutRequest(SharedBaseModel):
     metadata: dict[str, JSONValue] = Field(default_factory=dict)
 
 
+class SyncPayoutStatusRequest(SharedBaseModel):
+    event_id: IdempotencyKey | None = None
+    failure_event_id: IdempotencyKey | None = None
+    now: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+
 class PayoutListResponse(SharedBaseModel):
     items: tuple[PayoutQueueItem, ...]
 
@@ -163,6 +177,7 @@ def create_hitl_payout_app(
     audit_log_sink: InMemoryAuditLogSink | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
     totp_secrets: Mapping[tuple[str, str], str] | None = None,
+    payment_connector: PaymentConnector | None = None,
     veto_window_hours: int | None = None,
 ) -> FastAPI:
     resolved_repository = repository or InMemoryPayoutQueueRepository()
@@ -190,10 +205,19 @@ def create_hitl_payout_app(
         publisher=resolved_publisher,
         audit_logger=audit_logger,
     )
-    execution_manager = PayoutExecutionManager(
-        repository=resolved_repository,
-        publisher=resolved_publisher,
-        audit_logger=audit_logger,
+    execution_manager = (
+        PayoutExecutionManager(
+            repository=resolved_repository,
+            publisher=resolved_publisher,
+            audit_logger=audit_logger,
+            payment_connector=payment_connector,
+        )
+        if payment_connector is not None
+        else PayoutExecutionManager(
+            repository=resolved_repository,
+            publisher=resolved_publisher,
+            audit_logger=audit_logger,
+        )
     )
 
     app = create_service_app(
@@ -370,6 +394,29 @@ async def execute_payout(
         event_id=payload.event_id,
         failure_event_id=payload.failure_event_id,
         notification_id=payload.notification_id,
+        now=payload.now,
+        metadata=payload.metadata,
+    )
+
+
+@router.post(
+    "/payouts/{payout_id}/sync-status",
+    response_model=PayoutPaymentStatusReceipt,
+    summary="Сверить статус выплаты во внешнем платёжном шлюзе",
+)
+async def sync_payout_status(
+    payout_id: PayoutIdPath,
+    payload: SyncPayoutStatusRequest,
+    state: Annotated[HITLPayoutAPIState, Depends(_api_state)],
+    context: Annotated[TenantContext, Depends(_tenant_context)],
+) -> PayoutPaymentStatusReceipt:
+    require_access(PAYOUT_SYNC_STATUS_POLICY, context=context)
+    return await state.execution_manager.sync_payment_status(
+        tenant_id=context.tenant_id,
+        payout_id=payout_id,
+        correlation_id=_correlation_id(context),
+        event_id=payload.event_id,
+        failure_event_id=payload.failure_event_id,
         now=payload.now,
         metadata=payload.metadata,
     )
