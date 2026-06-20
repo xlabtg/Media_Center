@@ -73,9 +73,31 @@
   `TelegramClientGateway`, получает proxy lease и не раскрывает сырой Telegram
   ID в публичной модели ответа.
 
+## Telegram через Telethon (issue #75)
+- `TelegramTelethonPublisher` реализует исходящую публикацию через Telethon
+  поверх существующего `BasePlatformAdapter`: общий retry/audit/event-контур
+  сохраняется, а `FloodWait`/`retry_after` Telegram нормализуется в
+  `rate_limited` с задержкой повтора.
+- `InMemoryTelegramTelethonSessionStore` и
+  `TelegramTelethonSessionClientProvider` задают production-ready контракт для
+  защищённого хранения `StringSession`: raw session string шифруется
+  AES-256-GCM с tenant-scoped AAD `telegram_telethon_session`, наружу попадают
+  только `session_ref` и SHA-256 хэши.
+- `TelegramTelethonRateLimiter` применяет tenant/session/target scoped pacing
+  перед `send_message`, чтобы не создавать локальные retry storm и соблюдать
+  лимиты Telegram поверх серверных `FloodWait`.
+- `TelegramTelethonInboundBridge` читает сообщения через Telethon, переводит их
+  в `TelegramInboundMessage`, передаёт в `TelegramClientGateway` и отправляет
+  ответ через ту же сессию без публикации raw текста команды, raw Telegram ID
+  или session string в результатах.
+- Acceptance-контракт issue #75 покрывает публикацию с retry после FloodWait,
+  чтение и ответ на `/balance`, pacing лимитов и tenant-scoped шифрование
+  Telethon-сессий.
+
 ## Зависимости
 - CGLR (реферальные ссылки), Contribution Ledger
-- Telethon (Telegram), VK API, политики ретраев и резервные разрешенные каналы
+- Telethon 1.44.0 (Telegram), VK API, политики ретраев и резервные разрешенные
+  каналы
 
 ## Безопасность и мультитенантность
 - Токены площадок шифруются (AES-256) и изолированы по `tenant_id`
@@ -105,4 +127,4 @@
 - [Acceptance snapshot этапа 4](../STAGE_4_ACCEPTANCE.md)
 
 ---
-<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71 и сквозным stage-4 acceptance contract #74.</sub>
+<sub>Спецификация синхронизирована с реализацией Unified Messenger Adapter для issue #48, Telegram-клиента участника для issue #71, сквозным stage-4 acceptance contract #74 и Telethon-интеграцией issue #75.</sub>

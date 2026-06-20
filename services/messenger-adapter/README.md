@@ -93,6 +93,26 @@ Telegram, VK, Dzen, OK и другие площадки. Сервис транс
 - Взаимодействия публикуют события `messenger.telegram_client.account_linked` и
   `messenger.telegram_client.command_handled` и фиксируются аудит-хэшем.
 
+## Telegram через Telethon
+
+- `TelegramTelethonPublisher` подключается как `PlatformPublisher` для
+  `BasePlatformAdapter`, поэтому публикации через Telethon используют тот же
+  retry policy, audit log и события `publication.succeeded` /
+  `publication.failed`, что и Bot API/VK/Dzen/OK.
+- `FloodWait` и похожие Telethon rate-limit ошибки мапятся в общий
+  `PlatformPublicationError(error_code="rate_limited")` с `retry_after_seconds`,
+  а локальный `TelegramTelethonRateLimiter` ограничивает частоту
+  `send_message` по tenant/session/target.
+- `InMemoryTelegramTelethonSessionStore` хранит `StringSession` только в
+  AES-256-GCM шифртексте с AAD `telegram_telethon_session`; platform token в
+  `BasePlatformAdapter` используется как `session_ref`, а не как raw session.
+- `TelegramTelethonSessionClientProvider` лениво создаёт реальный Telethon
+  клиент через `TelethonClientFactory`, проверяет авторизацию сессии и
+  сохраняет обновлённый `StringSession` после успешного взаимодействия.
+- `TelegramTelethonInboundBridge` читает сообщения из Telegram через Telethon,
+  вызывает `TelegramClientGateway` и отправляет ответ участнику, не включая raw
+  текст команды, raw Telegram ID или session string в публичные результаты.
+
 ## Связанные документы
 
 - [Спецификация модуля](../../docs/modules/messenger-adapter.md)
