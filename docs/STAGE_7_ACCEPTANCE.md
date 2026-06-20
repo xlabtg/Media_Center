@@ -2,7 +2,9 @@
 
 Дата фиксации: 2026-06-20.
 
-Статус: acceptance snapshot для issue #91, issue #92, issue #93, issue #94 и
+Статус: acceptance snapshot для issue #96.
+
+Snapshot агрегирует приемку issue #91, issue #92, issue #93, issue #94 и
 issue #95.
 
 Документ фиксирует готовность ограниченного пилотного запуска на tenant
@@ -96,6 +98,7 @@ issue #95.
 ## 8. Локальная проверка
 
 ```bash
+pytest tests/test_stage7_acceptance_contract.py
 pytest tests/test_pilot_tenant_issue91_acceptance_contract.py
 pytest tests/test_pilot_kpi_telemetry_issue92_acceptance_contract.py
 pytest tests/test_user_docs_issue93_acceptance_contract.py
