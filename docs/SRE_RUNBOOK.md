@@ -11,8 +11,10 @@
 `infra/observability/prometheus/rules/sre-alerts.yml`, маршруты Alertmanager -
 в `infra/observability/alertmanager.yml`. Backup/DR-процедуры этапа 8
 опубликованы в [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md), а структурная
-политика - в `infra/backup/backup-policy.json`. Контракт проверяется тестом
-`tests/test_sre_issue98_acceptance_contract.py`.
+политика - в `infra/backup/backup-policy.json`. Единый эксплуатационный пакет
+для tenant-команд опубликован в `docs/OPERATIONS_MANUAL.md`, а быстрые ответы
+и workflow обновления материалов - в `docs/KNOWLEDGE_BASE.md`. Контракт
+проверяется тестом `tests/test_sre_issue98_acceptance_contract.py`.
 
 Все evidence, алерты, постмортемы и тестовые события ведутся по политике
 `no_pdn_no_secrets`: без ПДн, токенов, bearer credentials, платежных реквизитов,

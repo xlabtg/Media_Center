@@ -49,6 +49,9 @@
 | [docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md](docs/PILOT_RETROSPECTIVE_SCALE_PLAN.md) | Ретроспектива пилота, выводы Совета и утверждённый план масштабирования |
 | [docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md) | SRE runbook этапа 8: SLA/SLO, error budget, Alertmanager и incident response |
 | [docs/DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md) | Backup/DR runbook: расписания PostgreSQL, ChromaDB, S3/MinIO, RTO/RPO и restore drill |
+| [docs/OPERATIONS_MANUAL.md](docs/OPERATIONS_MANUAL.md) | Эксплуатационная документация этапа 8: tenant lifecycle, RACI, readiness checklist и операционный день |
+| [docs/TENANT_TRAINING_PROGRAM.md](docs/TENANT_TRAINING_PROGRAM.md) | Программа обучения администраторов tenant, Совета, Правления, поддержки и SRE/on-call |
+| [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md) | База знаний эксплуатации: карта runbook'ов, быстрые ответы, владельцы и цикл обновления |
 | [docs/ECONOMICS.md](docs/ECONOMICS.md) | Экономическая модель: баллы, веса (Кв), паи, фонды, выплаты |
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Органы управления, статусы пайщиков, голосования, HITL |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Правовое соответствие (ФЗ-152, ФЗ-3085-1, ФЗ-149/436) |
