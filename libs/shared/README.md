@@ -196,6 +196,19 @@
 - при наличии `InMemoryTenantResourceManager` одобренный tenant сразу получает
   tenant-local `resource_plan`.
 
+## Реализовано для issue #89
+
+- `DependencyResilienceGuard` задаёт общий guard для отказов PostgreSQL,
+  RabbitMQ, external API и proxy без привязки к конкретному сервису;
+- `RetryPolicy`, `TimeoutBudget` и `CircuitBreakerPolicy` фиксируют retries,
+  fail-fast timeout budget, open/half-open/closed circuit breaker и
+  recovery confirmation;
+- `DependencyFailure` нормализует error code, тип зависимости и failure mode
+  без ПДн, токенов, proxy URL и сырых payload;
+- `constant_fallback()` и `DependencyCallResult` позволяют контрактным тестам
+  проверять controlled degradation: readonly/cache, outbox, stale cache и
+  отключение нездорового proxy route.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более
