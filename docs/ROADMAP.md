@@ -4,6 +4,8 @@
 
 > Базовый ориентир из исходного регламента — **пилот за 6–8 недель** на одном тенанте. Ниже — расширенная карта полного цикла разработки (SDLC) от Discovery до эксплуатации. Сроки ориентировочные и уточняются командой.
 
+Acceptance snapshot мастер-плана #104: [docs/MASTER_PLAN.md](MASTER_PLAN.md).
+
 ---
 
 ## Обзор этапов
@@ -106,4 +108,5 @@
 
 ---
 
-См. детальную декомпозицию задач в [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
+См. детальную декомпозицию задач в [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
+и верхнеуровневый acceptance snapshot в [docs/MASTER_PLAN.md](MASTER_PLAN.md).
