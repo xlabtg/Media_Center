@@ -1,0 +1,106 @@
+{
+  "issue": 102,
+  "status": "training-complete",
+  "completed_at": "2026-06-20",
+  "evidence_policy": "no_pdn_no_secrets",
+  "tenant_cohorts": [
+    {
+      "tenant_slug": "nmc-pilot",
+      "environment": "stage8-training",
+      "participant_count": 12,
+      "data_policy": "synthetic_no_pdn"
+    }
+  ],
+  "required_roles": [
+    "tenant-admin",
+    "council",
+    "presidium",
+    "board",
+    "support",
+    "sre-oncall",
+    "knowledge-owner"
+  ],
+  "required_modules": [
+    "operations_overview",
+    "tenant_provisioning",
+    "governance_hitl",
+    "support_incidents",
+    "backup_dr",
+    "rl_kpi_review",
+    "knowledge_base_update"
+  ],
+  "sessions": [
+    {
+      "session_id": "ops-102-tenant-admin-2026-06-20",
+      "track": "tenant-admin",
+      "roles": [
+        "tenant-admin",
+        "board",
+        "knowledge-owner"
+      ],
+      "modules": [
+        "operations_overview",
+        "tenant_provisioning",
+        "knowledge_base_update"
+      ],
+      "attendance_status": "completed",
+      "assessment_pass_rate_percent": 100,
+      "evidence_policy": "no_pdn_no_secrets"
+    },
+    {
+      "session_id": "ops-102-council-governance-2026-06-20",
+      "track": "council-governance",
+      "roles": [
+        "council",
+        "presidium",
+        "board"
+      ],
+      "modules": [
+        "governance_hitl",
+        "rl_kpi_review",
+        "operations_overview"
+      ],
+      "attendance_status": "completed",
+      "assessment_pass_rate_percent": 95,
+      "evidence_policy": "no_pdn_no_secrets"
+    },
+    {
+      "session_id": "ops-102-support-triage-2026-06-20",
+      "track": "support-triage",
+      "roles": [
+        "support",
+        "board",
+        "knowledge-owner"
+      ],
+      "modules": [
+        "support_incidents",
+        "knowledge_base_update",
+        "operations_overview"
+      ],
+      "attendance_status": "completed",
+      "assessment_pass_rate_percent": 100,
+      "evidence_policy": "no_pdn_no_secrets"
+    },
+    {
+      "session_id": "ops-102-sre-dr-2026-06-20",
+      "track": "sre-dr",
+      "roles": [
+        "sre-oncall",
+        "support",
+        "board"
+      ],
+      "modules": [
+        "support_incidents",
+        "backup_dr",
+        "tenant_provisioning"
+      ],
+      "attendance_status": "completed",
+      "assessment_pass_rate_percent": 92,
+      "evidence_policy": "no_pdn_no_secrets"
+    }
+  ],
+  "knowledge_base": {
+    "entrypoint": "docs/KNOWLEDGE_BASE.md",
+    "update_cadence_days": 14
+  }
+}

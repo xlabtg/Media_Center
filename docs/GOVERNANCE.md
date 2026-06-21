@@ -139,3 +139,11 @@
 2/3, окно вето 8 часов и обязательное 2FA-подтверждение чувствительных
 операций. Артефакты не содержат ПДн и используются как launch packet перед
 ручным go/no-go Совета.
+
+## 11. Обучение Совета и tenant-команд
+
+Для stage-8 эксплуатации Совет, Правление, администраторы tenant, поддержка и
+SRE/on-call проходят программу из `docs/TENANT_TRAINING_PROGRAM.md`. Обучение
+закрепляет tenant-scoped управление, HITL, veto, 2FA, quorum rules, RL-KPI
+approval, P0/P1 escalation и evidence policy `no_pdn_no_secrets`. Без
+завершенного training evidence Совет не переводит tenant в production go/no-go.
