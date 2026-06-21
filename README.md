@@ -36,10 +36,13 @@
 | [docs/REPOSITORY_STRUCTURE.md](docs/REPOSITORY_STRUCTURE.md) | Структура монорепозитория, сервисов, shared-библиотеки и infra |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Мастер-план: эпики, задачи, связь с метками и этапами |
+| [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) | Acceptance snapshot мастер-плана #104: трассировка issue, milestones, меток и документации |
 | [docs/STAGE_0_ACCEPTANCE.md](docs/STAGE_0_ACCEPTANCE.md) | Итоговая фиксация готовности этапа 0 и gate перед реализацией |
 | [docs/STAGE_1_ACCEPTANCE.md](docs/STAGE_1_ACCEPTANCE.md) | Итоговая фиксация готовности базовой инфраструктуры и мультитенантности |
 | [docs/STAGE_2_ACCEPTANCE.md](docs/STAGE_2_ACCEPTANCE.md) | Итоговая фиксация готовности ключевых микросервисов и сквозных сценариев |
 | [docs/STAGE_3_ACCEPTANCE.md](docs/STAGE_3_ACCEPTANCE.md) | Итоговая фиксация готовности расширенных модулей AI, голоса, KPI и уведомлений |
+| [docs/STAGE_4_ACCEPTANCE.md](docs/STAGE_4_ACCEPTANCE.md) | Итоговая фиксация готовности клиентских приложений, UX и дизайн-системы |
+| [docs/STAGE_5_ACCEPTANCE.md](docs/STAGE_5_ACCEPTANCE.md) | Итоговая фиксация готовности интеграций, внешних площадок и fallback-контуров |
 | [docs/STAGE_7_ACCEPTANCE.md](docs/STAGE_7_ACCEPTANCE.md) | Итоговая фиксация готовности пилотного запуска |
 | [docs/STAGE_8_ACCEPTANCE.md](docs/STAGE_8_ACCEPTANCE.md) | Итоговая фиксация готовности масштабирования и эксплуатации |
 | [docs/PILOT_TENANT_ONBOARDING.md](docs/PILOT_TENANT_ONBOARDING.md) | Runbook пилотного tenant `nmc-pilot`, ролей, порогов Совета и онбординга |
@@ -195,7 +198,10 @@ requirements-dev.txt        # закреплённые версии инстру
 | 7 | Пилотный запуск | Один tenant (15–25 человек), сбор KPI |
 | 8 | Масштабирование и эксплуатация | N tenant'ов, SRE, непрерывное улучшение |
 
-Полная дорожная карта — в [docs/ROADMAP.md](docs/ROADMAP.md). План задач — в [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md).
+Полная дорожная карта — в [docs/ROADMAP.md](docs/ROADMAP.md).
+План задач — в [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md).
+Верхнеуровневый acceptance snapshot мастер-плана — в
+[docs/MASTER_PLAN.md](docs/MASTER_PLAN.md).
 
 ---
 
