@@ -41,6 +41,7 @@
 | [docs/STAGE_2_ACCEPTANCE.md](docs/STAGE_2_ACCEPTANCE.md) | Итоговая фиксация готовности ключевых микросервисов и сквозных сценариев |
 | [docs/STAGE_3_ACCEPTANCE.md](docs/STAGE_3_ACCEPTANCE.md) | Итоговая фиксация готовности расширенных модулей AI, голоса, KPI и уведомлений |
 | [docs/STAGE_7_ACCEPTANCE.md](docs/STAGE_7_ACCEPTANCE.md) | Итоговая фиксация готовности пилотного запуска |
+| [docs/STAGE_8_ACCEPTANCE.md](docs/STAGE_8_ACCEPTANCE.md) | Итоговая фиксация готовности масштабирования и эксплуатации |
 | [docs/PILOT_TENANT_ONBOARDING.md](docs/PILOT_TENANT_ONBOARDING.md) | Runbook пилотного tenant `nmc-pilot`, ролей, порогов Совета и онбординга |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Руководство участника пилота: быстрый старт, онбординг, вклад, безопасность |
 | [docs/COUNCIL_GUIDE.md](docs/COUNCIL_GUIDE.md) | Инструкция Совета: HITL, вето, 2FA, политики, KPI и compliance gate |
