@@ -202,40 +202,18 @@ from libs.shared.rbac import (
     require_any_role,
 )
 from libs.shared.resilience import (
-    CircuitBreakerPolicy as CircuitBreakerPolicy,
-)
-from libs.shared.resilience import (
-    CircuitBreakerSnapshot as CircuitBreakerSnapshot,
-)
-from libs.shared.resilience import (
-    CircuitBreakerState as CircuitBreakerState,
-)
-from libs.shared.resilience import (
-    DependencyCallResult as DependencyCallResult,
-)
-from libs.shared.resilience import (
-    DependencyCallStatus as DependencyCallStatus,
-)
-from libs.shared.resilience import (
-    DependencyFailure as DependencyFailure,
-)
-from libs.shared.resilience import (
-    DependencyKind as DependencyKind,
-)
-from libs.shared.resilience import (
-    DependencyResilienceGuard as DependencyResilienceGuard,
-)
-from libs.shared.resilience import (
-    FailureMode as FailureMode,
-)
-from libs.shared.resilience import (
-    RetryPolicy as RetryPolicy,
-)
-from libs.shared.resilience import (
-    TimeoutBudget as TimeoutBudget,
-)
-from libs.shared.resilience import (
-    constant_fallback as constant_fallback,
+    CircuitBreakerPolicy,
+    CircuitBreakerSnapshot,
+    CircuitBreakerState,
+    DependencyCallResult,
+    DependencyCallStatus,
+    DependencyFailure,
+    DependencyKind,
+    DependencyResilienceGuard,
+    FailureMode,
+    RetryPolicy,
+    TimeoutBudget,
+    constant_fallback,
 )
 from libs.shared.service_template import (
     DEFAULT_SERVICE_TEMPLATE_PUBLIC_PATHS,
@@ -360,8 +338,16 @@ __all__ = [
     "CacheSettings",
     "ChromaSettings",
     "ChromaTenantVectorStore",
+    "CircuitBreakerPolicy",
+    "CircuitBreakerSnapshot",
+    "CircuitBreakerState",
     "Contribution",
     "DatabaseSettings",
+    "DependencyCallResult",
+    "DependencyCallStatus",
+    "DependencyFailure",
+    "DependencyKind",
+    "DependencyResilienceGuard",
     "EndpointAccessPolicy",
     "EnvSecretProvider",
     "ErrorBody",
@@ -372,6 +358,7 @@ __all__ = [
     "EventEnvelope",
     "EventIdempotencyStore",
     "EventPublisher",
+    "FailureMode",
     "FORBIDDEN_CODE",
     "ForbiddenError",
     "GOVERNANCE_ROLES",
@@ -433,6 +420,7 @@ __all__ = [
     "RequestContextModel",
     "RedisTenantCache",
     "RoleName",
+    "RetryPolicy",
     "S3_ACCESS_KEY_ENV",
     "S3_BUCKET_ENV",
     "S3_ENDPOINT_URL_ENV",
@@ -453,6 +441,7 @@ __all__ = [
     "TENANT_ID_PATTERN_TEXT",
     "TENANT_ISOLATION_CODE",
     "TOKEN_PATTERN_TEXT",
+    "TimeoutBudget",
     "TenantCache",
     "Tenant",
     "TenantAuditEvent",
@@ -516,6 +505,7 @@ __all__ = [
     "chroma_host_from_env",
     "chroma_port_from_env",
     "chroma_ssl_from_env",
+    "constant_fallback",
     "create_async_engine_from_url",
     "create_async_session_factory",
     "create_service_app",
