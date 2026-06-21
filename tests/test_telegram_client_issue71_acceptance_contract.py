@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ from messenger_adapter import (
 )
 from pydantic import ValidationError
 
-from libs.shared import InMemoryEventBus
+from libs.shared import EventEnvelope, InMemoryEventBus
 
 ROOT = Path(__file__).resolve().parents[1]
 TENANT_A_TELEGRAM_ID = "10987654321"
@@ -46,7 +47,8 @@ def _encryption_key() -> str:
 # Перед сканом утечек такие непрозрачные токены вырезаются, иначе проверка
 # флэйкует на случайных UUID/хэшах (см. issue #71).
 _OPAQUE_TOKEN = re.compile(
-    r"sha256:[0-9a-f]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"sha256:[0-9a-f]+|[0-9a-f]{64}|"
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 )
 
 
@@ -64,6 +66,32 @@ def _payload_leak_surface(bus: InMemoryEventBus) -> str:
         payload_json = json.dumps(message.envelope.payload, ensure_ascii=False)
         fragments.append(_OPAQUE_TOKEN.sub("<opaque>", payload_json))
     return "\n".join(fragments)
+
+
+def test_issue_71_payload_leak_surface_redacts_raw_audit_hash_tokens() -> None:
+    bus = InMemoryEventBus()
+    asyncio.run(
+        bus.publish(
+            EventEnvelope(
+                event_id="evt-test",
+                type="messenger.telegram_client.command_handled",
+                schema_version="1.0",
+                tenant_id="tenant-a",
+                source="test",
+                correlation_id="corr-test",
+                occurred_at=datetime(2026, 6, 21, tzinfo=UTC),
+                payload={
+                    "scenario": "balance",
+                    "audit_hash": "0" * 20 + "4242" + "a" * 40,
+                },
+            )
+        )
+    )
+
+    payload_text = _payload_leak_surface(bus)
+
+    assert "balance" in payload_text
+    assert "4242" not in payload_text
 
 
 def test_issue_71_telegram_client_basic_scenarios_are_available() -> None:
