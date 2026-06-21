@@ -43,6 +43,7 @@
 | [docs/STAGE_3_ACCEPTANCE.md](docs/STAGE_3_ACCEPTANCE.md) | Итоговая фиксация готовности расширенных модулей AI, голоса, KPI и уведомлений |
 | [docs/STAGE_4_ACCEPTANCE.md](docs/STAGE_4_ACCEPTANCE.md) | Итоговая фиксация готовности клиентских приложений, UX и дизайн-системы |
 | [docs/STAGE_5_ACCEPTANCE.md](docs/STAGE_5_ACCEPTANCE.md) | Итоговая фиксация готовности интеграций, внешних площадок и fallback-контуров |
+| [docs/STAGE_6_ACCEPTANCE.md](docs/STAGE_6_ACCEPTANCE.md) | Итоговая фиксация готовности QA, безопасности, нагрузки и отказоустойчивости |
 | [docs/STAGE_7_ACCEPTANCE.md](docs/STAGE_7_ACCEPTANCE.md) | Итоговая фиксация готовности пилотного запуска |
 | [docs/STAGE_8_ACCEPTANCE.md](docs/STAGE_8_ACCEPTANCE.md) | Итоговая фиксация готовности масштабирования и эксплуатации |
 | [docs/PILOT_TENANT_ONBOARDING.md](docs/PILOT_TENANT_ONBOARDING.md) | Runbook пилотного tenant `nmc-pilot`, ролей, порогов Совета и онбординга |
