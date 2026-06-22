@@ -34,5 +34,8 @@ COPY --chown=1000:1000 libs/shared/README.md ./SHARED.md
 
 USER 1000:1000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7700/health', timeout=3).read()"
+
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "-c", "import os; print(os.environ.get('SERVICE_NAME', 'service') + ' image is ready')"]
