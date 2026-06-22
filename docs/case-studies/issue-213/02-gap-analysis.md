@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | REQ-1 | Multi-stage + минимальный runtime | ❌ | `infra/docker/service.Dockerfile` — одностадийный stub |
 | REQ-2 | Готовый entrypoint | ❌ | `CMD` печатает «image is ready», приложение не стартует |
-| REQ-3 | Единый порт 7700 | ❌ | `libs/shared/config.py` → `app_port=8000` |
+| REQ-3 | Единый порт 7700 | ✅ | `libs/shared/config.py` → `app_port=7700`, `APP_PORT` override через env |
 | REQ-4 | `/health` | 🟡 | Есть в `libs/shared/service_template.py`, но не во всех сервисах и не в образе |
 | REQ-5 | `/info` (build metadata) | ❌ | Нет endpoint, нет `build_info.json` |
 | REQ-6 | `/metrics` | 🟡 | Есть в `service_template.py`, не унифицирован |
@@ -47,12 +47,15 @@ CMD ["python", "-c", "import os; print(... + ' image is ready')"]
 - В образе нет `entrypoint.sh`; `CMD` лишь печатает строку.
 - В `services/contribution-ledger/contribution_ledger_app/main.py` определён `app = build_app()`, но **нет ASGI-раннера** (`uvicorn`/`python -m ... .main`), который поднимал бы сервер на 7700. То есть даже корректный образ не знал бы, чем стартовать.
 
-### REQ-3 — Единый порт 7700 ❌
+### REQ-3 — Единый порт 7700 ✅
 
 `libs/shared/config.py`, `AppSettings`:
-- `app_port: int = 8000` (нужно 7700, REQ-3.1).
+- `app_port: int = 7700` по умолчанию, `APP_PORT` переопределяет порт
+  через Pydantic Settings (REQ-3.1).
 - `app_host: str = "0.0.0.0"` — ок.
-- `log_level: str = "INFO"` — ок (REQ-8.2), `LOG_LEVELS = {DEBUG, INFO, WARNING, ERROR}` — но без `CRITICAL`.
+- `log_level: str = "INFO"` — ок (REQ-8.2),
+  `LOG_LEVELS = {DEBUG, INFO, WARNING, ERROR, CRITICAL}`;
+  `LOG_LEVEL` нормализуется из env в верхний регистр.
 
 ### REQ-4 / REQ-6 — `/health`, `/metrics` 🟡
 
