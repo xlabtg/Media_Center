@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import uuid4
@@ -18,6 +18,7 @@ from libs.shared import (
     IDEMPOTENCY_CONFLICT_CODE,
     VALIDATION_ERROR_CODE,
     AuditHash,
+    BaseAppConfig,
     CorrelationId,
     IdempotencyKey,
     InMemoryAuditSink,
@@ -31,7 +32,7 @@ from libs.shared import (
     TenantCoreError,
     TenantId,
     TenantScopedRepository,
-    create_service_app,
+    create_base_app,
     error_response_body,
     require_tenant_context,
 )
@@ -256,16 +257,15 @@ router = APIRouter(tags=["Contribution Ledger"])
 
 
 def create_contribution_ledger_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryContributionLedgerRepository | None = None,
     publisher: InMemoryEventBus | None = None,
     audit_sink: InMemoryAuditSink | None = None,
 ) -> FastAPI:
     resolved_audit_sink = audit_sink or InMemoryAuditSink()
-    app = create_service_app(
-        config,
-        title="Media Center Contribution Ledger",
+    app = create_base_app(
+        _base_app_config(config),
         audit_sink=resolved_audit_sink,
     )
     app.state.contribution_ledger_api = ContributionLedgerAPIState(
@@ -278,6 +278,19 @@ def create_contribution_ledger_app(
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.include_router(router)
     return app
+
+
+def _base_app_config(config: BaseAppConfig | ServiceTemplateConfig) -> BaseAppConfig:
+    if isinstance(config, BaseAppConfig):
+        if config.title is None:
+            return replace(config, title="Media Center Contribution Ledger")
+
+        return config
+
+    return BaseAppConfig(
+        service=config,
+        title="Media Center Contribution Ledger",
+    )
 
 
 @router.post(
