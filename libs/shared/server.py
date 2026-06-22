@@ -4,16 +4,23 @@ import json
 import logging
 import os
 import platform
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from time import perf_counter
 from typing import Annotated
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, status
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response, status
 
-from libs.shared.observability import TenantMetricRegistry
+from libs.shared.observability import (
+    DEFAULT_METRICS_PATH,
+    ObservabilityContext,
+    TenantMetricRegistry,
+)
 from libs.shared.service_template import (
+    PLATFORM_TENANT_ID,
     ServiceTemplateConfig,
+    ServiceTemplateState,
     create_service_app,
 )
 from libs.shared.tenant import AuditSink
@@ -24,6 +31,7 @@ DEFAULT_BASE_APP_REDOC_URL = "/redoc"
 DEFAULT_BASE_APP_OPENAPI_URL = "/openapi.json"
 DEFAULT_BASE_APP_LOG_LEVEL = "INFO"
 DEFAULT_BUILD_INFO_PATH = Path("/app/config/build_info.json")
+BASE_APP_HTTP_METRICS_OPERATION = "http_request"
 BASE_APP_SYSTEM_PUBLIC_PATHS = (
     "/ready",
     "/info",
@@ -180,6 +188,7 @@ def create_base_app(
     app.state.service_port = base_config.app_port
     app.include_router(system_router)
     app.include_router(admin_router)
+    _install_base_http_metrics(app)
     return app
 
 
@@ -300,6 +309,70 @@ def _base_app_state(app: FastAPI) -> BaseAppState:
         raise RuntimeError("base_app state не инициализирован")
 
     return state
+
+
+def _service_template_state(app: FastAPI) -> ServiceTemplateState:
+    state = getattr(app.state, "service_template", None)
+    if not isinstance(state, ServiceTemplateState):
+        raise RuntimeError("service_template state не инициализирован")
+
+    return state
+
+
+def _install_base_http_metrics(app: FastAPI) -> None:
+    @app.middleware("http")
+    async def base_http_metrics(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        state = _service_template_state(request.app)
+        if (
+            not state.config.prometheus_enabled
+            or request.url.path == DEFAULT_METRICS_PATH
+        ):
+            return await call_next(request)
+
+        started_at = perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            _record_base_http_metric(
+                state,
+                status="error",
+                duration_seconds=perf_counter() - started_at,
+            )
+            raise
+
+        _record_base_http_metric(
+            state,
+            status=_base_http_metric_status(response.status_code),
+            duration_seconds=perf_counter() - started_at,
+        )
+        return response
+
+
+def _record_base_http_metric(
+    state: ServiceTemplateState,
+    *,
+    status: str,
+    duration_seconds: float,
+) -> None:
+    state.metrics.record_operation(
+        context=ObservabilityContext(
+            tenant_id=PLATFORM_TENANT_ID,
+            service_name=state.config.service_name,
+            operation=BASE_APP_HTTP_METRICS_OPERATION,
+        ),
+        status=status,
+        duration_seconds=duration_seconds,
+    )
+
+
+def _base_http_metric_status(status_code: int) -> str:
+    if status_code >= 400:
+        return "error"
+
+    return "success"
 
 
 def _normalize_optional_path(value: str | None) -> str | None:
