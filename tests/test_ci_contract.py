@@ -34,6 +34,7 @@ def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
         "aquasecurity/trivy-action@v0.36.0",
         "docker/build-push-action@v7",
         "docker build \\",
+        "max-parallel: 1",
         "--build-arg SERVICE_NAME=${{ matrix.service }}",
         "Build and push image",
         "push: true",
@@ -58,6 +59,8 @@ def test_service_dockerfile_uses_adr_baseline_python_image() -> None:
     dockerfile = read_text("infra/docker/service.Dockerfile")
 
     assert "FROM python:3.13.14-slim" in dockerfile
+    assert "# syntax=" not in dockerfile
+    assert "docker/dockerfile" not in dockerfile
     assert "python:latest" not in dockerfile
     assert "ARG SERVICE_NAME" in dockerfile
     assert "ARG SERVICE_PATH" in dockerfile

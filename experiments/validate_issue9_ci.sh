@@ -20,6 +20,14 @@ assert_contains() {
   grep -Fq -- "$pattern" "$path" || fail "missing marker in $path: $pattern"
 }
 
+assert_not_contains() {
+  local path="$1"
+  local pattern="$2"
+  if grep -Fq -- "$pattern" "$path"; then
+    fail "unexpected marker in $path: $pattern"
+  fi
+}
+
 expected_services=(
   api-gateway
   contribution-ledger
@@ -65,6 +73,7 @@ image_markers=(
   "docker/setup-buildx-action@v4.1.0"
   "docker/build-push-action@v7.2.0"
   "docker build \\"
+  "max-parallel: 1"
   "--build-arg SERVICE_NAME=\${{ matrix.service }}"
   "Build and push image"
   "push: true"
@@ -94,6 +103,8 @@ for marker in "${tool_pins[@]}"; do
 done
 
 assert_contains "infra/docker/service.Dockerfile" "FROM python:3.13.14-slim"
+assert_not_contains "infra/docker/service.Dockerfile" "# syntax="
+assert_not_contains "infra/docker/service.Dockerfile" "docker/dockerfile"
 assert_contains "infra/README.md" "service.Dockerfile"
 assert_contains "CONTRIBUTING.md" "python -m pip install -r requirements-dev.txt"
 assert_contains "README.md" "actions/workflows/ci.yml"
