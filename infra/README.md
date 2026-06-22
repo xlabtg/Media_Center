@@ -55,6 +55,11 @@ make down
 Подробности, порты, env-шаблон, миграции, сиды и фикстуры описаны в
 [local/README.md](local/README.md).
 
+Минимальный production capacity-профиль `nmc-minimal-100upm`, включая
+recommended-core сервисы, CPU/RAM requests/limits и инфраструктурный floor
+16 vCPU / 32 GiB RAM, опубликован в
+[docs/MINIMAL_PRODUCTION_RESOURCES.md](../docs/MINIMAL_PRODUCTION_RESOURCES.md).
+
 ## Приватная blockchain-сеть
 
 [blockchain/](blockchain/) содержит локальный deploy-контур issue #79:
