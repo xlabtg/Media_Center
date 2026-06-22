@@ -33,6 +33,11 @@ def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
         ".gitleaks.toml",
         "aquasecurity/trivy-action@v0.36.0",
         "docker/build-push-action@v7",
+        "docker build \\",
+        "--build-arg SERVICE_NAME=${{ matrix.service }}",
+        "Build and push image",
+        "push: true",
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
         "image=moby/buildkit@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f",
         "infra/docker/service.Dockerfile",
     ]

@@ -17,7 +17,7 @@ assert_file() {
 assert_contains() {
   local path="$1"
   local pattern="$2"
-  grep -Fq "$pattern" "$path" || fail "missing marker in $path: $pattern"
+  grep -Fq -- "$pattern" "$path" || fail "missing marker in $path: $pattern"
 }
 
 expected_services=(
@@ -64,6 +64,11 @@ done
 image_markers=(
   "docker/setup-buildx-action@v4.1.0"
   "docker/build-push-action@v7.2.0"
+  "docker build \\"
+  "--build-arg SERVICE_NAME=\${{ matrix.service }}"
+  "Build and push image"
+  "push: true"
+  "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
   "image=moby/buildkit@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f"
   "infra/docker/service.Dockerfile"
 )

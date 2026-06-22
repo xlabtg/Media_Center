@@ -149,6 +149,7 @@ jobs:
         uses: actions/checkout@v7.0.0
 
       - name: Setup Docker Buildx
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/setup-buildx-action@v4.1.0
         with:
           driver-opts: |
@@ -163,6 +164,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: |
+          docker build \
+            --file infra/docker/service.Dockerfile \
+            --build-arg SERVICE_NAME=${{ matrix.service }} \
+            --build-arg SERVICE_PATH=${{ matrix.path }} \
+            --label org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            --label "org.opencontainers.image.title=Media Center ${{ matrix.service }}" \
+            --tag media-center-${{ matrix.service }}:${{ github.sha }} \
+            .
+
+      - name: Build and push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v7.2.0
         with:
           context: .
@@ -170,7 +185,7 @@ jobs:
           build-args: |
             SERVICE_NAME=${{ matrix.service }}
             SERVICE_PATH=${{ matrix.path }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/media-center-${{ matrix.service }}:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/media-center-${{ matrix.service }}:latest
