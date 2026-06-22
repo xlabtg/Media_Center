@@ -24,9 +24,11 @@
 
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
 каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
-baseline `python:3.13.14-slim`, устанавливает runtime-зависимости из
-`[project].dependencies` в [pyproject.toml](../pyproject.toml) и использует
-единую структуру артефакта:
+baseline `python:3.13.14-slim` и использует multi-stage схему: builder stage
+создает venv `/opt/venv`, устанавливает runtime-зависимости из
+`[project].dependencies` в [pyproject.toml](../pyproject.toml), подготавливает
+артефакт в `/build/app`, а runtime stage копирует только venv, код сервиса,
+`libs`, entrypoint и build metadata. Финальная структура артефакта единая:
 
 ```text
 /app/

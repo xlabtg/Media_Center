@@ -24,8 +24,8 @@ def test_issue_227_service_dockerfile_hardens_runtime_user_and_init() -> None:
         "ENV PYTHONPYCACHEPREFIX=/tmp/python-pyc",
         "ENV TMPDIR=/tmp",
         "ENV APP_LOG_DIR=/app/logs",
-        "COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/",
-        "COPY --chown=1000:1000 libs/ /app/libs/",
+        ("COPY --from=builder --chown=1000:1000 /build/app/service/ /app/service/"),
+        "COPY --from=builder --chown=1000:1000 /build/app/libs/ /app/libs/",
         'ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]',
         "USER 1000:1000",
     ]

@@ -14,8 +14,8 @@ def test_issue_230_service_dockerfile_uses_canonical_app_layout() -> None:
         "WORKDIR /app",
         "ENV PYTHONPATH=/app/service:/app",
         "mkdir -p /app/service /app/config /app/logs /tmp/python-pyc",
-        "COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/",
-        "COPY --chown=1000:1000 libs/ /app/libs/",
+        ("COPY --from=builder --chown=1000:1000 /build/app/service/ /app/service/"),
+        "COPY --from=builder --chown=1000:1000 /build/app/libs/ /app/libs/",
         "/app/config/build_info.json",
     ]
     missing = [marker for marker in required_markers if marker not in dockerfile]
