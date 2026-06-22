@@ -38,7 +38,7 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 
 Сервис создаётся через `create_contribution_ledger_app()` или entrypoint
 `contribution_ledger_app.main:app` и использует общий `create_service_app()`
-contract: `/health`, `/metrics`, `/docs`, `/openapi.json` доступны как
+contract: `/health`, `/ready`, `/metrics`, `/docs`, `/openapi.json` доступны как
 публичные service endpoints, а доменные операции требуют Bearer JWT и
 проверенный tenant context.
 

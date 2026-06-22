@@ -37,13 +37,24 @@ def test_create_base_app_registers_system_contract() -> None:
 
     client = TestClient(app)
 
-    assert client.get("/health").status_code == 200
-    assert client.get("/ready").json() == {
+    assert client.get("/health").json() == {
+        "service": "issue-217-service",
+        "version": "1.2.3",
+        "status": "ok",
+        "checks": {},
+    }
+
+    ready = client.get("/ready")
+
+    assert ready.status_code == 200
+    assert ready.json() == {
         "service": "issue-217-service",
         "version": "1.2.3",
         "status": "ready",
         "checks": {
             "database": "not_configured",
+            "redis": "not_configured",
+            "broker": "not_configured",
             "metrics": "enabled",
         },
     }

@@ -58,7 +58,6 @@ def test_service_template_app_exposes_health_metrics_and_tenant_context() -> Non
     config = ServiceTemplateConfig(
         service_name="service-template",
         version="0.1.0",
-        database_url="postgresql+asyncpg://nmc:nmc_dev_password@localhost:5432/nmc",
         jwt_secret=jwt_secret,
         prometheus_enabled=True,
     )
@@ -71,11 +70,13 @@ def test_service_template_app_exposes_health_metrics_and_tenant_context() -> Non
         "service": "service-template",
         "version": "0.1.0",
         "status": "ok",
-        "checks": {
-            "database": "configured",
-            "metrics": "enabled",
-        },
+        "checks": {},
     }
+
+    ready = client.get("/ready")
+
+    assert ready.status_code == 200
+    assert ready.json()["checks"]["database"] == "not_configured"
 
     unauthorized = client.get("/template/context")
 

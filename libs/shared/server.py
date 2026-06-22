@@ -11,7 +11,6 @@ from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, status
 from libs.shared.observability import TenantMetricRegistry
 from libs.shared.service_template import (
     ServiceTemplateConfig,
-    ServiceTemplateState,
     create_service_app,
 )
 from libs.shared.tenant import AuditSink
@@ -94,22 +93,6 @@ class BaseAppState:
 
 system_router = APIRouter(tags=["system"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-@system_router.get("/ready")
-def ready(request: Request) -> dict[str, object]:
-    base_state = _base_app_state(request.app)
-    template_state = _service_template_state(request.app)
-
-    return {
-        "service": base_state.config.service.service_name,
-        "version": base_state.config.service.version,
-        "status": "ready",
-        "checks": {
-            "database": template_state.database_status(),
-            "metrics": template_state.metrics_status(),
-        },
-    }
 
 
 @system_router.get("/info")
@@ -206,14 +189,6 @@ def _base_app_state(app: FastAPI) -> BaseAppState:
     state = getattr(app.state, "base_app", None)
     if not isinstance(state, BaseAppState):
         raise RuntimeError("base_app state не инициализирован")
-
-    return state
-
-
-def _service_template_state(app: FastAPI) -> ServiceTemplateState:
-    state = getattr(app.state, "service_template", None)
-    if not isinstance(state, ServiceTemplateState):
-        raise RuntimeError("service_template state не инициализирован")
 
     return state
 
