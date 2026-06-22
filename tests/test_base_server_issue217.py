@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from libs.shared import (
     DEFAULT_BASE_APP_PORT,
     BaseAppConfig,
+    S2SConfig,
     ServiceTemplateConfig,
+    SharedSecretS2SAuth,
     create_base_app,
 )
+
+S2S_SECRET = "test-only-s2s-secret"
 
 
 def test_create_base_app_registers_system_contract() -> None:
@@ -90,7 +95,10 @@ def test_create_base_app_keeps_docs_urls_configurable() -> None:
     assert client.get("/reference").status_code == 200
 
 
-def test_create_base_app_accepts_service_template_config_directly() -> None:
+def test_create_base_app_accepts_service_template_config_directly(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("S2S_SHARED_SECRET", S2S_SECRET)
     app = create_base_app(
         ServiceTemplateConfig(
             service_name="issue-217-direct",
@@ -101,8 +109,25 @@ def test_create_base_app_accepts_service_template_config_directly() -> None:
 
     assert client.get("/info").json()["service"] == "issue-217-direct"
 
-    log_level = client.put("/admin/log-level", params={"level": "debug"})
+    log_level = client.put(
+        "/admin/log-level",
+        json={"level": "debug"},
+        headers=_s2s_headers(method="PUT", nonce="issue-217-set-debug"),
+    )
 
     assert log_level.status_code == 200
     assert log_level.json() == {"level": "DEBUG"}
-    assert client.get("/admin/log-level").json() == {"level": "DEBUG"}
+    assert client.get(
+        "/admin/log-level",
+        headers=_s2s_headers(method="GET", nonce="issue-217-get-debug"),
+    ).json() == {"level": "DEBUG"}
+
+
+def _s2s_headers(*, method: str, nonce: str) -> dict[str, str]:
+    signer = SharedSecretS2SAuth(S2SConfig(shared_secret=S2S_SECRET))
+    return signer.sign_request(
+        method=method,
+        path="/admin/log-level",
+        service_name="pytest",
+        nonce=nonce,
+    )
