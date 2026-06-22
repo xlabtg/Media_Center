@@ -209,6 +209,21 @@
   проверять controlled degradation: readonly/cache, outbox, stale cache и
   отключение нездорового proxy route.
 
+## Реализовано для issue #220
+
+- `create_base_app()` включает единый Prometheus endpoint
+  `DEFAULT_METRICS_PATH == "/metrics"` для всех сервисов на базе shared
+  runtime-контракта;
+- endpoint отдаёт Prometheus text exposition
+  `text/plain; version=0.0.4; charset=utf-8` из `TenantMetricRegistry`;
+- базовый HTTP middleware пишет request/error счётчик
+  `nmc_service_operations_total` и latency histogram
+  `nmc_service_operation_duration_seconds` с labels `tenant_id`, `service`,
+  `operation`, `status`;
+- системные HTTP-метрики используют `operation="http_request"` и
+  `tenant_id="platform"`, а сам scrape `/metrics` не учитывается как
+  пользовательский запрос.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более
