@@ -22,6 +22,8 @@ LABEL org.opencontainers.image.title="Media Center service image" \
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPYCACHEPREFIX=/tmp/python-pyc
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_CACHE_DIR=1
 ENV TMPDIR=/tmp
 ENV PYTHONPATH=/app/service:/app
 ENV APP_LOG_DIR=/app/logs
@@ -33,6 +35,8 @@ ENV GIT_TAG=${GIT_TAG}
 
 WORKDIR /app
 
+COPY pyproject.toml /tmp/media-center-pyproject.toml
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/* \
@@ -42,6 +46,24 @@ RUN apt-get update \
     && chown -R 1000:1000 /app /tmp/python-pyc \
     && chmod 0775 /app/logs \
     && chmod 1777 /tmp
+
+RUN python - <<'PY'
+import tomllib
+from pathlib import Path
+
+
+pyproject = tomllib.loads(
+    Path("/tmp/media-center-pyproject.toml").read_text(encoding="utf-8")
+)
+dependencies = pyproject["project"]["dependencies"]
+Path("/tmp/requirements-runtime.txt").write_text(
+    "\n".join(dependencies) + "\n",
+    encoding="utf-8",
+)
+PY
+
+RUN python -m pip install -r /tmp/requirements-runtime.txt \
+    && rm -f /tmp/media-center-pyproject.toml /tmp/requirements-runtime.txt
 
 RUN python - <<'PY'
 import json
@@ -78,11 +100,14 @@ RUN chown 1000:1000 /app/config/build_info.json \
 
 COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/
 COPY --chown=1000:1000 libs/ /app/libs/
+COPY --chown=1000:1000 docker/entrypoint.sh /app/entrypoint.sh
+
+RUN chmod 0755 /app/entrypoint.sh
 
 USER 1000:1000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7700/health', timeout=3).read()"
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python", "-c", "import os; print(os.environ.get('SERVICE_NAME', 'service') + ' image is ready')"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
+CMD ["serve"]
