@@ -224,6 +224,17 @@
   `tenant_id="platform"`, а сам scrape `/metrics` не учитывается как
   пользовательский запрос.
 
+## Реализовано для issue #221
+
+- `setup_logging()` централизованно настраивает root logger на один
+  `stdout`-handler с JSON-форматом;
+- `LOG_LEVEL` используется как fallback, если уровень не передан явно, а
+  `create_base_app()` применяет уровень из `BaseAppConfig`;
+- `uvicorn.access` отключён по умолчанию, чтобы сервисы не включали request
+  access-log без явного решения;
+- JSON-запись содержит `timestamp`, `level`, `logger`, `message`, `service`
+  и безопасно сериализует дополнительные поля из `extra`.
+
 ## Правила
 
 1. Новый код попадает сюда только после проверки, что он нужен двум и более

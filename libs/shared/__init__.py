@@ -125,6 +125,11 @@ from libs.shared.load_testing import (
     run_threaded_and_evaluate_load_scenario,
     run_threaded_load_scenario,
 )
+from libs.shared.logging_config import (
+    JsonLogFormatter,
+    normalize_log_level,
+    setup_logging,
+)
 from libs.shared.models import (
     AUDIT_HASH_PATTERN_TEXT,
     EVENT_TYPE_PATTERN_TEXT,
@@ -407,6 +412,7 @@ __all__ = [
     "InMemoryTenantObjectStorage",
     "InMemoryTenantResourceManager",
     "InMemoryTenantVectorStore",
+    "JsonLogFormatter",
     "JSONValue",
     "AsyncLoadOperation",
     "LoadOperation",
@@ -553,6 +559,7 @@ __all__ = [
     "get_tenant_context",
     "hash_refresh_token",
     "load_app_settings",
+    "normalize_log_level",
     "observability_context_from_tenant_context",
     "rabbitmq_url_from_env",
     "require_access",
@@ -569,6 +576,7 @@ __all__ = [
     "s3_endpoint_url_from_env",
     "sanitize_observability_payload",
     "set_tenant_context",
+    "setup_logging",
     "tenant_context_from_authorization_header",
     "tenant_context_from_claims",
     "tenant_context_from_trusted_headers",
