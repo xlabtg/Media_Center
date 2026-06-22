@@ -69,6 +69,13 @@ non-root UID/GID `1000:1000`, `tini` как PID 1, writable только `/tmp` 
 `/app/logs`, а также compose/k8s флаги `read_only`,
 `no-new-privileges` и `cap_drop: ALL`.
 
+Бюджет размера образов принят в
+[ADR-0008](../docs/adr/0008-container-image-size-optimization.md) и ведется в
+[docs/operations/image-size-budget.md](../docs/operations/image-size-budget.md):
+базовый целевой порог для F2-гейта — `< 250 МБ` на сервисный runtime-образ,
+stretch-цель — `< 200 МБ`. `.dockerignore` исключает документацию, тесты,
+эксперименты, кеши и локальные артефакты из build context.
+
 Образ включает готовый `docker/entrypoint.sh`, который копируется в
 `/app/entrypoint.sh` и запускается через `tini`. Поэтому `docker run` без
 аргументов выполняет команду `serve`: entrypoint стартует `uvicorn` на
