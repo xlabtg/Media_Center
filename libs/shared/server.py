@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response, status
 
+from libs.shared.logging_config import setup_logging
 from libs.shared.observability import (
     DEFAULT_METRICS_PATH,
     ObservabilityContext,
@@ -171,6 +172,10 @@ def create_base_app(
         public_paths=_base_public_paths(base_config),
     )
     base_config = replace(base_config, service=service_config)
+    setup_logging(
+        base_config.log_level,
+        service_name=base_config.service.service_name,
+    )
 
     app = create_service_app(
         service_config,
