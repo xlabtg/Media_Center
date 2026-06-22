@@ -11,6 +11,7 @@ from libs.shared import (
     VaultSettings,
     load_app_settings,
 )
+from libs.shared.config import LOG_LEVELS
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,7 +21,7 @@ def _complete_env(overrides: Mapping[str, str] | None = None) -> dict[str, str]:
         "APP_ENV": "development",
         "LOG_LEVEL": "INFO",
         "APP_HOST": "0.0.0.0",
-        "APP_PORT": "8000",
+        "APP_PORT": "7700",
         "DATABASE_URL": "postgresql+asyncpg://nmc:secret@localhost:5432/nmc",
         "REDIS_URL": "redis://localhost:6379/0",
         "RABBITMQ_URL": "amqp://nmc:secret@localhost:5672/",
@@ -59,6 +60,7 @@ def test_app_settings_loads_typed_env_and_builds_existing_settings() -> None:
 
     assert isinstance(settings, AppSettings)
     assert settings.app_env == "development"
+    assert settings.app_port == 7700
     assert settings.veto_window_hours == 8
     assert settings.jwt_secret.get_secret_value() == "local-jwt-secret"
 
@@ -71,6 +73,30 @@ def test_app_settings_loads_typed_env_and_builds_existing_settings() -> None:
     )
     assert settings.to_chroma_settings().port == 8001
     assert settings.to_s3_settings().secret_key == "minio-secret"
+
+
+def test_app_settings_defaults_to_runtime_port_7700_when_env_is_absent() -> None:
+    env = _complete_env()
+    env.pop("APP_PORT")
+
+    settings = load_app_settings(environ=env)
+
+    assert settings.app_port == 7700
+
+
+def test_app_settings_allows_env_override_for_app_port_and_log_level() -> None:
+    settings = load_app_settings(
+        environ=_complete_env(
+            {
+                "APP_PORT": "7701",
+                "LOG_LEVEL": "critical",
+            },
+        ),
+    )
+
+    assert settings.app_port == 7701
+    assert settings.log_level == "CRITICAL"
+    assert "CRITICAL" in LOG_LEVELS
 
 
 def test_secret_provider_replaces_placeholders_before_validation() -> None:
