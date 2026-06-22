@@ -8,11 +8,13 @@
 сервиса НМЦ. Его можно скопировать в `services/<service-name>/` и за несколько
 минут получить FastAPI-приложение с единым shared wiring:
 
-- `create_service_app` собирает приложение с `/health`, `/metrics` и примером
-  tenant-aware route;
+- `create_service_app` собирает приложение с `/health`, `/ready`, `/metrics` и
+  примером tenant-aware route;
 - `TenantContextASGIMiddleware` проверяет JWT и tenant headers для приватных
   endpoint'ов;
 - `DatabaseSettings` валидирует `DATABASE_URL` и готовит точку подключения БД;
+- readiness registry проверяет доступность БД, Redis и RabbitMQ, когда
+  соответствующие URL заданы;
 - `TenantMetricRegistry` отдаёт Prometheus-метрики
   `nmc_service_operations_total` и
   `nmc_service_operation_duration_seconds`;
@@ -51,5 +53,5 @@ PYTHONPATH=. uvicorn --app-dir services/service-template app.main:app \
 Для production-сборки `JWT_SECRET` должен приходить из secret manager или
 окружения деплоя, а не из репозитория; значение в `.env.example` предназначено
 только для локального smoke-test. Публичными остаются только `/health`,
-`/metrics`, `/docs`, `/openapi.json` и `/redoc`; остальные маршруты требуют
-валидный Bearer JWT и `X-Tenant-Id`.
+`/ready`, `/metrics`, `/docs`, `/openapi.json` и `/redoc`; остальные маршруты
+требуют валидный Bearer JWT и `X-Tenant-Id`.

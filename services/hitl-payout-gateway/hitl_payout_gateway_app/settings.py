@@ -26,6 +26,8 @@ def build_service_config(
         ),
         version=_env(values, "SERVICE_VERSION", default="0.1.0"),
         database_url=_optional_env(values, "DATABASE_URL"),
+        redis_url=_optional_env(values, "REDIS_URL"),
+        rabbitmq_url=_optional_env(values, "RABBITMQ_URL"),
         jwt_secret=_required_env(values, "JWT_SECRET"),
         prometheus_enabled=_bool_env(values, "PROMETHEUS_ENABLED", default=True),
     )
