@@ -35,9 +35,20 @@ docker build \
   -f infra/docker/service.Dockerfile \
   --build-arg SERVICE_NAME=api-gateway \
   --build-arg SERVICE_PATH=services/api-gateway \
+  --build-arg SERVICE_VERSION="$(git describe --tags --always --dirty)" \
+  --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+  --build-arg GIT_COMMIT="$(git rev-parse HEAD)" \
+  --build-arg GIT_TAG="$(git describe --tags --exact-match 2>/dev/null || true)" \
+  --build-arg IMAGE_SOURCE=https://github.com/xlabtg/Media_Center \
   -t media-center-api-gateway:local \
   .
 ```
+
+При сборке образ пишет `/app/config/build_info.json` с `service`,
+`version`, `build_date`, `git_commit`, `git_tag`, `python`,
+`python_version` и `python_compiler`; те же build-аргументы используются для
+OCI-меток `org.opencontainers.image.source`, `version`, `revision` и
+`created`.
 
 Runtime hardening для app-сервисов зафиксирован в
 [docs/operations/container-hardening.md](../docs/operations/container-hardening.md):
