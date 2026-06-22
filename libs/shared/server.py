@@ -8,16 +8,18 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
-from typing import Annotated
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from pydantic import BaseModel, field_validator
 
+from libs.shared.config import LOG_LEVELS as CONFIG_LOG_LEVELS
 from libs.shared.logging_config import setup_logging
 from libs.shared.observability import (
     DEFAULT_METRICS_PATH,
     ObservabilityContext,
     TenantMetricRegistry,
 )
+from libs.shared.s2s_auth import S2SConfig, get_s2s_auth, require_s2s
 from libs.shared.service_template import (
     PLATFORM_TENANT_ID,
     ServiceTemplateConfig,
@@ -38,9 +40,16 @@ BASE_APP_SYSTEM_PUBLIC_PATHS = (
     "/info",
     "/admin/log-level",
 )
-BASE_APP_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+BASE_APP_LOG_LEVELS = CONFIG_LOG_LEVELS
 
-LogLevelQuery = Annotated[str, Query(min_length=1)]
+
+class LogLevelUpdateRequest(BaseModel):
+    level: str
+
+    @field_validator("level")
+    @classmethod
+    def _validate_level(cls, value: str) -> str:
+        return _normalize_log_level(value)
 
 
 def _default_build_metadata(service: ServiceTemplateConfig) -> dict[str, object]:
@@ -69,6 +78,7 @@ class BaseAppConfig:
     openapi_url: str | None = DEFAULT_BASE_APP_OPENAPI_URL
     title: str | None = None
     log_level: str = DEFAULT_BASE_APP_LOG_LEVEL
+    s2s: S2SConfig = field(default_factory=S2SConfig.from_env)
 
     def __post_init__(self) -> None:
         if not 0 < self.app_port <= 65535:
@@ -120,7 +130,11 @@ class BaseAppState:
 
 
 system_router = APIRouter(tags=["system"])
-admin_router = APIRouter(prefix="/admin", tags=["admin"])
+admin_router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_s2s)],
+)
 
 
 @system_router.get("/info")
@@ -146,14 +160,8 @@ def get_log_level(request: Request) -> dict[str, str]:
 
 
 @admin_router.put("/log-level")
-def set_log_level(request: Request, level: LogLevelQuery) -> dict[str, str]:
-    try:
-        normalized_level = _normalize_log_level(level)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+def set_log_level(request: Request, payload: LogLevelUpdateRequest) -> dict[str, str]:
+    normalized_level = payload.level
     logging.getLogger().setLevel(normalized_level)
     _base_app_state(request.app).log_level = normalized_level
 
@@ -190,6 +198,7 @@ def create_base_app(
         config=base_config,
         log_level=base_config.log_level,
     )
+    app.state.s2s_auth = get_s2s_auth(base_config.s2s)
     app.state.service_port = base_config.app_port
     app.include_router(system_router)
     app.include_router(admin_router)
