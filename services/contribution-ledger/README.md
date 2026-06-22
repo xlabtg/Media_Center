@@ -37,10 +37,22 @@ Contribution Ledger & Weight Engine фиксирует вклад участни
 ## REST API
 
 Сервис создаётся через `create_contribution_ledger_app()` или entrypoint
-`contribution_ledger_app.main:app` и использует общий `create_service_app()`
-contract: `/health`, `/ready`, `/metrics`, `/docs`, `/openapi.json` доступны как
-публичные service endpoints, а доменные операции требуют Bearer JWT и
-проверенный tenant context.
+`contribution_ledger_app.main:app` и использует общий `create_base_app()`
+contract: `/health`, `/ready`, `/info`, `/metrics`, `/admin/log-level`, `/docs`,
+`/openapi.json` доступны как единые runtime endpoints, а доменные операции
+требуют Bearer JWT и проверенный tenant context.
+
+Единый исполняемый запуск:
+
+```bash
+PYTHONPATH=services/contribution-ledger:. \
+JWT_SECRET=local-jwt-secret \
+python -m contribution_ledger_app.main
+```
+
+По умолчанию runner вызывает `uvicorn.run(app, host="0.0.0.0", port=7700)`.
+`APP_HOST`, `APP_PORT`, `LOG_LEVEL`, `SERVICE_NAME` и `SERVICE_VERSION`
+переопределяются через окружение.
 
 | Метод | Путь | Назначение |
 |-------|------|------------|

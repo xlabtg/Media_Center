@@ -5,7 +5,30 @@ from collections.abc import Mapping
 
 from contribution_ledger import CONTRIBUTION_LEDGER_SERVICE_NAME
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared import (
+    DEFAULT_BASE_APP_LOG_LEVEL,
+    DEFAULT_BASE_APP_PORT,
+    BaseAppConfig,
+    ServiceTemplateConfig,
+)
+
+DEFAULT_APP_HOST = "0.0.0.0"
+
+
+def build_app_host(environ: Mapping[str, str] | None = None) -> str:
+    values = os.environ if environ is None else environ
+    return _env(values, "APP_HOST", default=DEFAULT_APP_HOST)
+
+
+def build_base_app_config(
+    environ: Mapping[str, str] | None = None,
+) -> BaseAppConfig:
+    values = os.environ if environ is None else environ
+    return BaseAppConfig(
+        service=build_service_config(values),
+        app_port=_int_env(values, "APP_PORT", default=DEFAULT_BASE_APP_PORT),
+        log_level=_env(values, "LOG_LEVEL", default=DEFAULT_BASE_APP_LOG_LEVEL),
+    )
 
 
 def build_service_config(
@@ -63,3 +86,14 @@ def _bool_env(values: Mapping[str, str], name: str, *, default: bool) -> bool:
         return False
 
     raise ValueError(f"{name} должен быть boolean")
+
+
+def _int_env(values: Mapping[str, str], name: str, *, default: int) -> int:
+    value = values.get(name)
+    if value is None or value.strip() == "":
+        return default
+
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} должен быть целым числом") from exc
