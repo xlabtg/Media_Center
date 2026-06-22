@@ -33,6 +33,13 @@ def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
         ".gitleaks.toml",
         "aquasecurity/trivy-action@v0.36.0",
         "docker/build-push-action@v7",
+        "docker build \\",
+        "max-parallel: 1",
+        "--build-arg SERVICE_NAME=${{ matrix.service }}",
+        "Build and push image",
+        "push: true",
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+        "image=moby/buildkit@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f",
         "infra/docker/service.Dockerfile",
     ]
     missing = [marker for marker in required_markers if marker not in workflow]
@@ -52,6 +59,8 @@ def test_service_dockerfile_uses_adr_baseline_python_image() -> None:
     dockerfile = read_text("infra/docker/service.Dockerfile")
 
     assert "FROM python:3.13.14-slim" in dockerfile
+    assert "# syntax=" not in dockerfile
+    assert "docker/dockerfile" not in dockerfile
     assert "python:latest" not in dockerfile
     assert "ARG SERVICE_NAME" in dockerfile
     assert "ARG SERVICE_PATH" in dockerfile

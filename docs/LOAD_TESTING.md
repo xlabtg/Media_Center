@@ -6,6 +6,9 @@
 KPI пилота. Быстрый CI-контракт запускает in-memory контуры сервисов без
 внешней сети, реальных платёжных шлюзов и реальных площадок. Полный прогон с
 PostgreSQL, Redis, RabbitMQ и внешними rate limits остаётся release/pilot gate.
+Минимальный production capacity-профиль для запуска только recommended-core
+сервисов при `100 users/minute` зафиксирован в
+`docs/MINIMAL_PRODUCTION_RESOURCES.md`.
 
 ## Цели #85
 
