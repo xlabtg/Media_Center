@@ -24,7 +24,9 @@
 
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
 каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
-baseline `python:3.13.14-slim` и единую структуру артефакта:
+baseline `python:3.13.14-slim`, устанавливает runtime-зависимости из
+`[project].dependencies` в [pyproject.toml](../pyproject.toml) и использует
+единую структуру артефакта:
 
 ```text
 /app/
@@ -66,6 +68,30 @@ Runtime hardening для app-сервисов зафиксирован в
 non-root UID/GID `1000:1000`, `tini` как PID 1, writable только `/tmp` и
 `/app/logs`, а также compose/k8s флаги `read_only`,
 `no-new-privileges` и `cap_drop: ALL`.
+
+Образ включает готовый `docker/entrypoint.sh`, который копируется в
+`/app/entrypoint.sh` и запускается через `tini`. Поэтому `docker run` без
+аргументов выполняет команду `serve`: entrypoint стартует `uvicorn` на
+`APP_HOST=0.0.0.0` и `APP_PORT=7700`. ASGI import string можно задать явно через
+`APP_MODULE`; если переменная не задана, entrypoint строит значение из
+`SERVICE_NAME`, заменяя дефисы на подчёркивания: например
+`SERVICE_NAME=contribution-ledger` даёт
+`contribution_ledger_app.main:app`.
+
+Smoke-запуск собранного сервиса:
+
+```bash
+docker run --rm \
+  -e SERVICE_NAME=contribution-ledger \
+  -e JWT_SECRET=local-jwt-secret \
+  -p 7700:7700 \
+  media-center-contribution-ledger:local
+```
+
+Для сервисов с нестандартным модулем задайте `APP_MODULE`, например
+`APP_MODULE=app.main:app`. Любые аргументы вместо `serve` считаются override:
+`docker run --rm media-center-contribution-ledger:local python -V` выполнит
+переданную команду внутри контейнера.
 
 ## Локальная среда
 

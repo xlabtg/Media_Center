@@ -26,7 +26,7 @@ def test_issue_227_service_dockerfile_hardens_runtime_user_and_init() -> None:
         "ENV APP_LOG_DIR=/app/logs",
         "COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/",
         "COPY --chown=1000:1000 libs/ /app/libs/",
-        'ENTRYPOINT ["/usr/bin/tini", "--"]',
+        'ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]',
         "USER 1000:1000",
     ]
     missing = [marker for marker in required_markers if marker not in dockerfile]
