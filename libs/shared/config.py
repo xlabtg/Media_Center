@@ -84,7 +84,7 @@ SECRET_FIELD_NAMES = frozenset(
         "encryption_key",
     },
 )
-LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR"})
+LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 APP_ENVS = frozenset({"development", "staging", "production"})
 REDACTED_SECRET = "**********"
 
@@ -223,7 +223,7 @@ class AppSettings(BaseSettings):
     app_env: str = Field(default="development", validation_alias="APP_ENV")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
-    app_port: int = Field(default=8000, gt=0, le=65535, validation_alias="APP_PORT")
+    app_port: int = Field(default=7700, gt=0, le=65535, validation_alias="APP_PORT")
 
     database_url: str = Field(validation_alias="DATABASE_URL")
     redis_url: str = Field(validation_alias="REDIS_URL")
@@ -318,7 +318,9 @@ class AppSettings(BaseSettings):
     def _validate_log_level(cls, value: str) -> str:
         normalized = value.strip().upper()
         if normalized not in LOG_LEVELS:
-            raise ValueError("LOG_LEVEL должен быть DEBUG, INFO, WARNING или ERROR")
+            raise ValueError(
+                "LOG_LEVEL должен быть DEBUG, INFO, WARNING, ERROR или CRITICAL"
+            )
 
         return normalized
 

@@ -153,6 +153,9 @@ def create_service_app(
     title: str | None = None,
     metrics: TenantMetricRegistry | None = None,
     audit_sink: AuditSink | None = None,
+    docs_url: str | None = "/docs",
+    redoc_url: str | None = "/redoc",
+    openapi_url: str | None = "/openapi.json",
 ) -> FastAPI:
     state = ServiceTemplateState(
         config=config,
@@ -162,6 +165,9 @@ def create_service_app(
     app = FastAPI(
         title=title or f"Media Center {config.service_name}",
         version=config.version,
+        docs_url=docs_url,
+        redoc_url=redoc_url,
+        openapi_url=openapi_url,
     )
     app.state.service_template = state
 
