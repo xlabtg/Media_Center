@@ -23,6 +23,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPYCACHEPREFIX=/tmp/python-pyc
 ENV TMPDIR=/tmp
+ENV PYTHONPATH=/app/service:/app
 ENV APP_LOG_DIR=/app/logs
 ENV SERVICE_NAME=${SERVICE_NAME}
 ENV SERVICE_VERSION=${SERVICE_VERSION}
@@ -37,7 +38,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 app \
     && useradd --uid 1000 --gid 1000 --home-dir /app --shell /usr/sbin/nologin --no-create-home app \
-    && mkdir -p /app/logs /tmp/python-pyc /app/config \
+    && mkdir -p /app/service /app/config /app/logs /tmp/python-pyc \
     && chown -R 1000:1000 /app /tmp/python-pyc \
     && chmod 0775 /app/logs \
     && chmod 1777 /tmp
@@ -75,8 +76,8 @@ PY
 RUN chown 1000:1000 /app/config/build_info.json \
     && chmod 0444 /app/config/build_info.json
 
-COPY --chown=1000:1000 ${SERVICE_PATH}/README.md ./SERVICE.md
-COPY --chown=1000:1000 libs/shared/README.md ./SHARED.md
+COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/
+COPY --chown=1000:1000 libs/ /app/libs/
 
 USER 1000:1000
 

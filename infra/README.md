@@ -23,10 +23,21 @@
 ## Docker-образы сервисов
 
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
-каталога из matrix в [CI](../.github/workflows/ci.yml). Пока продуктовый код не
-добавлен, образ фиксирует runtime baseline `python:3.13.14-slim`, копирует
-README сервиса и `libs/shared/README.md`, чтобы проверять build pipeline без
-смешивания с реализацией будущих микросервисов.
+каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
+baseline `python:3.13.14-slim` и единую структуру артефакта:
+
+```text
+/app/
+├── service/                 # код выбранного SERVICE_PATH
+├── libs/                    # общие библиотеки монорепозитория
+├── config/                  # конфиги и build metadata
+│   └── build_info.json
+└── logs/                    # writable-каталог для runtime-логов при необходимости
+```
+
+`WORKDIR` всегда `/app`, а `PYTHONPATH=/app/service:/app`, поэтому код сервиса
+импортируется из `/app/service`, а общие модули из `/app/libs` доступны как
+`libs.*`.
 
 Локальная smoke-сборка одного сервиса:
 

@@ -16,7 +16,7 @@ def test_issue_229_service_dockerfile_generates_build_info_from_build_args() -> 
         "ARG GIT_TAG",
         "ARG SERVICE_VERSION",
         "ARG IMAGE_SOURCE",
-        "mkdir -p /app/logs /tmp/python-pyc /app/config",
+        "mkdir -p /app/service /app/config /app/logs /tmp/python-pyc",
         "/app/config/build_info.json",
         '"service":',
         '"version":',

@@ -17,15 +17,15 @@ def test_issue_227_service_dockerfile_hardens_runtime_user_and_init() -> None:
             "useradd --uid 1000 --gid 1000 --home-dir /app "
             "--shell /usr/sbin/nologin --no-create-home app"
         ),
-        "mkdir -p /app/logs /tmp/python-pyc",
+        "mkdir -p /app/service /app/config /app/logs /tmp/python-pyc",
         "chown -R 1000:1000 /app /tmp/python-pyc",
         "chmod 0775 /app/logs",
         "chmod 1777 /tmp",
         "ENV PYTHONPYCACHEPREFIX=/tmp/python-pyc",
         "ENV TMPDIR=/tmp",
         "ENV APP_LOG_DIR=/app/logs",
-        "COPY --chown=1000:1000 ${SERVICE_PATH}/README.md ./SERVICE.md",
-        "COPY --chown=1000:1000 libs/shared/README.md ./SHARED.md",
+        "COPY --chown=1000:1000 ${SERVICE_PATH}/ /app/service/",
+        "COPY --chown=1000:1000 libs/ /app/libs/",
         'ENTRYPOINT ["/usr/bin/tini", "--"]',
         "USER 1000:1000",
     ]
