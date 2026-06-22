@@ -39,6 +39,12 @@ docker build \
   .
 ```
 
+Runtime hardening для app-сервисов зафиксирован в
+[docs/operations/container-hardening.md](../docs/operations/container-hardening.md):
+non-root UID/GID `1000:1000`, `tini` как PID 1, writable только `/tmp` и
+`/app/logs`, а также compose/k8s флаги `read_only`,
+`no-new-privileges` и `cap_drop: ALL`.
+
 ## Локальная среда
 
 `infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
