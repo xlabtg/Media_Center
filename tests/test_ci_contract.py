@@ -33,6 +33,7 @@ def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
         ".gitleaks.toml",
         "aquasecurity/trivy-action@v0.36.0",
         "docker/build-push-action@v7",
+        "image=moby/buildkit@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f",
         "infra/docker/service.Dockerfile",
     ]
     missing = [marker for marker in required_markers if marker not in workflow]
