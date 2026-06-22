@@ -21,7 +21,11 @@ def test_issue_231_service_dockerfile_uses_ready_entrypoint_script() -> None:
         "COPY pyproject.toml /tmp/media-center-pyproject.toml",
         'pyproject["project"]["dependencies"]',
         "python -m pip install -r /tmp/requirements-runtime.txt",
-        "COPY --chown=1000:1000 docker/entrypoint.sh /app/entrypoint.sh",
+        "COPY docker/entrypoint.sh /build/app/entrypoint.sh",
+        (
+            "COPY --from=builder --chown=1000:1000 "
+            "/build/app/entrypoint.sh /app/entrypoint.sh"
+        ),
         "chmod 0755 /app/entrypoint.sh",
         'ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]',
         'CMD ["serve"]',
