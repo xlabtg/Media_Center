@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
+import os
 import platform
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, status
@@ -20,6 +23,7 @@ DEFAULT_BASE_APP_DOCS_URL = "/docs"
 DEFAULT_BASE_APP_REDOC_URL = "/redoc"
 DEFAULT_BASE_APP_OPENAPI_URL = "/openapi.json"
 DEFAULT_BASE_APP_LOG_LEVEL = "INFO"
+DEFAULT_BUILD_INFO_PATH = Path("/app/config/build_info.json")
 BASE_APP_SYSTEM_PUBLIC_PATHS = (
     "/ready",
     "/info",
@@ -30,11 +34,15 @@ BASE_APP_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 LogLevelQuery = Annotated[str, Query(min_length=1)]
 
 
-def _default_build_metadata() -> dict[str, object]:
+def _default_build_metadata(service: ServiceTemplateConfig) -> dict[str, object]:
+    git_tag = _env("GIT_TAG", default="")
+    version_default = git_tag or service.version
     return {
-        "build_date": "unknown",
-        "git_commit": "unknown",
-        "git_tag": "",
+        "service": _env("SERVICE_NAME", default=service.service_name),
+        "version": _env("SERVICE_VERSION", default=version_default),
+        "build_date": _env("BUILD_DATE", default="unknown"),
+        "git_commit": _env("GIT_COMMIT", default="unknown"),
+        "git_tag": git_tag,
         "python": f"Python {platform.python_version()}",
         "python_version": platform.python_version(),
         "python_compiler": platform.python_compiler(),
@@ -45,9 +53,8 @@ def _default_build_metadata() -> dict[str, object]:
 class BaseAppConfig:
     service: ServiceTemplateConfig
     app_port: int = DEFAULT_BASE_APP_PORT
-    build_metadata: Mapping[str, object] = field(
-        default_factory=_default_build_metadata,
-    )
+    build_metadata: Mapping[str, object] = field(default_factory=dict)
+    build_info_path: str | Path | None = DEFAULT_BUILD_INFO_PATH
     docs_url: str | None = DEFAULT_BASE_APP_DOCS_URL
     redoc_url: str | None = DEFAULT_BASE_APP_REDOC_URL
     openapi_url: str | None = DEFAULT_BASE_APP_OPENAPI_URL
@@ -58,10 +65,22 @@ class BaseAppConfig:
         if not 0 < self.app_port <= 65535:
             raise ValueError("app_port должен быть TCP-портом от 1 до 65535")
 
+        build_info_path = _normalize_build_info_path(self.build_info_path)
+        build_metadata = _resolve_build_metadata(
+            service=self.service,
+            explicit_metadata=self.build_metadata,
+            build_info_path=build_info_path,
+        )
+        object.__setattr__(self, "build_info_path", build_info_path)
         object.__setattr__(
             self,
             "build_metadata",
-            dict(self.build_metadata),
+            build_metadata,
+        )
+        object.__setattr__(
+            self,
+            "service",
+            _service_config_from_build_metadata(self.service, build_metadata),
         )
         object.__setattr__(
             self,
@@ -171,6 +190,96 @@ def _coerce_base_app_config(
         return config
 
     return BaseAppConfig(service=config)
+
+
+def _resolve_build_metadata(
+    *,
+    service: ServiceTemplateConfig,
+    explicit_metadata: Mapping[str, object],
+    build_info_path: Path | None,
+) -> dict[str, object]:
+    fallback = _default_build_metadata(service)
+    explicit = _normalize_build_metadata(explicit_metadata)
+    file_metadata = _load_build_info(build_info_path)
+    overlay = {**explicit, **file_metadata}
+    metadata = {**fallback, **overlay}
+    if "version" not in overlay:
+        git_tag = _build_metadata_text(overlay, "git_tag")
+        if git_tag is not None:
+            metadata["version"] = git_tag
+
+    return metadata
+
+
+def _load_build_info(path: Path | None) -> dict[str, object]:
+    if path is None or not path.is_file():
+        return {}
+
+    try:
+        raw_metadata = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(raw_metadata, dict):
+        return {}
+
+    return _normalize_build_metadata(raw_metadata)
+
+
+def _normalize_build_metadata(metadata: Mapping[str, object]) -> dict[str, object]:
+    normalized: dict[str, object] = {}
+    for key, value in metadata.items():
+        normalized_key = str(key).strip()
+        if normalized_key:
+            normalized[normalized_key] = value
+
+    return normalized
+
+
+def _service_config_from_build_metadata(
+    service: ServiceTemplateConfig,
+    metadata: Mapping[str, object],
+) -> ServiceTemplateConfig:
+    service_name = _build_metadata_text(metadata, "service") or service.service_name
+    version = (
+        _build_metadata_text(metadata, "version")
+        or _build_metadata_text(metadata, "git_tag")
+        or service.version
+    )
+    if service_name == service.service_name and version == service.version:
+        return service
+
+    return replace(service, service_name=service_name, version=version)
+
+
+def _normalize_build_info_path(value: str | Path | None) -> Path | None:
+    if value is None:
+        return None
+
+    return Path(value)
+
+
+def _build_metadata_text(
+    metadata: Mapping[str, object],
+    key: str,
+) -> str | None:
+    value = metadata.get(key)
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if normalized == "":
+        return None
+
+    return normalized
+
+
+def _env(name: str, *, default: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+
+    return value.strip()
 
 
 def _base_public_paths(config: BaseAppConfig) -> tuple[str, ...]:
