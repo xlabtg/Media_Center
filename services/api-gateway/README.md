@@ -39,6 +39,8 @@ tenant-aware маршрутизацию, проверку JWT/RBAC, rate limitin
 - Gateway перезаписывает trusted headers для downstream: `X-Tenant-Id`,
   `X-Subject-Id`, `X-Actor-Roles`, `X-Correlation-Id`, `X-Service-Name`,
   `X-Forwarded-Prefix` и `X-Original-Path`.
+- При переданном `s2s_auth` Gateway подписывает downstream-запрос
+  `X-S2S-*`/service credentials заголовками для внутренних endpoint'ов.
 - Локальный `InMemoryRateLimiter` реализует fixed-window лимиты по ключу
   `tenant_id + subject + service`; production-реализация должна заменить store
   на Redis или другой общий backend.

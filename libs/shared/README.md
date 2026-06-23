@@ -55,6 +55,8 @@
 - downstream всегда получает `X-Tenant-Id`, `X-Subject-Id`, `X-Actor-Roles`,
   `X-Correlation-Id`, `X-Service-Name`, `X-Forwarded-Prefix` и
   `X-Original-Path` из доверенного Gateway context;
+- при переданном `s2s_auth` gateway дополнительно подписывает downstream
+  request S2S-заголовками для внутреннего service boundary;
 - `InMemoryRateLimiter` и `RateLimitPolicy` дают deterministic fixed-window
   limiter для локальной wiring и unit-тестов;
 - превышение лимита возвращает единый error envelope `429 rate_limited` и

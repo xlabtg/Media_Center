@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
+from libs.shared.s2s_auth import S2SAuthenticator
 from libs.shared.tenant import TenantContext, TenantCoreError, require_tenant_context
 from libs.shared.tenant_resources import (
     TenantResourceLimitError,
@@ -221,6 +222,8 @@ class APIGatewayASGIMiddleware:
         routes: Iterable[GatewayRoute],
         rate_limiter: RateLimiter,
         resource_manager: TenantResourceManager | None = None,
+        s2s_auth: S2SAuthenticator | None = None,
+        source_service_name: str = "api-gateway",
     ) -> None:
         normalized_routes = tuple(
             sorted(routes, key=lambda route: len(route.path_prefix), reverse=True)
@@ -231,6 +234,8 @@ class APIGatewayASGIMiddleware:
         self._routes = normalized_routes
         self._rate_limiter = rate_limiter
         self._resource_manager = resource_manager
+        self._s2s_auth = s2s_auth
+        self._source_service_name = _normalize_service_name(source_service_name)
 
     async def __call__(
         self,
@@ -296,6 +301,8 @@ class APIGatewayASGIMiddleware:
                 scope,
                 route=route,
                 context=context,
+                s2s_auth=self._s2s_auth,
+                source_service_name=self._source_service_name,
             )
         except TenantCoreError as error:
             await _send_error(send, error)
@@ -355,6 +362,8 @@ def _downstream_scope(
     *,
     route: GatewayRoute,
     context: TenantContext,
+    s2s_auth: S2SAuthenticator | None,
+    source_service_name: str,
 ) -> ASGIScope:
     original_path = _scope_string(scope, "path")
     downstream_path = route.downstream_path(original_path)
@@ -366,6 +375,10 @@ def _downstream_scope(
         route=route,
         context=context,
         original_path=original_path,
+        downstream_path=downstream_path,
+        method=_scope_string(scope, "method"),
+        s2s_auth=s2s_auth,
+        source_service_name=source_service_name,
     )
     if "raw_path" in downstream_scope:
         downstream_scope["raw_path"] = downstream_path.encode("utf-8")
@@ -384,6 +397,10 @@ def _downstream_headers(
     route: GatewayRoute,
     context: TenantContext,
     original_path: str,
+    downstream_path: str,
+    method: str,
+    s2s_auth: S2SAuthenticator | None,
+    source_service_name: str,
 ) -> list[tuple[bytes, bytes]]:
     raw_headers = _raw_headers_from_scope(scope)
     correlation_id = context.correlation_id or _header_value(
@@ -412,7 +429,42 @@ def _downstream_headers(
     if context.subject is not None:
         headers.append((b"x-subject-id", _header_bytes(context.subject)))
 
-    return headers
+    return _signed_downstream_headers(
+        headers,
+        method=method,
+        path=downstream_path,
+        s2s_auth=s2s_auth,
+        source_service_name=source_service_name,
+    )
+
+
+def _signed_downstream_headers(
+    headers: list[tuple[bytes, bytes]],
+    *,
+    method: str,
+    path: str,
+    s2s_auth: S2SAuthenticator | None,
+    source_service_name: str,
+) -> list[tuple[bytes, bytes]]:
+    if s2s_auth is None:
+        return headers
+
+    signed_headers = s2s_auth.sign_request(
+        method=method,
+        path=path,
+        service_name=source_service_name,
+    )
+    signed_header_names = {_header_name_bytes(name).lower() for name in signed_headers}
+    forwarded_headers = [
+        (name, value)
+        for name, value in headers
+        if name.lower() not in signed_header_names
+    ]
+    forwarded_headers.extend(
+        (_header_name_bytes(name), _header_bytes(value))
+        for name, value in signed_headers.items()
+    )
+    return forwarded_headers
 
 
 def _raw_headers_from_scope(scope: ASGIScope) -> tuple[tuple[bytes, bytes], ...]:
@@ -447,6 +499,22 @@ def _header_value(
 
 def _header_bytes(value: str) -> bytes:
     return value.encode("utf-8")
+
+
+def _header_name_bytes(value: str) -> bytes:
+    normalized = value.strip().lower()
+    if normalized == "":
+        raise ValueError("header name должен быть непустой строкой")
+
+    return normalized.encode("ascii")
+
+
+def _normalize_service_name(value: str) -> str:
+    normalized = value.strip()
+    if normalized == "":
+        raise ValueError("source_service_name должен быть непустой строкой")
+
+    return normalized
 
 
 async def _send_error(send: Send, error: TenantCoreError) -> None:
