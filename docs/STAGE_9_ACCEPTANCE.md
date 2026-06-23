@@ -3,15 +3,16 @@
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
 авторизация для внутренних вызовов и `/admin/*`, эпика E из issue #250:
-оркестрация и раскатка единого runtime-контракта, задачи F1 из issue #251:
-DORA dashboard в Grafana для REQ-N3, задачи F2 из issue #252: бюджеты
-размера образов и cold-start до `/ready` для REQ-N1/REQ-N2, а также задачи
-F3 из issue #253: живая матрица конкурентных метрик REQ-M4, и задачи F4 из
-issue #254: SLO и error budget ключевых сервисов для REQ-N5. Внутри эпика E
-закрыты задача E1 из issue #247: локальный docker-compose с приложенческими
-сервисами, задача E2 из issue #248: k8s/Helm-манифесты для раскатки сервисов,
-и задача E3 из issue #249: раскатка единого runtime-контракта на все 14
-продуктовых сервисов.
+оркестрация и раскатка единого runtime-контракта, и Эпик F из issue #255:
+Операционное превосходство и метрики. Внутри эпика E закрыты задача E1 из
+issue #247: локальный docker-compose с приложенческими сервисами, задача E2 из
+issue #248: k8s/Helm-манифесты для раскатки сервисов, и задача E3 из issue
+#249: раскатка единого runtime-контракта на все 14 продуктовых сервисов.
+Внутри эпика F закрыты задача F1 из issue #251: DORA dashboard в Grafana для
+REQ-N3, задача F2 из issue #252: бюджеты размера образов и cold-start до
+`/ready` для REQ-N1/REQ-N2, задача F3 из issue #253: живая матрица конкурентных
+метрик REQ-M4, и задача F4 из issue #254: SLO и error budget ключевых сервисов
+для REQ-N5.
 Остальные задачи Этапа 9 ведутся отдельными родительскими issue из плана #213.
 
 ## Статус эпика C
@@ -42,6 +43,12 @@ issue #254: SLO и error budget ключевых сервисов для REQ-N5.
 | E1 | Выполнено: `infra/local/docker-compose.yml` добавляет все 14 продуктовых app-сервисов с образами `media-center-<service>`, build через `infra/docker/service.Dockerfile`, внутренним `APP_PORT=7700`, `expose: 7700`, healthcheck `/health`, `read_only`, `tmpfs`, `security_opt: no-new-privileges:true`, `cap_drop: ALL` и `depends_on` на healthy-инфраструктуру. | `infra/local/docker-compose.yml`, `infra/local/.env.local.example`, `infra/local/README.md`, `services/api-gateway/api_gateway_app/main.py`, `services/messenger-adapter/messenger_adapter_app/main.py`, `tests/test_local_app_compose_issue247_contract.py` |
 | E2 | Выполнено: `deploy/helm/media-center` добавляет Helm chart для всех 14 продуктовых сервисов: Deployment с `/health` liveness и `/ready` readiness probes, resources, securityContext non-root/read-only/no privilege escalation/drop caps, ServiceAccount с projected ServiceAccount token для S2S, TokenReview RBAC и Service на `7700`. | `deploy/helm/media-center/Chart.yaml`, `deploy/helm/media-center/values.yaml`, `deploy/helm/media-center/templates/`, `infra/README.md`, `experiments/validate_issue248_helm.sh`, `tests/test_helm_k8s_issue248_contract.py` |
 | E3 | Выполнено: все 14 продуктовых `*_app.main` используют `BaseAppConfig` + `create_base_app` через доменные фабрики, экспортируют ASGI `app`, поддерживают `python -m <service_app>.main`, стартуют на `APP_PORT=7700` и отвечают на `/health`, `/ready`, `/info`, `/metrics`. | `libs/shared/server.py`, `services/*/*_app/main.py`, `services/README.md`, `tests/test_stage9_epic_e_issue249_contract.py` |
+
+## Статус эпика F
+
+| Эпик | Статус | Проверяемые артефакты |
+| --- | --- | --- |
+| F / #255 | Выполнено: DORA-дашборд, CI-гейты размера/cold-start, живая матрица конкурентных метрик и SLO/error budget сведены в единый operational excellence gate для REQ-N1, REQ-N2, REQ-N3, REQ-N5 и REQ-M4. | `infra/observability/grafana/dashboards/dora.json`, `infra/observability/prometheus/rules/dora-metrics.yml`, `docs/operations/service-performance-budgets.json`, `.github/scripts/check_service_performance_budget.py`, `.github/workflows/build-service.yml`, `docs/case-studies/issue-213/metrics/competitive-metrics-matrix.md`, `infra/observability/slo-targets.json`, `infra/observability/prometheus/rules/slo-error-budget.yml`, `docs/operations/slo-error-budget.md`, `tests/test_stage9_epic_f_issue255_contract.py` |
 
 ## Статус задачи F1
 
@@ -125,6 +132,20 @@ registry attestations.
   ServiceAccount с projected token, TokenReview RBAC и hardening
   securityContext;
 - этот snapshot связывает родительский epic #250 с задачами #247, #248 и #249.
+
+Сквозной контракт Эпика F по issue #255 закреплён в
+`tests/test_stage9_epic_f_issue255_contract.py`. Он проверяет, что:
+
+- родительский acceptance snapshot связывает F1 / #251, F2 / #252, F3 / #253 и
+  F4 / #254 с требованиями REQ-N1, REQ-N2, REQ-N3, REQ-N5 и REQ-M4;
+- DORA dashboard и Prometheus recording rules сохраняют четыре ключевые
+  метрики поставочной зрелости;
+- F2 workflow запускает machine-checked budget gate размера образа и
+  cold-start до `/ready` с JSON-отчётами `service-performance-*`;
+- competitive matrix остаётся release-facing документом с текущими значениями,
+  целями и источниками измерений;
+- SLO catalog и Prometheus rules сохраняют availability, latency p95,
+  fast/slow burn alerts и runbook-ссылки для ключевых сервисов.
 
 Контракт E1 по issue #247 закреплён в
 `tests/test_local_app_compose_issue247_contract.py`. Он проверяет, что:
@@ -233,7 +254,8 @@ python -m pytest \
   tests/test_dora_grafana_issue251_contract.py \
   tests/test_performance_budgets_issue252_contract.py \
   tests/test_competitive_metrics_matrix_issue253_contract.py \
-  tests/test_slo_error_budget_issue254_contract.py
+  tests/test_slo_error_budget_issue254_contract.py \
+  tests/test_stage9_epic_f_issue255_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```
