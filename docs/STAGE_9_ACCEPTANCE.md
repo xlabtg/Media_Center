@@ -3,8 +3,9 @@
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
 авторизация для внутренних вызовов и `/admin/*`, а также задачи E1 из issue
-#247: локальный docker-compose с приложенческими сервисами. Остальные задачи
-Этапа 9 ведутся отдельными родительскими issue из плана #213.
+#247: локальный docker-compose с приложенческими сервисами, и задачи E2 из
+issue #248: k8s/Helm-манифесты для раскатки сервисов. Остальные задачи Этапа 9
+ведутся отдельными родительскими issue из плана #213.
 
 ## Статус эпика C
 
@@ -32,10 +33,12 @@
 | Задача | Статус | Проверяемые артефакты |
 | --- | --- | --- |
 | E1 | Выполнено: `infra/local/docker-compose.yml` добавляет все 14 продуктовых app-сервисов с образами `media-center-<service>`, build через `infra/docker/service.Dockerfile`, внутренним `APP_PORT=7700`, `expose: 7700`, healthcheck `/health`, `read_only`, `tmpfs`, `security_opt: no-new-privileges:true`, `cap_drop: ALL` и `depends_on` на healthy-инфраструктуру. | `infra/local/docker-compose.yml`, `infra/local/.env.local.example`, `infra/local/README.md`, `services/api-gateway/api_gateway_app/main.py`, `services/messenger-adapter/messenger_adapter_app/main.py`, `tests/test_local_app_compose_issue247_contract.py` |
+| E2 | Выполнено: `deploy/helm/media-center` добавляет Helm chart для всех 14 продуктовых сервисов: Deployment с `/health` liveness и `/ready` readiness probes, resources, securityContext non-root/read-only/no privilege escalation/drop caps, ServiceAccount с projected ServiceAccount token для S2S, TokenReview RBAC и Service на `7700`. | `deploy/helm/media-center/Chart.yaml`, `deploy/helm/media-center/values.yaml`, `deploy/helm/media-center/templates/`, `infra/README.md`, `experiments/validate_issue248_helm.sh`, `tests/test_helm_k8s_issue248_contract.py` |
 
 ## Release gate
 
-Основной workflow `.github/workflows/ci.yml` запускает quality/security jobs и
+Основной workflow `.github/workflows/ci.yml` запускает quality/security jobs,
+job `kubernetes` с `helm lint`/`helm template`/`kubeconform` для chart #248 и
 job `images`, который матрицей вызывает `.github/workflows/build-service.yml`.
 Reusable workflow выполняет полный порядок release gate:
 
@@ -89,11 +92,30 @@ registry attestations.
 - зависимости на PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO и
   OpenTelemetry Collector ожидают `condition: service_healthy`.
 
+Контракт E2 по issue #248 закреплён в
+`tests/test_helm_k8s_issue248_contract.py`. Он проверяет, что:
+
+- chart `deploy/helm/media-center` содержит все продуктовые сервисы из
+  `services/`, кроме `service-template`;
+- values задают образы `ghcr.io/xlabtg/media-center-<service>`, Service на
+  `7700` и probes `/health`/`/ready`;
+- Deployment template включает resources и securityContext с non-root,
+  read-only root filesystem, `allowPrivilegeEscalation: false`, drop caps и
+  writable `emptyDir` только для `/tmp` и `/app/logs`;
+- ServiceAccount использует projected ServiceAccount token для S2S,
+  `automountServiceAccountToken: false`, env для `kubernetes_sa` и TokenReview
+  RBAC;
+- validation script запускает `helm lint`, `helm template` и `kubeconform`, а
+  `.github/workflows/ci.yml` выполняет этот script в job `kubernetes`.
+
 Локальная проверка:
 
 ```bash
 python -m pytest \
   tests/test_stage9_epic_c_issue241_contract.py \
   tests/test_stage9_epic_d_issue246_contract.py \
-  tests/test_local_app_compose_issue247_contract.py
+  tests/test_local_app_compose_issue247_contract.py \
+  tests/test_helm_k8s_issue248_contract.py
+
+bash experiments/validate_issue248_helm.sh
 ```

@@ -1,0 +1,150 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 2
+containerPort: 7700
+
+image:
+  registry: ghcr.io
+  repositoryOwner: xlabtg
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 7700
+
+env:
+  APP_ENV: production
+  APP_HOST: "0.0.0.0"
+  APP_PORT: "7700"
+  LOG_LEVEL: INFO
+  PROMETHEUS_ENABLED: "true"
+
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+
+rbac:
+  tokenReview:
+    create: true
+
+s2s:
+  authMethod: kubernetes_sa
+  audience: nmc-services
+  issuer: https://kubernetes.default.svc
+  tokenReviewUrl: https://kubernetes.default.svc/apis/authentication.k8s.io/v1/tokenreviews
+  tokenMountPath: /var/run/secrets/nmc/s2s
+  tokenPath: token
+  caPath: ca.crt
+  expirationSeconds: 3600
+
+services:
+  activity-command-center:
+    enabled: true
+    serviceName: activity-command-center
+    image:
+      repository: media-center-activity-command-center
+  analytics-engine:
+    enabled: true
+    serviceName: analytics-engine
+    image:
+      repository: media-center-analytics-engine
+  api-gateway:
+    enabled: true
+    serviceName: api-gateway
+    image:
+      repository: media-center-api-gateway
+  blockchain-auditor:
+    enabled: true
+    serviceName: blockchain-auditor
+    image:
+      repository: media-center-blockchain-auditor
+  cglr:
+    enabled: true
+    serviceName: cglr
+    image:
+      repository: media-center-cglr
+  contribution-ledger:
+    enabled: true
+    serviceName: contribution-ledger
+    image:
+      repository: media-center-contribution-ledger
+  hitl-payout-gateway:
+    enabled: true
+    serviceName: hitl-payout-gateway
+    image:
+      repository: media-center-hitl-payout-gateway
+  messenger-adapter:
+    enabled: true
+    serviceName: messenger-adapter
+    image:
+      repository: media-center-messenger-adapter
+  neuro-agent-orchestrator:
+    enabled: true
+    serviceName: neuro-agent-orchestrator
+    image:
+      repository: media-center-neuro-agent-orchestrator
+  notification-gateway:
+    enabled: true
+    serviceName: notification-gateway
+    image:
+      repository: media-center-notification-gateway
+  policy-manager:
+    enabled: true
+    serviceName: policy-manager
+    image:
+      repository: media-center-policy-manager
+  voice-to-chain:
+    enabled: true
+    serviceName: voice-to-chain
+    image:
+      repository: media-center-voice-to-chain
+  wallet:
+    enabled: true
+    serviceName: wallet
+    image:
+      repository: media-center-wallet
+  web-cabinet:
+    enabled: true
+    serviceName: web-cabinet
+    image:
+      repository: media-center-web-cabinet

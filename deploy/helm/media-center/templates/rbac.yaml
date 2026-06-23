@@ -1,0 +1,34 @@
+{{- if and .Values.serviceAccount.create .Values.rbac.tokenReview.create -}}
+{{- range $serviceName, $service := .Values.services }}
+{{- if $service.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "media-center.tokenReviewName" (dict "root" $ "serviceName" $serviceName) }}
+  labels:
+    {{- include "media-center.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceName }}
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "media-center.tokenReviewName" (dict "root" $ "serviceName" $serviceName) }}
+  labels:
+    {{- include "media-center.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceName }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "media-center.tokenReviewName" (dict "root" $ "serviceName" $serviceName) }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "media-center.serviceAccountName" (dict "root" $ "serviceName" $serviceName) }}
+    namespace: {{ $.Release.Namespace }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

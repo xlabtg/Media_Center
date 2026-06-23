@@ -115,6 +115,37 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
 
+  kubernetes:
+    name: Helm/k8s validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+
+      - name: Install Helm
+        env:
+          HELM_VERSION: v3.21.2
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/linux-amd64/helm "$HOME/.local/bin/helm"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install kubeconform
+        env:
+          KUBECONFORM_VERSION: v0.8.0
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/kubeconform "$HOME/.local/bin/kubeconform"
+
+      - name: Validate Helm chart
+        run: bash experiments/validate_issue248_helm.sh
+
   images:
     name: Build service image (${{ matrix.service }})
     uses: ./.github/workflows/build-service.yml
