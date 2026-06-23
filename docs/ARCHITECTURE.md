@@ -335,6 +335,18 @@ flowchart LR
 | Ошибки | Ошибки возвращаются единым envelope с `code`, `message`, `correlation_id`; межтенантный доступ — `403 tenant_isolation_violation`. |
 | Приватность | В событиях и audit-chain payload нет ПДн, сумм выплат, токенов площадок и сырого контента без явного разрешения контракта. |
 
+### 8.1. Service discovery
+
+Вопрос [#295](https://github.com/xlabtg/Media_Center/issues/295) закрыт в
+[SERVICE_DISCOVERY.md](SERVICE_DISCOVERY.md): baseline использует DNS рантайма и
+endpoint из env/Helm values, без отдельного service registry. Локально это
+Docker Compose DNS (`postgres:5432`, `redis:6379`, `rabbitmq:5672`,
+`http://minio:9000`, `http://otel-collector:4318`,
+`http://<service>:7700`), в Kubernetes - `Kubernetes Service` типа `ClusterIP`
+с именем `<release>-media-center-<service>`. S2S credentials не являются
+механизмом discovery: они подтверждают identity вызывающего сервиса, но адрес
+downstream остаётся явной конфигурацией окружения.
+
 ---
 
 ## 9. Потоки данных
@@ -469,7 +481,8 @@ ADR-0007 закрывает baseline issue #7: ER-модель, индексы, 
 
 ## 15. Развёртывание
 
-- **Локально:** docker-compose (PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO, сервисы).
+- **Локально:** docker-compose (PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO, сервисы) с discovery через Docker Compose DNS.
+- **Kubernetes:** Helm chart создаёт `ClusterIP` Service для каждого product service; внутренние endpoint описаны в [SERVICE_DISCOVERY.md](SERVICE_DISCOVERY.md).
 - **CI/CD:** lint → тесты → сборка образов → security scan → деплой.
 - **Прод:** контейнеры с горизонтальным масштабированием; приватная блокчейн-сеть отдельным контуром; доступ к блокчейну — только Совет.
 

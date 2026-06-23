@@ -12,6 +12,7 @@
 |----------|------------|
 | [sync-api.md](sync-api.md) | REST/gRPC правила, API Gateway, общие headers, ошибки и карта синхронных endpoints. |
 | [events.md](events.md) | RabbitMQ envelope, routing keys, схема события, каталог доменных событий. |
+| [../SERVICE_DISCOVERY.md](../SERVICE_DISCOVERY.md) | Service discovery #295: DNS рантайма, `ClusterIP`, env/values endpoint и граница с S2S identity. |
 
 ## Общие инварианты
 
@@ -29,6 +30,7 @@
 ## Связанные документы
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [SERVICE_DISCOVERY.md](../SERVICE_DISCOVERY.md)
 - [adr/README.md](../adr/README.md)
 - [SECURITY.md](../SECURITY.md)
 - [REQUIREMENTS.md](../REQUIREMENTS.md)
