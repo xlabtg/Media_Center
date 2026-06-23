@@ -23,6 +23,7 @@
 | [`04-competitive-analysis.md`](04-competitive-analysis.md) | Конкуренты, оси сравнения, целевые метрики превосходства (REQ-N1..N5) |
 | [`05-solution-plan.md`](05-solution-plan.md) | План «Этап 9»: 6 эпиков → 33 задачи, граф зависимостей, матрица трассируемости REQ→issue |
 | [`metrics/dora-data-sources.md`](metrics/dora-data-sources.md) | Контракт источников данных DORA для issue #251: CI/CD events, incidents и Prometheus recording rules |
+| [`metrics/competitive-metrics-matrix.md`](metrics/competitive-metrics-matrix.md) | Живая матрица конкурентных метрик для F3 / #253: текущие и целевые значения, F1/F2 evidence и release-процесс обновления |
 | [`sources/`](sources/) | Первоисточники: транскрипт чата Qwen (`qwen-chat-transcript.md`) и сырой дамп (`qwen-chat-raw-innertext.txt`) |
 
 ## Итог планирования
