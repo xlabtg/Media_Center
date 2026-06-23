@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import uvicorn
 from fastapi import FastAPI
 from hitl_payout_gateway import create_hitl_payout_app
 
-from libs.shared import (
+from libs.shared.server import (
     BaseAppConfig,
     build_runtime_app_host,
     build_runtime_base_app_config,
@@ -32,6 +31,8 @@ app = build_app(runtime_config)
 
 
 def run() -> None:
+    import uvicorn
+
     uvicorn.run(
         app,
         host=runtime_host,

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import uvicorn
 from analytics_engine import create_analytics_engine_app
 from fastapi import FastAPI
 
-from libs.shared import (
+from libs.shared.server import (
     BaseAppConfig,
     build_runtime_app_host,
     build_runtime_base_app_config,
@@ -24,6 +23,8 @@ app = build_app(runtime_config)
 
 
 def run() -> None:
+    import uvicorn
+
     uvicorn.run(
         app,
         host=runtime_host,

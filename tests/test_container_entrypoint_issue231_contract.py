@@ -19,7 +19,8 @@ def test_issue_231_service_dockerfile_uses_ready_entrypoint_script() -> None:
 
     required_markers = [
         "COPY pyproject.toml /tmp/media-center-pyproject.toml",
-        'pyproject["project"]["dependencies"]',
+        'pyproject["project"].get("optional-dependencies", {})',
+        "runtime-core",
         "python -m pip install -r /tmp/requirements-runtime.txt",
         "COPY docker/entrypoint.sh /build/app/entrypoint.sh",
         (

@@ -7,7 +7,11 @@ from enum import StrEnum
 
 from pydantic import Field, field_validator
 
-from libs.shared import IdempotencyKey, SharedBaseModel, TenantId
+from libs.shared.models import (
+    IdempotencyKey,
+    SharedBaseModel,
+    TenantId,
+)
 
 
 class AudioRetentionError(RuntimeError):

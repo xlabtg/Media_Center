@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-from web_cabinet import WEB_CABINET_SERVICE_NAME
+from libs.shared.service_template import ServiceTemplateConfig
 
-from libs.shared import ServiceTemplateConfig
+WEB_CABINET_SERVICE_NAME = "web-cabinet"
 
 
 def build_service_config(

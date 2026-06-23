@@ -3,12 +3,12 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-from libs.shared import (
+from libs.shared.server import (
     DEFAULT_BASE_APP_LOG_LEVEL,
     DEFAULT_BASE_APP_PORT,
     BaseAppConfig,
-    ServiceTemplateConfig,
 )
+from libs.shared.service_template import ServiceTemplateConfig
 
 MESSENGER_ADAPTER_SERVICE_NAME = "messenger-adapter"
 DEFAULT_APP_HOST = "0.0.0.0"

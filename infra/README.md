@@ -25,14 +25,15 @@
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
 каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
 baseline `python:3.13.14-slim` и использует multi-stage схему: builder stage
-создает venv `/opt/venv`, устанавливает runtime-зависимости из
-`[project].dependencies` в [pyproject.toml](../pyproject.toml), подготавливает
-артефакт в `/build/app`, а runtime stage копирует только venv, код сервиса,
-`libs`, entrypoint и build metadata. Финальная структура артефакта единая:
+создает venv `/opt/venv`, устанавливает runtime-зависимости из optional groups
+`runtime-core` и `runtime-<SERVICE_NAME>` в
+[pyproject.toml](../pyproject.toml), подготавливает артефакт в `/build/app`, а
+runtime stage копирует только venv, Python-пакеты сервисов, `libs`, entrypoint
+и build metadata. Финальная структура артефакта единая:
 
 ```text
 /app/
-├── service/                 # код выбранного SERVICE_PATH
+├── service/                 # выбранный SERVICE_PATH и peer service packages
 ├── libs/                    # общие библиотеки монорепозитория
 ├── config/                  # конфиги и build metadata
 │   └── build_info.json
@@ -40,8 +41,15 @@ baseline `python:3.13.14-slim` и использует multi-stage схему: b
 ```
 
 `WORKDIR` всегда `/app`, а `PYTHONPATH=/app/service:/app`, поэтому код сервиса
-импортируется из `/app/service`, а общие модули из `/app/libs` доступны как
-`libs.*`.
+и легковесные peer packages из соседних сервисов импортируются из
+`/app/service`, а общие модули из `/app/libs` доступны как `libs.*`. Peer
+packages копируются как исходный код без их dev/audit/integration зависимостей;
+runtime-зависимости по-прежнему ограничены optional groups.
+
+Для F2 cold-start гейта build stage сохраняет только selective bytecode:
+FastAPI/Starlette/Pydantic в venv, текущий service package, его `*_app`
+entrypoint и `libs/shared`. Остальной venv bytecode удаляется, чтобы образ
+оставался ниже 250 MB.
 
 Локальная smoke-сборка одного сервиса:
 
@@ -108,8 +116,13 @@ bash experiments/validate_issue248_helm.sh
 [ADR-0008](../docs/adr/0008-container-image-size-optimization.md) и ведется в
 [docs/operations/image-size-budget.md](../docs/operations/image-size-budget.md):
 базовый целевой порог для F2-гейта — `< 250 МБ` на сервисный runtime-образ,
-stretch-цель — `< 200 МБ`. `.dockerignore` исключает документацию, тесты,
-эксперименты, кеши и локальные артефакты из build context.
+stretch-цель — `< 200 МБ`, cold-start до `/ready` — `< 3 с`. Пороги CI
+заданы в
+[docs/operations/service-performance-budgets.json](../docs/operations/service-performance-budgets.json),
+а reusable workflow запускает
+`.github/scripts/check_service_performance_budget.py` после локальной сборки
+образа. `.dockerignore` исключает документацию, тесты, эксперименты, кеши и
+локальные артефакты из build context.
 
 Образ включает готовый `docker/entrypoint.sh`, который копируется в
 `/app/entrypoint.sh` и запускается через `tini`. Поэтому `docker run` без

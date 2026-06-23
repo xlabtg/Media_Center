@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(

@@ -13,28 +13,38 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
-from libs.shared import (
-    COUNCIL_ROLE,
-    VALIDATION_ERROR_CODE,
-    AccessPolicy,
-    AuditHash,
+from libs.shared.audit_logger import (
     AuditLogger,
-    BaseAppConfig,
-    IdempotencyKey,
     InMemoryAuditLogSink,
-    InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
+)
+from libs.shared.auth import TOTPService
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
     SharedError,
+    error_response_body,
+)
+from libs.shared.events import InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
     SubjectId,
+)
+from libs.shared.rbac import (
+    COUNCIL_ROLE,
+    AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TOTPService,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
 

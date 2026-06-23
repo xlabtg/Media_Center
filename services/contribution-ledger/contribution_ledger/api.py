@@ -14,26 +14,32 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.errors import (
     IDEMPOTENCY_CONFLICT_CODE,
     VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import InMemoryEventBus
+from libs.shared.models import (
     AuditHash,
-    BaseAppConfig,
     CorrelationId,
     IdempotencyKey,
-    InMemoryAuditSink,
-    InMemoryEventBus,
     JSONValue,
-    ServiceTemplateConfig,
     SharedBaseModel,
-    SharedError,
     SubjectId,
+    TenantId,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_base_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_base_app,
-    error_response_body,
     require_tenant_context,
 )
 

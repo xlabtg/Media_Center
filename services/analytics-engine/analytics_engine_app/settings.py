@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from analytics_engine import ANALYTICS_ENGINE_SERVICE_NAME
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(

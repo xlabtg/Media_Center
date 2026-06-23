@@ -78,6 +78,22 @@ jobs:
           labels: ${{ steps.docker-metadata.outputs.labels }}
           cache-from: type=gha
 
+      - name: Check service performance budgets
+        run: >
+          python .github/scripts/check_service_performance_budget.py
+          --service "${{ inputs.service }}"
+          --image "media-center-${{ inputs.service }}:trivy-scan"
+          --config docs/operations/service-performance-budgets.json
+          --report-dir performance-reports
+
+      - name: Upload service performance budget report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: service-performance-${{ inputs.service }}
+          path: performance-reports/
+          if-no-files-found: warn
+
       - name: Prepare Trivy image scan report directory
         run: mkdir -p trivy-reports
 

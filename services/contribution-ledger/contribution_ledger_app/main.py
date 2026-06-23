@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import uvicorn
+from typing import Any
+
 from contribution_ledger import create_contribution_ledger_app
 from fastapi import FastAPI
 
-from libs.shared import BaseAppConfig
+from libs.shared.server import BaseAppConfig
 
 from .settings import build_app_host, build_base_app_config
 
@@ -17,6 +18,16 @@ def build_app(config: BaseAppConfig | None = None) -> FastAPI:
 
 
 app = build_app(runtime_config)
+
+
+class _LazyUvicorn:
+    def run(self, *args: Any, **kwargs: Any) -> None:
+        import uvicorn as uvicorn_module
+
+        uvicorn_module.run(*args, **kwargs)
+
+
+uvicorn = _LazyUvicorn()
 
 
 def run() -> None:

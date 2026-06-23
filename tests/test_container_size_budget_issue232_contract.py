@@ -42,12 +42,14 @@ def test_issue_232_image_size_budget_documents_baseline_measurement() -> None:
     budget = read_text("docs/operations/image-size-budget.md")
 
     required_markers = [
-        "# Бюджет размера сервисных образов",
+        "# Бюджет размера и cold-start сервисных образов",
         "REQ-N1",
+        "REQ-N2",
         "Базовый бюджет",
         "< 250 МБ",
         "Stretch-бюджет",
         "< 200 МБ",
+        "< 3 с",
         "docker image inspect",
         "media-center-contribution-ledger:issue232-baseline",
         "Базовый замер",

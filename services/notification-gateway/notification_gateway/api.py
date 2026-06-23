@@ -17,38 +17,47 @@ from jinja2 import StrictUndefined, TemplateError, TemplateSyntaxError
 from jinja2.sandbox import SandboxedEnvironment
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.audit_logger import (
+    AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import EventEnvelope, InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
+    CorrelationId,
+    EventType,
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
+    SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
     PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
-    AuditHash,
-    AuditLogger,
-    BaseAppConfig,
-    CorrelationId,
-    EventType,
     ForbiddenError,
-    IdempotencyKey,
-    InMemoryAuditLogSink,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
-    SubjectId,
     TenantContext,
     TenantCoreError,
-    TenantId,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
-from libs.shared.events import EventEnvelope
 
 NOTIFICATION_GATEWAY_SERVICE_NAME = "notification-gateway"
 NOTIFICATION_GATEWAY_SOURCE = "notification-gateway"

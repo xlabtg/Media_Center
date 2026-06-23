@@ -7,13 +7,15 @@ from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import uuid4
 
-from blockchain_auditor import (
+from blockchain_auditor.connector import (
     AuditBatchError,
     AuditMetadataPolicyError,
     AuditRecordConflictError,
     GrpcBlockchainAuditConnector,
     GrpcBlockchainAuditTransport,
     InMemoryGrpcBlockchainAuditTransport,
+)
+from blockchain_auditor.settings import (
     build_blockchain_auditor_settings,
 )
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -23,25 +25,33 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field, field_validator
 
-from libs.shared import (
+from libs.shared.audit_logger import InMemoryAuditLogSink
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.models import (
+    JSONValue,
+    SharedBaseModel,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
     BaseAppConfig,
-    InMemoryAuditLogSink,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
     TenantContext,
     TenantCoreError,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
 

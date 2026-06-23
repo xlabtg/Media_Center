@@ -10,11 +10,101 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from analytics_engine import (
+from blockchain_auditor.connector import (
+    AuditBatchError,
+    AuditMetadataPolicyError,
+    AuditRecordConflictError,
+    GrpcBlockchainAuditConnector,
+    InMemoryGrpcBlockchainAuditTransport,
+)
+from blockchain_auditor.settings import (
+    build_blockchain_auditor_settings,
+)
+from fastapi import APIRouter, Depends, FastAPI, Query, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from hitl_payout_gateway.confirmation_manager import (
+    PAYOUT_CONFIRM_OPERATION,
+    PayoutConfirmation,
+    PayoutConfirmationManager,
+)
+from hitl_payout_gateway.queue_manager import (
+    InMemoryPayoutQueueRepository,
+    PayoutNotExecutableError,
+    PayoutNotFoundError,
+    PayoutQueueError,
+    PayoutQueueItem,
+    PayoutQueueManager,
+    PayoutStatus,
+)
+from hitl_payout_gateway.veto_manager import (
+    VetoDecision,
+    VetoManager,
+    VetoWindowClosedError,
+)
+from policy_manager.manager import (
+    InMemoryPolicyRepository,
+    PolicyManager,
+    PolicyManagerError,
+    PolicyNotFoundError,
+    PolicyRecord,
+    PolicyUpdateInput,
+)
+from pydantic import Field
+from voice_to_chain.retention import AudioRetentionError
+from voice_to_chain.service import (
+    VoiceToChainError,
+    VoiceToChainService,
+    VoiceTranscriptionCommand,
+    VoiceTranscriptionReceipt,
+)
+from voice_to_chain.transcription import (
+    InMemoryWhisperCppTranscriber,
+    WhisperCppTranscriptionError,
+)
+
+from libs.shared.audit_logger import audit_hash
+from libs.shared.auth import TOTPService
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.models import (
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
+    SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
+    AUDIENCE_ROLE,
+    BOARD_ROLE,
+    COUNCIL_ROLE,
+    MEMBER_ASSOC_ROLE,
+    MEMBER_FULL_ROLE,
+    PRESIDIUM_ROLE,
+    AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
+    TenantContext,
+    TenantCoreError,
+    TenantScopedRepository,
+    require_tenant_context,
+)
+from web_cabinet.analytics import (
     AnalyticsCategory,
     AnalyticsCategoryAggregate,
     AnalyticsEventRecord,
@@ -25,55 +115,14 @@ from analytics_engine import (
     build_analytics_aggregates_response,
     build_analytics_kpi_response,
 )
-from blockchain_auditor import (
-    AuditBatchError,
-    AuditMetadataPolicyError,
-    AuditRecordConflictError,
-    GrpcBlockchainAuditConnector,
-    InMemoryGrpcBlockchainAuditTransport,
-    build_blockchain_auditor_settings,
+from web_cabinet.design_system import (
+    DESIGN_SYSTEM_NAME,
+    DesignSystemResponse,
+    design_system_css,
+    design_system_response,
+    render_design_system_ui_kit,
 )
-from fastapi import APIRouter, Depends, FastAPI, Query, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, Response
-from hitl_payout_gateway import (
-    PAYOUT_CONFIRM_OPERATION,
-    ConfirmPayoutRequest,
-    InMemoryPayoutQueueRepository,
-    PayoutConfirmation,
-    PayoutConfirmationManager,
-    PayoutNotExecutableError,
-    PayoutNotFoundError,
-    PayoutQueueError,
-    PayoutQueueItem,
-    PayoutQueueManager,
-    PayoutStatus,
-    VetoDecision,
-    VetoManager,
-    VetoPayoutRequest,
-    VetoWindowClosedError,
-)
-from policy_manager import (
-    InMemoryPolicyRepository,
-    PolicyManager,
-    PolicyManagerError,
-    PolicyNotFoundError,
-    PolicyRecord,
-    PolicyUpdateInput,
-    UpdatePolicyRequest,
-)
-from pydantic import Field
-from voice_to_chain import (
-    AudioRetentionError,
-    InMemoryWhisperCppTranscriber,
-    VoiceToChainError,
-    VoiceToChainService,
-    VoiceTranscriptionCommand,
-    VoiceTranscriptionReceipt,
-    WhisperCppTranscriptionError,
-)
-from wallet import (
+from web_cabinet.wallet import (
     InMemoryWalletRepository,
     WalletBalance,
     WalletBalanceResponse,
@@ -82,47 +131,14 @@ from wallet import (
     WalletOperationType,
 )
 
-from libs.shared import (
-    AUDIENCE_ROLE,
-    BOARD_ROLE,
-    COUNCIL_ROLE,
-    MEMBER_ASSOC_ROLE,
-    MEMBER_FULL_ROLE,
-    PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
-    AccessPolicy,
-    BaseAppConfig,
-    InMemoryAuditSink,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
-    SubjectId,
-    TenantContext,
-    TenantCoreError,
-    TenantId,
-    TenantScopedRepository,
-    TOTPService,
-    audit_hash,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
-    require_tenant_context,
-)
-from web_cabinet.design_system import (
-    DESIGN_SYSTEM_NAME,
-    DesignSystemResponse,
-    design_system_css,
-    design_system_response,
-    render_design_system_ui_kit,
-)
-
 WEB_CABINET_SERVICE_NAME = "web-cabinet"
 
 _PERIOD_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 _ANALYTICS_PERIOD_PATTERN = r"^\d{4}-((0[1-9]|1[0-2])|W(0[1-9]|[1-4][0-9]|5[0-3]))$"
 _REFERRAL_LEVEL_PATTERN = r"^L[1-3]$"
 _PLATFORM_TARGET_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
+_PAYOUT_REASON_CODE_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
+_PAYOUT_TOTP_CODE_PATTERN = r"^\d{6,8}$"
 _ONBOARDING_STEP_STATUS_PATTERN = r"^(available|in_progress|completed|blocked)$"
 _ONBOARDING_READINESS_STATUS_PATTERN = r"^(in_progress|ready_for_review)$"
 _VOICE_CONTENT_TYPE_PATTERN = (
@@ -470,6 +486,35 @@ class DataSubjectRequestCreate(SharedBaseModel):
     reason: str = Field(min_length=1, max_length=512)
     details: str | None = Field(default=None, min_length=1, max_length=2000)
     consent_keys: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class VetoPayoutRequest(SharedBaseModel):
+    decision_id: IdempotencyKey | None = None
+    event_id: IdempotencyKey | None = None
+    actor_id: SubjectId | None = None
+    reason_code: str = Field(pattern=_PAYOUT_REASON_CODE_PATTERN)
+    reason: str = Field(min_length=1, max_length=512)
+    now: datetime | None = None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+
+class ConfirmPayoutRequest(SharedBaseModel):
+    confirmation_id: IdempotencyKey | None = None
+    event_id: IdempotencyKey | None = None
+    totp_code: str = Field(
+        min_length=6,
+        max_length=8,
+        pattern=_PAYOUT_TOTP_CODE_PATTERN,
+    )
+    confirmed_at: int | None = Field(default=None, ge=0)
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
+
+class UpdatePolicyRequest(SharedBaseModel):
+    value: dict[str, JSONValue]
+    updated_at: datetime | None = None
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
 
 
 class DataSubjectRequestResponse(SharedBaseModel):
@@ -1105,8 +1150,8 @@ class InMemoryCouncilPanelRepository:
 @dataclass(slots=True)
 class WebCabinetAPIState:
     repository: InMemoryWebCabinetRepository
-    wallet_repository: InMemoryWalletRepository
-    analytics_repository: InMemoryAnalyticsRepository
+    wallet_repository: Any
+    analytics_repository: Any
     voice_to_chain_service: VoiceToChainService
     tenant_audit_sink: InMemoryAuditSink
     payout_queue_manager: PayoutQueueManager
@@ -1124,8 +1169,8 @@ def create_web_cabinet_app(
     config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryWebCabinetRepository | None = None,
-    wallet_repository: InMemoryWalletRepository | None = None,
-    analytics_repository: InMemoryAnalyticsRepository | None = None,
+    wallet_repository: Any | None = None,
+    analytics_repository: Any | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
     payout_queue_manager: PayoutQueueManager | None = None,
     veto_manager: VetoManager | None = None,
