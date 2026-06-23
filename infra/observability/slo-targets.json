@@ -1,7 +1,10 @@
 {
   "issue": 98,
+  "stage9_issue": 254,
+  "req": "REQ-N5",
   "status": "sre-ready",
   "updated_at": "2026-06-20",
+  "slo_window_days": 30,
   "monitoring_stack": {
     "metrics": "Prometheus",
     "dashboards": "Grafana",
@@ -16,11 +19,26 @@
       "availability_slo_percent": 99.9,
       "latency_p95_ms": 250,
       "error_budget_percent": 0.1,
+      "slo_window_days": 30,
       "metric_labels": ["tenant_id", "service", "operation", "status"],
       "metric_selectors": {
         "availability": "nmc_service_operations_total{service=\"api-gateway\"}",
         "latency": "nmc_service_operation_duration_seconds_bucket{service=\"api-gateway\"}",
         "errors": "nmc_service_operations_total{service=\"api-gateway\",status=~\"error|denied\"}"
+      },
+      "burn_rate_alerts": {
+        "fast": {
+          "short_window": "5m",
+          "long_window": "1h",
+          "burn_rate_threshold": 14.4,
+          "severity": "critical"
+        },
+        "slow": {
+          "short_window": "30m",
+          "long_window": "6h",
+          "burn_rate_threshold": 6.0,
+          "severity": "warning"
+        }
       },
       "escalation_channel": "sre-oncall",
       "runbook_sections": ["tenant_isolation", "observability_pipeline_down"]
@@ -32,14 +50,60 @@
       "availability_slo_percent": 99.5,
       "latency_p95_ms": 500,
       "error_budget_percent": 0.5,
+      "slo_window_days": 30,
       "metric_labels": ["tenant_id", "service", "operation", "status"],
       "metric_selectors": {
         "availability": "nmc_service_operations_total{service=\"contribution-ledger\"}",
         "latency": "nmc_service_operation_duration_seconds_bucket{service=\"contribution-ledger\"}",
         "errors": "nmc_service_operations_total{service=\"contribution-ledger\",status=~\"error|denied\"}"
       },
+      "burn_rate_alerts": {
+        "fast": {
+          "short_window": "5m",
+          "long_window": "1h",
+          "burn_rate_threshold": 14.4,
+          "severity": "critical"
+        },
+        "slow": {
+          "short_window": "30m",
+          "long_window": "6h",
+          "burn_rate_threshold": 6.0,
+          "severity": "warning"
+        }
+      },
       "escalation_channel": "sre-oncall",
       "runbook_sections": ["tenant_isolation"]
+    },
+    {
+      "service": "wallet",
+      "owner_role": "wallet-oncall",
+      "business_sla_percent": 99.5,
+      "availability_slo_percent": 99.5,
+      "latency_p95_ms": 500,
+      "error_budget_percent": 0.5,
+      "slo_window_days": 30,
+      "metric_labels": ["tenant_id", "service", "operation", "status"],
+      "metric_selectors": {
+        "availability": "nmc_service_operations_total{service=\"wallet\"}",
+        "latency": "nmc_service_operation_duration_seconds_bucket{service=\"wallet\"}",
+        "errors": "nmc_service_operations_total{service=\"wallet\",status=~\"error|denied\"}"
+      },
+      "burn_rate_alerts": {
+        "fast": {
+          "short_window": "5m",
+          "long_window": "1h",
+          "burn_rate_threshold": 14.4,
+          "severity": "critical"
+        },
+        "slow": {
+          "short_window": "30m",
+          "long_window": "6h",
+          "burn_rate_threshold": 6.0,
+          "severity": "warning"
+        }
+      },
+      "escalation_channel": "sre-oncall",
+      "runbook_sections": ["tenant_isolation", "payout_halted"]
     },
     {
       "service": "hitl-payout-gateway",

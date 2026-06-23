@@ -350,8 +350,7 @@ def _container_name(service_name: str) -> str:
 
 
 def _cold_start_driver(*, ready_url: str, timeout_seconds: float) -> str:
-    return dedent(
-        f"""
+    return dedent(f"""
         import subprocess
         import sys
         import time
@@ -396,8 +395,7 @@ def _cold_start_driver(*, ready_url: str, timeout_seconds: float) -> str:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-        """
-    )
+        """)
 
 
 def _format_mb(size_bytes: int) -> str:
