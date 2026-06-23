@@ -14,7 +14,7 @@ BLOCKCHAIN_COMPOSE = $(COMPOSE) -f $(BLOCKCHAIN_COMPOSE_FILE)
 help:
 	@printf '%s\n' \
 		'Media Center local development targets:' \
-		'  make up       Start PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO and observability' \
+		'  make up       Start local infrastructure, observability and app services' \
 		'  make migrate  Apply the local PostgreSQL schema and dev seed data' \
 		'  make test     Validate the local environment contract' \
 		'  make down     Stop the local stack' \

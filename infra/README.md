@@ -105,8 +105,9 @@ docker run --rm \
 ## Локальная среда
 
 `infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
-ChromaDB, MinIO, Prometheus, Alertmanager, Grafana и OpenTelemetry Collector с
-фиксированными версиями. Основной workflow:
+ChromaDB, MinIO, Prometheus, Alertmanager, Grafana, OpenTelemetry Collector и
+приложенческие сервисы из Stage 9 на внутреннем порту `7700` с compose
+hardening. Основной workflow:
 
 ```bash
 make up

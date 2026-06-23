@@ -1,9 +1,10 @@
 # Этап 9 - Acceptance Snapshot
 
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
-сервисных образов в GHCR, и эпика D из issue #246: Service-to-service
-авторизация для внутренних вызовов и `/admin/*`. Остальные эпики Этапа 9
-ведутся отдельными родительскими issue из плана #213.
+сервисных образов в GHCR, эпика D из issue #246: Service-to-service
+авторизация для внутренних вызовов и `/admin/*`, а также задачи E1 из issue
+#247: локальный docker-compose с приложенческими сервисами. Остальные задачи
+Этапа 9 ведутся отдельными родительскими issue из плана #213.
 
 ## Статус эпика C
 
@@ -25,6 +26,12 @@
 | D2 | Выполнено: S2S настраивается через env/settings, включая метод, secret provider, пути ServiceAccount token/RSA key, issuer/audience, TTL и replay window. | `libs/shared/config.py`, `tests/test_config_settings.py` |
 | D3 | Выполнено: `create_base_app()` защищает все `/admin/*` через `require_s2s`, а Gateway умеет подписывать downstream-запросы S2S-заголовками. | `libs/shared/server.py`, `libs/shared/gateway.py`, `tests/test_base_server_issue222.py`, `tests/test_api_gateway_routing.py` |
 | D4 | Выполнено: threat model, тесты всех методов/replay/timing и ADR перехода к SPIFFE/SPIRE + mTLS зафиксированы в документации. | `docs/S2S_AUTH.md`, `docs/adr/0010-spiffe-mtls-s2s.md`, `tests/test_s2s_auth_issue245_contract.py` |
+
+## Статус эпика E
+
+| Задача | Статус | Проверяемые артефакты |
+| --- | --- | --- |
+| E1 | Выполнено: `infra/local/docker-compose.yml` добавляет все 14 продуктовых app-сервисов с образами `media-center-<service>`, build через `infra/docker/service.Dockerfile`, внутренним `APP_PORT=7700`, `expose: 7700`, healthcheck `/health`, `read_only`, `tmpfs`, `security_opt: no-new-privileges:true`, `cap_drop: ALL` и `depends_on` на healthy-инфраструктуру. | `infra/local/docker-compose.yml`, `infra/local/.env.local.example`, `infra/local/README.md`, `services/api-gateway/api_gateway_app/main.py`, `services/messenger-adapter/messenger_adapter_app/main.py`, `tests/test_local_app_compose_issue247_contract.py` |
 
 ## Release gate
 
@@ -68,8 +75,25 @@ registry attestations.
 - `/admin/*` недоступен без валидной S2S identity;
 - snapshot и `docs/S2S_AUTH.md` ссылаются на код, тесты и ADR.
 
+Контракт E1 по issue #247 закреплён в
+`tests/test_local_app_compose_issue247_contract.py`. Он проверяет, что:
+
+- compose содержит все продуктовые сервисы из `services/`, кроме
+  `service-template`;
+- app-сервисы собираются тем же `infra/docker/service.Dockerfile`, что и
+  release pipeline, и используют `ghcr.io/${GHCR_OWNER}/media-center-<service>`;
+- каждый контейнер слушает внутренний порт `7700`, публикуется на отдельный
+  локальный host-порт, имеет `/health` healthcheck и ASGI entrypoint;
+- runtime hardening включает `read_only: true`, `tmpfs` для `/tmp` и
+  `/app/logs`, `no-new-privileges:true` и `cap_drop: ALL`;
+- зависимости на PostgreSQL, Redis, RabbitMQ, ChromaDB, MinIO и
+  OpenTelemetry Collector ожидают `condition: service_healthy`.
+
 Локальная проверка:
 
 ```bash
-python -m pytest tests/test_stage9_epic_c_issue241_contract.py tests/test_stage9_epic_d_issue246_contract.py
+python -m pytest \
+  tests/test_stage9_epic_c_issue241_contract.py \
+  tests/test_stage9_epic_d_issue246_contract.py \
+  tests/test_local_app_compose_issue247_contract.py
 ```

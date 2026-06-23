@@ -1,5 +1,79 @@
 name: ${COMPOSE_PROJECT_NAME:-media-center-local}
 
+x-app-build-common: &app-build-common
+  context: ../..
+  dockerfile: infra/docker/service.Dockerfile
+
+x-app-build-args-common: &app-build-args-common
+  SERVICE_VERSION: ${SERVICE_VERSION:-0.0.0-local}
+  BUILD_DATE: ${BUILD_DATE:-1970-01-01T00:00:00Z}
+  GIT_COMMIT: ${GIT_COMMIT:-local}
+  GIT_TAG: ${GIT_TAG:-}
+  IMAGE_SOURCE: ${IMAGE_SOURCE:-https://github.com/xlabtg/Media_Center}
+
+x-app-environment-common: &app-environment-common
+  APP_ENV: ${APP_ENV:-development}
+  APP_HOST: "0.0.0.0"
+  APP_PORT: "7700"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  SERVICE_VERSION: ${SERVICE_VERSION:-0.0.0-local}
+  JWT_SECRET: ${JWT_SECRET:-nmc_local_jwt_secret}
+  S2S_AUTH_METHOD: ${S2S_AUTH_METHOD:-shared_secret}
+  S2S_SHARED_SECRET: ${S2S_SHARED_SECRET:-nmc_local_s2s_secret}
+  PROMETHEUS_ENABLED: "true"
+  DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-nmc}:${POSTGRES_PASSWORD:-nmc_dev_password}@postgres:5432/${POSTGRES_DB:-nmc}"
+  REDIS_URL: "redis://redis:6379/0"
+  RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER:-nmc}:${RABBITMQ_DEFAULT_PASS:-nmc_dev_password}@rabbitmq:5672/"
+  CHROMA_HOST: chroma
+  CHROMA_PORT: "8000"
+  CHROMA_SSL: "false"
+  S3_ENDPOINT_URL: "http://minio:9000"
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nmc_minio}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-nmc_minio_dev_password}
+  S3_BUCKET: ${MINIO_BUCKET:-nmc-dev}
+  S3_REGION: ${MINIO_REGION:-ru-central-1}
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  BLOCKCHAIN_AUDITOR_URL: ${BLOCKCHAIN_AUDITOR_URL:-grpc://besu-auditor.internal:50051}
+
+x-app-service-common: &app-service-common
+  restart: unless-stopped
+  user: "1000:1000"
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,mode=1777
+    - /app/logs:rw,noexec,nosuid,nodev,mode=0775,uid=1000,gid=1000
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  expose:
+    - "7700"
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    chroma:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+    otel-collector:
+      condition: service_healthy
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:7700/health', timeout=3).read()",
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 10s
+
 services:
   postgres:
     image: postgres:17
@@ -177,6 +251,216 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
+  activity-command-center:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-activity-command-center:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: activity-command-center
+        SERVICE_PATH: services/activity-command-center
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: activity-command-center
+    ports:
+      - "${ACTIVITY_COMMAND_CENTER_PORT:-7701}:7700"
+
+  analytics-engine:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-analytics-engine:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: analytics-engine
+        SERVICE_PATH: services/analytics-engine
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: analytics-engine
+    ports:
+      - "${ANALYTICS_ENGINE_PORT:-7702}:7700"
+
+  api-gateway:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-api-gateway:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: api-gateway
+        SERVICE_PATH: services/api-gateway
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: api-gateway
+    ports:
+      - "${API_GATEWAY_PORT:-7703}:7700"
+
+  blockchain-auditor:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-blockchain-auditor:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: blockchain-auditor
+        SERVICE_PATH: services/blockchain-auditor
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: blockchain-auditor
+    ports:
+      - "${BLOCKCHAIN_AUDITOR_PORT:-7704}:7700"
+
+  cglr:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-cglr:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: cglr
+        SERVICE_PATH: services/cglr
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: cglr
+    ports:
+      - "${CGLR_PORT:-7705}:7700"
+
+  contribution-ledger:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-contribution-ledger:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: contribution-ledger
+        SERVICE_PATH: services/contribution-ledger
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: contribution-ledger
+    ports:
+      - "${CONTRIBUTION_LEDGER_PORT:-7706}:7700"
+
+  hitl-payout-gateway:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-hitl-payout-gateway:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: hitl-payout-gateway
+        SERVICE_PATH: services/hitl-payout-gateway
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: hitl-payout-gateway
+    ports:
+      - "${HITL_PAYOUT_GATEWAY_PORT:-7707}:7700"
+
+  messenger-adapter:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-messenger-adapter:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: messenger-adapter
+        SERVICE_PATH: services/messenger-adapter
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: messenger-adapter
+    ports:
+      - "${MESSENGER_ADAPTER_PORT:-7708}:7700"
+
+  neuro-agent-orchestrator:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-neuro-agent-orchestrator:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: neuro-agent-orchestrator
+        SERVICE_PATH: services/neuro-agent-orchestrator
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: neuro-agent-orchestrator
+    ports:
+      - "${NEURO_AGENT_ORCHESTRATOR_PORT:-7709}:7700"
+
+  notification-gateway:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-notification-gateway:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: notification-gateway
+        SERVICE_PATH: services/notification-gateway
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: notification-gateway
+    ports:
+      - "${NOTIFICATION_GATEWAY_PORT:-7710}:7700"
+
+  policy-manager:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-policy-manager:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: policy-manager
+        SERVICE_PATH: services/policy-manager
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: policy-manager
+    ports:
+      - "${POLICY_MANAGER_PORT:-7711}:7700"
+
+  voice-to-chain:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-voice-to-chain:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: voice-to-chain
+        SERVICE_PATH: services/voice-to-chain
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: voice-to-chain
+    ports:
+      - "${VOICE_TO_CHAIN_PORT:-7712}:7700"
+
+  wallet:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-wallet:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: wallet
+        SERVICE_PATH: services/wallet
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: wallet
+    ports:
+      - "${WALLET_PORT:-7713}:7700"
+
+  web-cabinet:
+    <<: *app-service-common
+    image: ghcr.io/${GHCR_OWNER:-xlabtg}/media-center-web-cabinet:${IMAGE_TAG:-latest}
+    build:
+      <<: *app-build-common
+      args:
+        <<: *app-build-args-common
+        SERVICE_NAME: web-cabinet
+        SERVICE_PATH: services/web-cabinet
+    environment:
+      <<: *app-environment-common
+      SERVICE_NAME: web-cabinet
+    ports:
+      - "${WEB_CABINET_PORT:-7714}:7700"
 
 volumes:
   postgres-data:
