@@ -153,6 +153,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v4.1.0
+        with:
+          platforms: arm64
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v4.1.0
 
@@ -202,6 +207,7 @@ jobs:
             SERVICE_VERSION=${{ steps.build-metadata.outputs.service_version }}
             IMAGE_SOURCE=${{ steps.build-metadata.outputs.image_source }}
           push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.docker-metadata.outputs.tags }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
           cache-from: type=gha
