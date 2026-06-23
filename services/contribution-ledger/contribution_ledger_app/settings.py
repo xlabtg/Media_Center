@@ -5,6 +5,7 @@ from collections.abc import Mapping
 
 from contribution_ledger import CONTRIBUTION_LEDGER_SERVICE_NAME
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.server import (
     DEFAULT_BASE_APP_LOG_LEVEL,
     DEFAULT_BASE_APP_PORT,
@@ -12,18 +13,40 @@ from libs.shared.server import (
 )
 from libs.shared.service_template import ServiceTemplateConfig
 
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 DEFAULT_APP_HOST = "0.0.0.0"
 
 
-def build_app_host(environ: Mapping[str, str] | None = None) -> str:
-    values = os.environ if environ is None else environ
+def build_app_host(
+    environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
+) -> str:
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=CONTRIBUTION_LEDGER_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
+        config_server_transport=config_server_transport,
+    )
     return _env(values, "APP_HOST", default=DEFAULT_APP_HOST)
 
 
 def build_base_app_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> BaseAppConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=CONTRIBUTION_LEDGER_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
+        config_server_transport=config_server_transport,
+    )
     return BaseAppConfig(
         service=build_service_config(values),
         app_port=_int_env(values, "APP_PORT", default=DEFAULT_BASE_APP_PORT),
@@ -33,8 +56,17 @@ def build_base_app_config(
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=CONTRIBUTION_LEDGER_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
         service_name=_env(
             values,

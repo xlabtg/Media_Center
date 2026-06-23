@@ -4,7 +4,10 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 
+from api_gateway_app.settings import build_service_config as build_api_gateway_config
+
 from libs.shared import (
+    CONFIG_SERVER_ENV_NAMES,
     AppSettings,
     AuthMethod,
     EnvSecretProvider,
@@ -99,6 +102,131 @@ def test_app_settings_allows_env_override_for_app_port_and_log_level() -> None:
     assert settings.app_port == 7701
     assert settings.log_level == "CRITICAL"
     assert "CRITICAL" in LOG_LEVELS
+
+
+def test_config_server_overrides_env_when_kubernetes_token_is_available(
+    tmp_path: Path,
+) -> None:
+    token_path = tmp_path / "token"
+    token_path.write_text("k8s-service-account-token\n", encoding="utf-8")
+    captured: dict[str, str] = {}
+
+    def fake_transport(url: str, token: str, timeout_seconds: float) -> bytes:
+        captured["url"] = url
+        captured["token"] = token
+        captured["timeout"] = str(timeout_seconds)
+        payload = [
+            {"key": key, "value": value}
+            for key, value in _complete_env(
+                {
+                    "APP_PORT": "8800",
+                    "DATABASE_URL": ("postgresql+asyncpg://nmc:server-db@db:5432/nmc"),
+                    "JWT_SECRET": "server-jwt-secret",
+                    "UNKNOWN_SETTING": "ignored",
+                },
+            ).items()
+        ]
+        return json.dumps(payload).encode("utf-8")
+
+    settings = load_app_settings(
+        environ=_complete_env(
+            {
+                "APP_PORT": "7701",
+                "DATABASE_URL": "postgresql+asyncpg://nmc:env-db@db:5432/nmc",
+                "JWT_SECRET": "env-jwt-secret",
+                "CONFIG_SERVER_URL": "https://config.example.test/",
+                "CONFIG_SERVER_PROJECT": "env-project-must-be-ignored",
+                "CONFIG_SERVER_ENV": "stage",
+                "CONFIG_SERVER_FRAMEWORK": "env-framework-must-be-ignored",
+                "CONFIG_SERVER_TOKEN_PATH": str(token_path),
+                "CONFIG_SERVER_TIMEOUT_SECONDS": "2.5",
+                "KUBERNETES_SERVICE_HOST": "10.0.0.1",
+                "SERVICE_NAME": "api-gateway",
+            },
+        ),
+        config_server_transport=fake_transport,
+    )
+
+    assert settings.app_port == 8800
+    assert settings.database_url == "postgresql+asyncpg://nmc:server-db@db:5432/nmc"
+    assert settings.jwt_secret.get_secret_value() == "server-jwt-secret"
+    assert captured == {
+        "url": "https://config.example.test/api/v2/media-center/stage/fastapi/api-gateway",
+        "token": "k8s-service-account-token",
+        "timeout": "2.5",
+    }
+
+
+def test_config_server_is_ignored_when_kubernetes_token_is_unavailable() -> None:
+    def failing_transport(url: str, token: str, timeout_seconds: float) -> bytes:
+        raise AssertionError("config server transport should not be called")
+
+    settings = load_app_settings(
+        environ=_complete_env(
+            {
+                "APP_PORT": "7701",
+                "CONFIG_SERVER_URL": "https://config.example.test",
+                "SERVICE_NAME": "api-gateway",
+            },
+        ),
+        config_server_transport=failing_transport,
+    )
+
+    assert settings.app_port == 7701
+
+
+def test_service_settings_use_config_server_application_name(
+    tmp_path: Path,
+) -> None:
+    token_path = tmp_path / "token"
+    token_path.write_text("service-account-token", encoding="utf-8")
+    captured: dict[str, str] = {}
+
+    def fake_transport(url: str, token: str, timeout_seconds: float) -> bytes:
+        captured["url"] = url
+        captured["token"] = token
+        return json.dumps(
+            [
+                {"key": "SERVICE_NAME", "value": "api-gateway"},
+                {"key": "SERVICE_VERSION", "value": "1.2.3"},
+                {"key": "JWT_SECRET", "value": "server-jwt-secret"},
+                {
+                    "key": "DATABASE_URL",
+                    "value": "postgresql+asyncpg://nmc:server@db:5432/nmc",
+                },
+                {"key": "REDIS_URL", "value": "redis://redis:6379/0"},
+                {"key": "RABBITMQ_URL", "value": "amqp://nmc:server@rabbitmq:5672/"},
+                {"key": "PROMETHEUS_ENABLED", "value": "false"},
+                {"key": "IGNORED_BY_SERVICE", "value": "unused"},
+            ],
+        ).encode("utf-8")
+
+    config = build_api_gateway_config(
+        environ={
+            "SERVICE_NAME": "env-service-name",
+            "SERVICE_VERSION": "0.1.0",
+            "JWT_SECRET": "env-jwt-secret",
+            "CONFIG_SERVER_URL": "https://config.example.test",
+            "CONFIG_SERVER_PROJECT": "env-project-must-be-ignored",
+            "CONFIG_SERVER_ENV": "prod",
+            "CONFIG_SERVER_FRAMEWORK": "env-framework-must-be-ignored",
+            "CONFIG_SERVER_TOKEN_PATH": str(token_path),
+            "KUBERNETES_SERVICE_HOST": "10.0.0.1",
+        },
+        config_server_transport=fake_transport,
+    )
+
+    assert config.service_name == "api-gateway"
+    assert config.version == "1.2.3"
+    assert config.jwt_secret == "server-jwt-secret"
+    assert config.database_url == "postgresql+asyncpg://nmc:server@db:5432/nmc"
+    assert config.redis_url == "redis://redis:6379/0"
+    assert config.rabbitmq_url == "amqp://nmc:server@rabbitmq:5672/"
+    assert config.prometheus_enabled is False
+    assert captured == {
+        "url": "https://config.example.test/api/v2/media-center/prod/fastapi/api-gateway",
+        "token": "service-account-token",
+    }
 
 
 def test_secret_provider_replaces_placeholders_before_validation() -> None:
@@ -266,3 +394,8 @@ def test_env_example_lists_all_app_settings_and_vault_variables() -> None:
     assert "VAULT_ADDR=" in example
     assert "VAULT_TOKEN=" in example
     assert "VAULT_PATH=" in example
+    assert "CONFIG_SERVER_PROJECT=" not in example
+    assert "CONFIG_SERVER_FRAMEWORK=" not in example
+    assert not [
+        env_name for env_name in CONFIG_SERVER_ENV_NAMES if env_name not in example
+    ]

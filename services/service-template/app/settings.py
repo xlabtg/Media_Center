@@ -3,15 +3,31 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
+
+SERVICE_TEMPLATE_SERVICE_NAME = "service-template"
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=SERVICE_TEMPLATE_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
-        service_name=_env(values, "SERVICE_NAME", default="service-template"),
+        service_name=_env(
+            values, "SERVICE_NAME", default=SERVICE_TEMPLATE_SERVICE_NAME
+        ),
         version=_env(values, "SERVICE_VERSION", default="0.1.0"),
         database_url=_optional_env(values, "DATABASE_URL"),
         redis_url=_optional_env(values, "REDIS_URL"),

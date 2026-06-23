@@ -5,13 +5,26 @@ from collections.abc import Mapping
 
 from notification_gateway import NOTIFICATION_GATEWAY_SERVICE_NAME
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
+
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=NOTIFICATION_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
         service_name=_env(
             values,
