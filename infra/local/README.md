@@ -109,6 +109,28 @@ App-сервисы issue #247 собираются тем же `infra/docker/ser
 `7714` нужны только для одновременного локального доступа без конфликта за
 один порт.
 
+## Service discovery
+
+Вопрос [#295](https://github.com/xlabtg/Media_Center/issues/295) закрыт:
+локальная среда использует Docker Compose DNS, без отдельного service registry.
+Контейнеры находят зависимости по именам compose-сервисов, а не через
+опубликованные на host порты. Host-порты `7701`-`7714` нужны только для доступа
+разработчика из браузера или curl на машине.
+
+| Клиент внутри compose-сети | Endpoint |
+|----------------------------|----------|
+| PostgreSQL | `postgres:5432` через `DATABASE_URL` |
+| Redis | `redis:6379` через `REDIS_URL` |
+| RabbitMQ | `rabbitmq:5672` через `RABBITMQ_URL` |
+| ChromaDB | `chroma:8000` через `CHROMA_HOST`/`CHROMA_PORT` |
+| MinIO | `http://minio:9000` через `S3_ENDPOINT_URL` |
+| OpenTelemetry Collector | `http://otel-collector:4318` через `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| Product service | `http://<service>:7700`, например `http://api-gateway:7700` |
+
+S2S credentials не являются механизмом discovery: они подтверждают identity
+вызывающего сервиса после выбора endpoint из env. Полный контракт описан в
+[docs/SERVICE_DISCOVERY.md](../../docs/SERVICE_DISCOVERY.md).
+
 Prometheus автоматически читает конфигурацию из
 `infra/observability/prometheus/prometheus.yml`, включая DORA recording rules
 issue #251, Grafana подключает datasource и дашборды из

@@ -33,6 +33,7 @@
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | ER-модель, индексы, tenant-aware стратегия хранения и план миграций |
 | [docs/adr/](docs/adr/) | ADR-журнал ключевых архитектурных решений |
 | [docs/contracts/](docs/contracts/) | Контракты REST/gRPC и RabbitMQ-событий между сервисами |
+| [docs/SERVICE_DISCOVERY.md](docs/SERVICE_DISCOVERY.md) | Service discovery #295: Docker Compose DNS, Kubernetes Service/ClusterIP и env/values endpoint |
 | [docs/REPOSITORY_STRUCTURE.md](docs/REPOSITORY_STRUCTURE.md) | Структура монорепозитория, сервисов, shared-библиотеки и infra |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Дорожная карта, этапы (milestones), пилот за 6–8 недель |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | Мастер-план: эпики, задачи, связь с метками и этапами |
