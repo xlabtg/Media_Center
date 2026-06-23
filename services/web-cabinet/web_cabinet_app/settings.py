@@ -7,6 +7,8 @@ from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
 
 WEB_CABINET_SERVICE_NAME = "web-cabinet"
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 
 
 def build_service_config(
@@ -18,6 +20,8 @@ def build_service_config(
     values = resolve_config_values(
         raw_values,
         application=WEB_CABINET_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return ServiceTemplateConfig(

@@ -109,16 +109,12 @@ APP_SETTINGS_ENV_NAMES = (
     "OTEL_EXPORTER_OTLP_ENDPOINT",
 )
 CONFIG_SERVER_URL_ENV = "CONFIG_SERVER_URL"
-CONFIG_SERVER_PROJECT_ENV = "CONFIG_SERVER_PROJECT"
 CONFIG_SERVER_ENV_ENV = "CONFIG_SERVER_ENV"
-CONFIG_SERVER_FRAMEWORK_ENV = "CONFIG_SERVER_FRAMEWORK"
 CONFIG_SERVER_TOKEN_PATH_ENV = "CONFIG_SERVER_TOKEN_PATH"
 CONFIG_SERVER_TIMEOUT_SECONDS_ENV = "CONFIG_SERVER_TIMEOUT_SECONDS"
 CONFIG_SERVER_ENV_NAMES = (
     CONFIG_SERVER_URL_ENV,
-    CONFIG_SERVER_PROJECT_ENV,
     CONFIG_SERVER_ENV_ENV,
-    CONFIG_SERVER_FRAMEWORK_ENV,
     CONFIG_SERVER_TOKEN_PATH_ENV,
     CONFIG_SERVER_TIMEOUT_SECONDS_ENV,
 )
@@ -292,18 +288,12 @@ class ConfigServerSettings(BaseSettings):
     )
 
     url: str | None = Field(default=None, validation_alias=CONFIG_SERVER_URL_ENV)
-    project: str = Field(
-        default=DEFAULT_CONFIG_SERVER_PROJECT,
-        validation_alias=CONFIG_SERVER_PROJECT_ENV,
-    )
+    project: str = DEFAULT_CONFIG_SERVER_PROJECT
     environment: str = Field(
         default=DEFAULT_CONFIG_SERVER_ENV,
         validation_alias=CONFIG_SERVER_ENV_ENV,
     )
-    framework: str = Field(
-        default=DEFAULT_CONFIG_SERVER_FRAMEWORK,
-        validation_alias=CONFIG_SERVER_FRAMEWORK_ENV,
-    )
+    framework: str = DEFAULT_CONFIG_SERVER_FRAMEWORK
     token_path: str = Field(
         default=str(DEFAULT_K8S_SERVICE_ACCOUNT_TOKEN_PATH),
         validation_alias=CONFIG_SERVER_TOKEN_PATH_ENV,
@@ -315,7 +305,13 @@ class ConfigServerSettings(BaseSettings):
     )
 
     @classmethod
-    def from_environ(cls, values: Mapping[str, str]) -> Self:
+    def from_environ(
+        cls,
+        values: Mapping[str, str],
+        *,
+        project: str = DEFAULT_CONFIG_SERVER_PROJECT,
+        framework: str = DEFAULT_CONFIG_SERVER_FRAMEWORK,
+    ) -> Self:
         init_values = dict(values)
         if (
             CONFIG_SERVER_TOKEN_PATH_ENV not in init_values
@@ -325,6 +321,8 @@ class ConfigServerSettings(BaseSettings):
                 S2S_K8S_TOKEN_PATH_ENV
             ]
 
+        init_values["project"] = project
+        init_values["framework"] = framework
         return cls.model_validate(init_values)
 
     @field_validator("url")
@@ -752,11 +750,15 @@ def load_app_settings(
     secret_provider: SecretProvider | None = None,
     config_server_transport: ConfigServerTransport | None = None,
     application: str | None = None,
+    project: str = DEFAULT_CONFIG_SERVER_PROJECT,
+    framework: str = DEFAULT_CONFIG_SERVER_FRAMEWORK,
 ) -> AppSettings:
     source_values = os.environ if environ is None else environ
     config_values = _config_server_values_from_sources(
         source_values,
         application=application,
+        project=project,
+        framework=framework,
         transport=config_server_transport,
     )
     if config_values is not None:
@@ -788,12 +790,16 @@ def resolve_config_values(
     environ: Mapping[str, str] | None = None,
     *,
     application: str,
+    project: str = DEFAULT_CONFIG_SERVER_PROJECT,
+    framework: str = DEFAULT_CONFIG_SERVER_FRAMEWORK,
     config_server_transport: ConfigServerTransport | None = None,
 ) -> Mapping[str, str]:
     source_values = os.environ if environ is None else environ
     config_values = _config_server_values_from_sources(
         source_values,
         application=application,
+        project=project,
+        framework=framework,
         transport=config_server_transport,
     )
     if config_values is None:
@@ -814,9 +820,15 @@ def _config_server_values_from_sources(
     values: Mapping[str, str],
     *,
     application: str | None,
+    project: str,
+    framework: str,
     transport: ConfigServerTransport | None,
 ) -> dict[str, str] | None:
-    settings = ConfigServerSettings.from_environ(values)
+    settings = ConfigServerSettings.from_environ(
+        values,
+        project=project,
+        framework=framework,
+    )
     if not settings.configured:
         return None
     if not _kubernetes_api_available(values, settings.token_path):

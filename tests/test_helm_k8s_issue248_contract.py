@@ -137,13 +137,13 @@ def test_issue_248_service_accounts_use_projected_s2s_token() -> None:
     assert values["s2s"]["tokenPath"] == "token"
     assert values["s2s"]["caPath"] == "ca.crt"
     assert values["env"]["CONFIG_SERVER_URL"] == ""
-    assert values["env"]["CONFIG_SERVER_PROJECT"] == "media-center"
     assert values["env"]["CONFIG_SERVER_ENV"] == "production"
-    assert values["env"]["CONFIG_SERVER_FRAMEWORK"] == "fastapi"
     assert values["env"]["CONFIG_SERVER_TOKEN_PATH"] == (
         "/var/run/secrets/nmc/s2s/token"
     )
     assert values["env"]["CONFIG_SERVER_TIMEOUT_SECONDS"] == "5"
+    assert "CONFIG_SERVER_PROJECT" not in values["env"]
+    assert "CONFIG_SERVER_FRAMEWORK" not in values["env"]
 
     required_markers = [
         "kind: ServiceAccount",

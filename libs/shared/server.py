@@ -42,6 +42,8 @@ DEFAULT_BASE_APP_OPENAPI_URL = "/openapi.json"
 DEFAULT_BASE_APP_LOG_LEVEL = "INFO"
 DEFAULT_BUILD_INFO_PATH = Path("/app/config/build_info.json")
 DEFAULT_RUNTIME_APP_HOST = "0.0.0.0"
+DEFAULT_RUNTIME_CONFIG_SERVER_PROJECT = "media-center"
+DEFAULT_RUNTIME_CONFIG_SERVER_FRAMEWORK = "fastapi"
 BASE_APP_HTTP_METRICS_OPERATION = "http_request"
 BASE_APP_SYSTEM_PUBLIC_PATHS = (
     "/ready",
@@ -250,6 +252,8 @@ def build_runtime_app_host(
     values = resolve_config_values(
         raw_values,
         application=_runtime_application(raw_values, application),
+        project=DEFAULT_RUNTIME_CONFIG_SERVER_PROJECT,
+        framework=DEFAULT_RUNTIME_CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return _mapping_env(values, "APP_HOST", default=DEFAULT_RUNTIME_APP_HOST)
@@ -265,6 +269,8 @@ def build_runtime_base_app_config(
     values = resolve_config_values(
         raw_values,
         application=service.service_name,
+        project=DEFAULT_RUNTIME_CONFIG_SERVER_PROJECT,
+        framework=DEFAULT_RUNTIME_CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return BaseAppConfig(

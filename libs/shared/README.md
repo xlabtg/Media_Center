@@ -137,7 +137,8 @@
   подключают опциональный config server: если `CONFIG_SERVER_URL` задан и
   доступен Kubernetes ServiceAccount token, сервис получает настройки по
   `/api/v2/{project}/{env}/{framework}/{application}` и не использует env как
-  fallback для runtime-значений;
+  fallback для runtime-значений; `project`, `framework` и `application`
+  передаются из service settings, а `env` выбирается через `CONFIG_SERVER_ENV`;
 - `VaultSettings` и `VaultSecretProvider` поддерживают HashiCorp Vault KV v2
   без хранения реальных секретов в репозитории;
 - `redacted_dict()` отдаёт безопасный для логов снимок конфигурации, где

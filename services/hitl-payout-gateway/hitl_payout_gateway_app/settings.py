@@ -14,6 +14,9 @@ from pydantic import SecretStr
 from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
 
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
+
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
@@ -24,6 +27,8 @@ def build_service_config(
     values = resolve_config_values(
         raw_values,
         application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return ServiceTemplateConfig(
@@ -50,6 +55,8 @@ def build_totp_secrets(
     values = resolve_config_values(
         raw_values,
         application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     tenant_id = _optional_env(values, "HITL_TOTP_TENANT_ID")
@@ -75,6 +82,8 @@ def build_payment_connector(
     values = resolve_config_values(
         raw_values,
         application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     if not _bool_env(values, "RF_PAYMENT_GATEWAY_ENABLED", default=False):

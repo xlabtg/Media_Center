@@ -8,6 +8,8 @@ from datetime import timedelta
 from libs.shared.config import ConfigServerTransport, resolve_config_values
 
 VOICE_TO_CHAIN_SERVICE_NAME = "voice-to-chain"
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 DEFAULT_RAW_AUDIO_TTL_HOURS = 24
 MAX_RAW_AUDIO_TTL_HOURS = 24
 
@@ -44,6 +46,8 @@ def build_voice_to_chain_settings(
     values = resolve_config_values(
         raw_values,
         application=VOICE_TO_CHAIN_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return VoiceToChainSettings(

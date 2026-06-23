@@ -135,9 +135,9 @@ def test_config_server_overrides_env_when_kubernetes_token_is_available(
                 "DATABASE_URL": "postgresql+asyncpg://nmc:env-db@db:5432/nmc",
                 "JWT_SECRET": "env-jwt-secret",
                 "CONFIG_SERVER_URL": "https://config.example.test/",
-                "CONFIG_SERVER_PROJECT": "media-center",
+                "CONFIG_SERVER_PROJECT": "env-project-must-be-ignored",
                 "CONFIG_SERVER_ENV": "stage",
-                "CONFIG_SERVER_FRAMEWORK": "fastapi",
+                "CONFIG_SERVER_FRAMEWORK": "env-framework-must-be-ignored",
                 "CONFIG_SERVER_TOKEN_PATH": str(token_path),
                 "CONFIG_SERVER_TIMEOUT_SECONDS": "2.5",
                 "KUBERNETES_SERVICE_HOST": "10.0.0.1",
@@ -207,9 +207,9 @@ def test_service_settings_use_config_server_application_name(
             "SERVICE_VERSION": "0.1.0",
             "JWT_SECRET": "env-jwt-secret",
             "CONFIG_SERVER_URL": "https://config.example.test",
-            "CONFIG_SERVER_PROJECT": "media-center",
+            "CONFIG_SERVER_PROJECT": "env-project-must-be-ignored",
             "CONFIG_SERVER_ENV": "prod",
-            "CONFIG_SERVER_FRAMEWORK": "fastapi",
+            "CONFIG_SERVER_FRAMEWORK": "env-framework-must-be-ignored",
             "CONFIG_SERVER_TOKEN_PATH": str(token_path),
             "KUBERNETES_SERVICE_HOST": "10.0.0.1",
         },
@@ -394,6 +394,8 @@ def test_env_example_lists_all_app_settings_and_vault_variables() -> None:
     assert "VAULT_ADDR=" in example
     assert "VAULT_TOKEN=" in example
     assert "VAULT_PATH=" in example
+    assert "CONFIG_SERVER_PROJECT=" not in example
+    assert "CONFIG_SERVER_FRAMEWORK=" not in example
     assert not [
         env_name for env_name in CONFIG_SERVER_ENV_NAMES if env_name not in example
     ]

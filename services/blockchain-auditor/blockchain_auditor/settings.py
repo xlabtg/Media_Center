@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 from libs.shared.config import ConfigServerTransport, resolve_config_values
 
 BLOCKCHAIN_AUDITOR_SERVICE_NAME = "blockchain-auditor"
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 DEFAULT_BLOCKCHAIN_AUDITOR_URL = "grpc://localhost:50051"
 BLOCKCHAIN_AUDITOR_URL_ENV = "BLOCKCHAIN_AUDITOR_URL"
 
@@ -45,6 +47,8 @@ def build_blockchain_auditor_settings(
     values = resolve_config_values(
         raw_values,
         application=BLOCKCHAIN_AUDITOR_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return BlockchainAuditorSettings(

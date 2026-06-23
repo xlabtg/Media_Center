@@ -12,6 +12,8 @@ from libs.shared.server import (
 from libs.shared.service_template import ServiceTemplateConfig
 
 API_GATEWAY_SERVICE_NAME = "api-gateway"
+CONFIG_SERVER_PROJECT = "media-center"
+CONFIG_SERVER_FRAMEWORK = "fastapi"
 DEFAULT_APP_HOST = "0.0.0.0"
 
 
@@ -24,6 +26,8 @@ def build_app_host(
     values = resolve_config_values(
         raw_values,
         application=API_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return _env(values, "APP_HOST", default=DEFAULT_APP_HOST)
@@ -38,6 +42,8 @@ def build_base_app_config(
     values = resolve_config_values(
         raw_values,
         application=API_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return BaseAppConfig(
@@ -56,6 +62,8 @@ def build_service_config(
     values = resolve_config_values(
         raw_values,
         application=API_GATEWAY_SERVICE_NAME,
+        project=CONFIG_SERVER_PROJECT,
+        framework=CONFIG_SERVER_FRAMEWORK,
         config_server_transport=config_server_transport,
     )
     return ServiceTemplateConfig(
