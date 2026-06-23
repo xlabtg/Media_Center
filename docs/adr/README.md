@@ -17,6 +17,7 @@
 | [ADR-0006](0006-technology-stack-and-versions.md) | Технологический стек и версии | Accepted | 2026-06-18 |
 | [ADR-0007](0007-data-model-and-tenant-storage.md) | Модель данных и tenant-aware стратегия хранения | Accepted | 2026-06-18 |
 | [ADR-0008](0008-container-image-size-optimization.md) | Оптимизация размера сервисных образов | Accepted | 2026-06-22 |
+| [ADR-0009](0009-ghcr-image-naming.md) | Имена сервисных образов в GHCR | Accepted | 2026-06-23 |
 
 ## Формат новых ADR
 
