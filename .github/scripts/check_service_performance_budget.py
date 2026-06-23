@@ -384,7 +384,7 @@ def _cold_start_driver(*, ready_url: str, timeout_seconds: float) -> str:
                     urllib.error.HTTPError,
                     urllib.error.URLError,
                 ):
-                    time.sleep(0.05)
+                    time.sleep(0.02)
 
             print(f"READY_TIMEOUT={{ready_url}}", file=sys.stderr)
             sys.exit(124)

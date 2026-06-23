@@ -13,7 +13,7 @@ def test_issue_230_service_dockerfile_uses_canonical_app_layout() -> None:
     required_markers = [
         "WORKDIR /app",
         "ENV PYTHONPATH=/app/service:/app",
-        "mkdir -p /app/service /app/config /app/logs /tmp/python-pyc",
+        "mkdir -p /app/service /app/config /app/logs",
         ("COPY --from=builder --chown=1000:1000 /build/app/service/ /app/service/"),
         "COPY --from=builder --chown=1000:1000 /build/app/libs/ /app/libs/",
         "/app/config/build_info.json",
@@ -23,6 +23,7 @@ def test_issue_230_service_dockerfile_uses_canonical_app_layout() -> None:
     assert not missing
     assert "./SERVICE.md" not in dockerfile
     assert "./SHARED.md" not in dockerfile
+    assert "/tmp/python-pyc" not in dockerfile
 
 
 def test_issue_230_infra_docs_describe_canonical_app_layout() -> None:

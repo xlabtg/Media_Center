@@ -25,7 +25,7 @@ def test_issue_229_service_dockerfile_generates_build_info_from_build_args() -> 
         "ARG GIT_TAG",
         "ARG SERVICE_VERSION",
         "ARG IMAGE_SOURCE",
-        "mkdir -p /app/service /app/config /app/logs /tmp/python-pyc",
+        "mkdir -p /app/service /app/config /app/logs",
         "/app/config/build_info.json",
         '"service":',
         '"version":',
@@ -39,6 +39,7 @@ def test_issue_229_service_dockerfile_generates_build_info_from_build_args() -> 
     missing = [marker for marker in required_markers if marker not in dockerfile]
 
     assert not missing
+    assert "/tmp/python-pyc" not in dockerfile
 
 
 def test_issue_229_service_dockerfile_sets_oci_labels_from_build_args() -> None:

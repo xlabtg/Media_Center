@@ -8,11 +8,11 @@ from datetime import UTC, datetime
 from typing import Annotated, Protocol, cast
 from uuid import uuid4
 
-from contribution_ledger import (
+from contribution_ledger.contribution_events import record_contribution_event
+from contribution_ledger.points_calculator import (
     ContributionEventType,
     Platform,
     calculate_points,
-    record_contribution_event,
 )
 from fastapi import APIRouter, Depends, FastAPI, Header, Path, Request, status
 from fastapi.encoders import jsonable_encoder

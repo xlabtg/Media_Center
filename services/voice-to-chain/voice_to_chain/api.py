@@ -7,13 +7,15 @@ from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import uuid4
 
-from blockchain_auditor import (
+from blockchain_auditor.connector import (
     AuditBatchError,
     AuditMetadataPolicyError,
     AuditRecordConflictError,
     GrpcBlockchainAuditConnector,
     GrpcBlockchainAuditTransport,
     InMemoryGrpcBlockchainAuditTransport,
+)
+from blockchain_auditor.settings import (
     build_blockchain_auditor_settings,
 )
 from fastapi import APIRouter, Depends, FastAPI, Request

@@ -158,12 +158,19 @@ def test_issue_252_runtime_dependencies_are_split_for_budgeted_images() -> None:
         'pyproject["project"].get("optional-dependencies", {})',
         "RUNTIME_REQUIREMENT_GROUPS",
         "/tmp/requirements-runtime.txt",
-        'find "$VIRTUAL_ENV" -type d -name "__pycache__"',
+        "from compileall import compile_dir",
+        'for package in ("fastapi", "starlette", "pydantic", "pydantic_settings")',
+        "service_package_name",
+        'Path("/build/app/libs/shared")',
+        "COPY services/ /build/services-source/",
+        'package_dir / "__init__.py"',
+        "shutil.copytree(package_dir, target_dir)",
     ]
     missing = [marker for marker in required_markers if marker not in dockerfile]
 
     assert not missing
     assert 'pyproject["project"]["dependencies"]' not in dockerfile
+    assert "PYTHONPYCACHEPREFIX" not in dockerfile
 
 
 def test_issue_252_docs_record_operational_budget_gate() -> None:
@@ -179,6 +186,7 @@ def test_issue_252_docs_record_operational_budget_gate() -> None:
         "performance-reports",
         "GITHUB_STEP_SUMMARY",
         "runtime-core",
+        "peer service packages",
     ]
     acceptance_markers = [
         "F2 / #252",

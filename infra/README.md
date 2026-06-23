@@ -28,12 +28,12 @@ baseline `python:3.13.14-slim` и использует multi-stage схему: b
 создает venv `/opt/venv`, устанавливает runtime-зависимости из optional groups
 `runtime-core` и `runtime-<SERVICE_NAME>` в
 [pyproject.toml](../pyproject.toml), подготавливает артефакт в `/build/app`, а
-runtime stage копирует только venv, код сервиса, `libs`, entrypoint и build
-metadata. Финальная структура артефакта единая:
+runtime stage копирует только venv, Python-пакеты сервисов, `libs`, entrypoint
+и build metadata. Финальная структура артефакта единая:
 
 ```text
 /app/
-├── service/                 # код выбранного SERVICE_PATH
+├── service/                 # выбранный SERVICE_PATH и peer service packages
 ├── libs/                    # общие библиотеки монорепозитория
 ├── config/                  # конфиги и build metadata
 │   └── build_info.json
@@ -41,8 +41,15 @@ metadata. Финальная структура артефакта единая:
 ```
 
 `WORKDIR` всегда `/app`, а `PYTHONPATH=/app/service:/app`, поэтому код сервиса
-импортируется из `/app/service`, а общие модули из `/app/libs` доступны как
-`libs.*`.
+и легковесные peer packages из соседних сервисов импортируются из
+`/app/service`, а общие модули из `/app/libs` доступны как `libs.*`. Peer
+packages копируются как исходный код без их dev/audit/integration зависимостей;
+runtime-зависимости по-прежнему ограничены optional groups.
+
+Для F2 cold-start гейта build stage сохраняет только selective bytecode:
+FastAPI/Starlette/Pydantic в venv, текущий service package, его `*_app`
+entrypoint и `libs/shared`. Остальной venv bytecode удаляется, чтобы образ
+оставался ниже 250 MB.
 
 Локальная smoke-сборка одного сервиса:
 

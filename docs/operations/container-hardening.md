@@ -13,8 +13,9 @@ capabilities или read-only rootfs.
 - `ENTRYPOINT ["/usr/bin/tini", "--"]` делает `tini` PID 1, чтобы SIGTERM
   корректно проксировался дочернему процессу, а zombie-процессы reaped.
 - Writable-контракт ограничен путями `/tmp` и `/app/logs`.
-- `PYTHONDONTWRITEBYTECODE=1` и `PYTHONPYCACHEPREFIX=/tmp/python-pyc`
-  предотвращают запись bytecode рядом с исходниками.
+- `PYTHONDONTWRITEBYTECODE=1` предотвращает запись bytecode в read-only
+  runtime; нужный для cold-start bytecode выборочно создаётся в build stage и
+  копируется как read-only артефакт вместе с кодом.
 
 ## Docker Compose contract
 
