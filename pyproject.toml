@@ -56,6 +56,7 @@ strict = true
 mypy_path = [
   "$MYPY_CONFIG_FILE_DIR/services/activity-command-center",
   "$MYPY_CONFIG_FILE_DIR/services/analytics-engine",
+  "$MYPY_CONFIG_FILE_DIR/services/api-gateway",
   "$MYPY_CONFIG_FILE_DIR/services/cglr",
   "$MYPY_CONFIG_FILE_DIR/services/blockchain-auditor",
   "$MYPY_CONFIG_FILE_DIR/services/contribution-ledger",
@@ -80,6 +81,7 @@ pythonpath = [
   ".",
   "services/activity-command-center",
   "services/analytics-engine",
+  "services/api-gateway",
   "services/cglr",
   "services/blockchain-auditor",
   "services/contribution-ledger",

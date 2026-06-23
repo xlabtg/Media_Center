@@ -21,6 +21,7 @@ from libs.shared import (
     VALIDATION_ERROR_CODE,
     AccessPolicy,
     AuditLogger,
+    BaseAppConfig,
     InMemoryAuditLogSink,
     InMemoryAuditSink,
     InMemoryEventBus,
@@ -33,7 +34,7 @@ from libs.shared import (
     TenantContext,
     TenantCoreError,
     TenantVectorStore,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -281,7 +282,7 @@ router = APIRouter(tags=["Neuro-Agent Orchestrator"])
 
 
 def create_neuro_agent_orchestrator_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryNeuroAgentRepository | None = None,
     proxy_repository: InMemoryProxyPoolRepository | None = None,
@@ -307,7 +308,7 @@ def create_neuro_agent_orchestrator_app(
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Neuro-Agent Orchestrator",
         audit_sink=resolved_tenant_audit_sink,

@@ -23,6 +23,7 @@ from pydantic import AliasChoices, ConfigDict, Field, field_validator
 from libs.shared import (
     IDEMPOTENCY_CONFLICT_CODE,
     VALIDATION_ERROR_CODE,
+    BaseAppConfig,
     EventPublisher,
     IdempotencyKey,
     InMemoryAuditSink,
@@ -36,7 +37,7 @@ from libs.shared import (
     TenantCoreError,
     TenantId,
     TenantScopedRepository,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_tenant_context,
 )
@@ -385,7 +386,7 @@ router = APIRouter(tags=["CGLR"])
 
 
 def create_cglr_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryGeneratedContentRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -394,7 +395,7 @@ def create_cglr_app(
 ) -> FastAPI:
     resolved_audit_sink = audit_sink or InMemoryAuditSink()
     resolved_publisher = publisher or InMemoryEventBus()
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Content Generator & Link Router",
         audit_sink=resolved_audit_sink,

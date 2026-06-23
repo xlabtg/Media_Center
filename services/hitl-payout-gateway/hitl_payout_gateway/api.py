@@ -19,6 +19,7 @@ from libs.shared import (
     AccessPolicy,
     AuditHash,
     AuditLogger,
+    BaseAppConfig,
     IdempotencyKey,
     InMemoryAuditLogSink,
     InMemoryAuditSink,
@@ -31,7 +32,7 @@ from libs.shared import (
     TenantContext,
     TenantCoreError,
     TOTPService,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -170,7 +171,7 @@ router = APIRouter(tags=["HITL Payout Gateway"])
 
 
 def create_hitl_payout_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryPayoutQueueRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -220,7 +221,7 @@ def create_hitl_payout_app(
         )
     )
 
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center HITL Payout Gateway",
         audit_sink=resolved_tenant_audit_sink,

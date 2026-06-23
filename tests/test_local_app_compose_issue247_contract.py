@@ -77,9 +77,9 @@ def test_issue_247_app_services_use_healthcheck_on_internal_7700_port() -> None:
 
     for service in PRODUCT_SERVICES:
         app_package = service.replace("-", "_") + "_app"
-        assert (ROOT / "services" / service / app_package / "main.py").is_file(), (
-            f"{service} должен иметь ASGI entrypoint для healthcheck"
-        )
+        entrypoint_path = ROOT / "services" / service / app_package / "main.py"
+        failure_message = f"{service} должен иметь ASGI entrypoint для healthcheck"
+        assert entrypoint_path.is_file(), failure_message
 
 
 def test_issue_247_app_services_apply_runtime_hardening() -> None:

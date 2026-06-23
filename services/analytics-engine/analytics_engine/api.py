@@ -26,6 +26,7 @@ from libs.shared import (
     AccessPolicy,
     AuditHash,
     AuditLogger,
+    BaseAppConfig,
     CorrelationId,
     IdempotencyKey,
     InMemoryAuditLogSink,
@@ -40,7 +41,7 @@ from libs.shared import (
     TenantCoreError,
     TenantId,
     TenantScopedRepository,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -937,7 +938,7 @@ router = APIRouter(tags=["Analytics Engine"])
 
 
 def create_analytics_engine_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryAnalyticsRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -949,7 +950,7 @@ def create_analytics_engine_app(
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
     audit_logger = AuditLogger(sink=resolved_audit_log_sink)
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Analytics Engine",
         audit_sink=resolved_tenant_audit_sink,
