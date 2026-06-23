@@ -7,6 +7,15 @@ def read_text(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def read_workflow_bundle() -> str:
+    return "\n".join(
+        [
+            read_text(".github/workflows/ci.yml"),
+            read_text(".github/workflows/build-service.yml"),
+        ]
+    )
+
+
 def test_issue_229_service_dockerfile_generates_build_info_from_build_args() -> None:
     dockerfile = read_text("infra/docker/service.Dockerfile")
 
@@ -47,7 +56,7 @@ def test_issue_229_service_dockerfile_sets_oci_labels_from_build_args() -> None:
 
 
 def test_issue_229_ci_passes_build_metadata_to_service_image_build() -> None:
-    workflow = read_text(".github/workflows/ci.yml")
+    workflow = read_workflow_bundle()
     resolver = read_text(".github/scripts/resolve-build-metadata.sh")
 
     required_workflow_markers = [

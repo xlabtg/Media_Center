@@ -7,14 +7,23 @@ def read_text(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def read_workflow_bundle() -> str:
+    return "\n".join(
+        [
+            read_text(".github/workflows/ci.yml"),
+            read_text(".github/workflows/build-service.yml"),
+        ]
+    )
+
+
 def test_issue_235_ci_publishes_full_ghcr_tag_set() -> None:
-    workflow = read_text(".github/workflows/ci.yml")
+    workflow = read_workflow_bundle()
 
     required_markers = [
         "permissions:\n      contents: read\n      packages: write",
         (
             "images: ghcr.io/${{ github.repository_owner }}/"
-            "media-center-${{ matrix.service }}"
+            "media-center-${{ inputs.service }}"
         ),
         "type=semver,pattern={{version}}",
         "type=semver,pattern={{major}}.{{minor}}",

@@ -5,8 +5,10 @@
 
 ## Что создаёт CI
 
-Workflow `.github/workflows/ci.yml` публикует образы только для `push` в `main`
-или для semver-тегов. Для каждого сервиса job `images` выполняет:
+Workflow `.github/workflows/ci.yml` вызывает reusable workflow
+`.github/workflows/build-service.yml` только для матрицы продуктовых сервисов.
+Публикация образов выполняется только для `push` в `main` или для semver-тегов.
+Для каждого сервиса reusable job `Build service image` выполняет:
 
 - сборку multi-arch manifest list через `docker/build-push-action`;
 - keyless-подпись `cosign sign --yes` для
@@ -31,12 +33,13 @@ IMAGE="ghcr.io/xlabtg/media-center-api-gateway@sha256:<digest>"
 ```bash
 cosign verify \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github\.com/xlabtg/Media_Center/\.github/workflows/ci\.yml@refs/(heads/main|tags/.+)$' \
+  --certificate-identity-regexp '^https://github\.com/xlabtg/Media_Center/\.github/workflows/build-service\.yml@refs/(heads/main|tags/.+)$' \
   "$IMAGE"
 ```
 
-Успешная проверка подтверждает, что digest подписан workflow `CI` из репозитория
-`xlabtg/Media_Center`, а сертификат выпущен через GitHub OIDC.
+Успешная проверка подтверждает, что digest подписан reusable workflow
+`Build Service` из репозитория `xlabtg/Media_Center`, а сертификат выпущен
+через GitHub OIDC.
 
 ## Проверить SLSA provenance через cosign
 
@@ -44,7 +47,7 @@ cosign verify \
 cosign verify-attestation \
   --type slsaprovenance \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github\.com/xlabtg/Media_Center/\.github/workflows/ci\.yml@refs/(heads/main|tags/.+)$' \
+  --certificate-identity-regexp '^https://github\.com/xlabtg/Media_Center/\.github/workflows/build-service\.yml@refs/(heads/main|tags/.+)$' \
   "$IMAGE"
 ```
 
@@ -62,7 +65,7 @@ gh attestation verify \
   "oci://ghcr.io/xlabtg/media-center-api-gateway@sha256:<digest>" \
   --repo xlabtg/Media_Center \
   --bundle-from-oci \
-  --signer-workflow xlabtg/Media_Center/.github/workflows/ci.yml
+  --signer-workflow xlabtg/Media_Center/.github/workflows/build-service.yml
 ```
 
 По умолчанию `gh attestation verify` ожидает predicate type

@@ -12,8 +12,17 @@ def read_text(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def read_workflow_bundle() -> str:
+    return "\n".join(
+        [
+            read_text(".github/workflows/ci.yml"),
+            read_text(".github/workflows/build-service.yml"),
+        ]
+    )
+
+
 def test_issue_234_ci_uses_git_tags_metadata_action_and_build_args() -> None:
-    workflow = read_text(".github/workflows/ci.yml")
+    workflow = read_workflow_bundle()
 
     required_markers = [
         "tags:",

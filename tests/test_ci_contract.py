@@ -3,13 +3,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_SERVICES = (
+    "activity-command-center",
+    "analytics-engine",
     "api-gateway",
-    "contribution-ledger",
+    "blockchain-auditor",
     "cglr",
+    "contribution-ledger",
     "hitl-payout-gateway",
     "messenger-adapter",
+    "neuro-agent-orchestrator",
     "notification-gateway",
-    "blockchain-auditor",
+    "policy-manager",
     "voice-to-chain",
     "wallet",
     "web-cabinet",
@@ -20,8 +24,17 @@ def read_text(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def read_workflow_bundle() -> str:
+    return "\n".join(
+        [
+            read_text(".github/workflows/ci.yml"),
+            read_text(".github/workflows/build-service.yml"),
+        ]
+    )
+
+
 def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
-    workflow = read_text(".github/workflows/ci.yml")
+    workflow = read_workflow_bundle()
 
     required_markers = [
         "ruff check .",
@@ -42,10 +55,11 @@ def test_ci_workflow_declares_quality_security_and_image_checks() -> None:
 
 def test_ci_image_matrix_covers_all_baseline_services() -> None:
     workflow = read_text(".github/workflows/ci.yml")
+    reusable = read_text(".github/workflows/build-service.yml")
 
     for service in EXPECTED_SERVICES:
-        assert f"service: {service}" in workflow
-        assert f"path: services/{service}" in workflow
+        assert f"- {service}" in workflow
+    assert "SERVICE_PATH=services/${{ inputs.service }}" in reusable
 
 
 def test_service_dockerfile_uses_adr_baseline_python_image() -> None:
