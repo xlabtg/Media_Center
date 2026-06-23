@@ -58,6 +58,13 @@ from libs.shared.tenant import (
     TenantCoreError,
     require_tenant_context,
 )
+from notification_gateway.email_delivery import (
+    EmailDeliveryService,
+    EmailMessagePurpose,
+    EmailProviderAdapter,
+    InMemoryEmailOutboxRepository,
+    email_message_purpose_from_metadata,
+)
 
 NOTIFICATION_GATEWAY_SERVICE_NAME = "notification-gateway"
 NOTIFICATION_GATEWAY_SOURCE = "notification-gateway"
@@ -170,6 +177,7 @@ class NotifyRequest(SharedBaseModel):
     template_key: TemplateKey | None = None
     template: NotificationTemplateRequest | None = None
     context: dict[str, JSONValue] = Field(default_factory=dict)
+    message_purpose: EmailMessagePurpose = EmailMessagePurpose.SYSTEM
     priority: NotificationPriority = NotificationPriority.NORMAL
     occurred_at: datetime | None = None
     metadata: dict[str, JSONValue] = Field(default_factory=dict)
@@ -195,6 +203,13 @@ class NotifyRequest(SharedBaseModel):
         if value is None:
             return None
         return _normalize_string_sequence(value, lower=True)
+
+    @field_validator("message_purpose", mode="before")
+    @classmethod
+    def _normalize_message_purpose(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
     @field_validator("occurred_at")
     @classmethod
@@ -359,6 +374,7 @@ class NotificationChannel(Protocol):
 
 @dataclass(slots=True)
 class InMemoryNotificationChannel:
+    email_service: EmailDeliveryService | None = None
     _deliveries: list[NotificationDeliveryCommand] = field(default_factory=list)
 
     @property
@@ -370,11 +386,19 @@ class InMemoryNotificationChannel:
         command: NotificationDeliveryCommand,
     ) -> NotificationChannelReceipt:
         self._deliveries.append(command)
+        channel_ref_subject = f"{command.notification_id}:{command.channel}"
+        if command.channel == "email" and self.email_service is not None:
+            email_message = await self.email_service.queue_from_notification(
+                command,
+                purpose=email_message_purpose_from_metadata(command.metadata),
+            )
+            channel_ref_subject = f"{email_message.message_id}:{email_message.status}"
+
         return NotificationChannelReceipt(
             channel=command.channel,
             channel_ref_hash=subject_ref_hash(
                 tenant_id=command.tenant_id,
-                subject_id=f"{command.notification_id}:{command.channel}",
+                subject_id=channel_ref_subject,
             ),
             delivered_at=command.requested_at,
         )
@@ -776,7 +800,13 @@ class NotificationGateway:
             metadata={
                 "source": payload.source,
                 "priority": payload.priority.value,
+                "message_purpose": payload.message_purpose.value,
                 "audit_hash": audit_record.audit_hash,
+                "notification_metadata": dict(payload.metadata),
+                "recipient_email": _email_recipient_address(
+                    payload=payload,
+                    recipient_id=recipient_id,
+                ),
             },
         )
         try:
@@ -823,6 +853,8 @@ class NotificationGatewayAPIState:
     gateway: NotificationGateway
     repository: InMemoryNotificationRepository
     channel: InMemoryNotificationChannel
+    email_outbox: InMemoryEmailOutboxRepository
+    email_service: EmailDeliveryService
     publisher: InMemoryEventBus
     audit_log_sink: InMemoryAuditLogSink
     tenant_audit_sink: InMemoryAuditSink
@@ -836,12 +868,28 @@ def create_notification_gateway_app(
     *,
     repository: InMemoryNotificationRepository | None = None,
     channel: InMemoryNotificationChannel | None = None,
+    email_outbox: InMemoryEmailOutboxRepository | None = None,
+    email_service: EmailDeliveryService | None = None,
+    email_adapters: Mapping[str, EmailProviderAdapter] | None = None,
     publisher: InMemoryEventBus | None = None,
     audit_log_sink: InMemoryAuditLogSink | None = None,
     tenant_audit_sink: InMemoryAuditSink | None = None,
 ) -> FastAPI:
     resolved_repository = repository or InMemoryNotificationRepository()
-    resolved_channel = channel or InMemoryNotificationChannel()
+    if email_service is not None:
+        resolved_email_service = email_service
+        resolved_email_outbox = email_outbox or email_service.outbox
+    else:
+        resolved_email_outbox = email_outbox or InMemoryEmailOutboxRepository()
+        resolved_email_service = EmailDeliveryService(
+            outbox=resolved_email_outbox,
+            adapters=dict(email_adapters or {}),
+        )
+    resolved_channel = channel or InMemoryNotificationChannel(
+        email_service=resolved_email_service,
+    )
+    if resolved_channel.email_service is None:
+        resolved_channel.email_service = resolved_email_service
     resolved_publisher = publisher or InMemoryEventBus()
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
@@ -860,6 +908,8 @@ def create_notification_gateway_app(
         gateway=gateway,
         repository=resolved_repository,
         channel=resolved_channel,
+        email_outbox=resolved_email_outbox,
+        email_service=resolved_email_service,
         publisher=resolved_publisher,
         audit_log_sink=resolved_audit_log_sink,
         tenant_audit_sink=resolved_tenant_audit_sink,
@@ -1128,6 +1178,46 @@ def _subscribes_to_event(
     event_type: str,
 ) -> bool:
     return not preferences.event_types or event_type in preferences.event_types
+
+
+def _email_recipient_address(
+    *,
+    payload: NotifyRequest,
+    recipient_id: str,
+) -> str | None:
+    metadata_address = _email_recipient_address_from_mapping(
+        payload.metadata,
+        recipient_id=recipient_id,
+    )
+    if metadata_address is not None:
+        return metadata_address
+
+    return _email_recipient_address_from_mapping(
+        payload.context,
+        recipient_id=recipient_id,
+    )
+
+
+def _email_recipient_address_from_mapping(
+    value: Mapping[str, JSONValue],
+    *,
+    recipient_id: str,
+) -> str | None:
+    direct_email = value.get("recipient_email")
+    if isinstance(direct_email, str):
+        return direct_email
+
+    email_to = value.get("email_to")
+    if isinstance(email_to, str):
+        return email_to
+
+    email_recipients = value.get("email_recipients")
+    if isinstance(email_recipients, dict):
+        raw_email = email_recipients.get(recipient_id)
+        if isinstance(raw_email, str):
+            return raw_email
+
+    return None
 
 
 def _normalize_datetime(value: datetime) -> datetime:

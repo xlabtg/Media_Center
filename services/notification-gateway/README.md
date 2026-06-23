@@ -14,6 +14,9 @@
   или получателя, которым управляет Совет.
 - `PUT /notify/preferences` обновляет включённость, каналы, подписки на типы
   событий и template override для получателя.
+- `message_purpose` в `POST /notify` помечает email как `system` или
+  `marketing`, а `metadata.email_recipients` связывает `recipient_id` с
+  tenant-scoped адресом доставки.
 
 ## Реализованный слой
 
@@ -25,6 +28,24 @@
 `InMemoryNotificationChannel` фиксирует доставку по каналам `telegram`,
 `email`, `webhook` или любому другому нормализованному channel name. Внешние
 коннекторы подключаются через protocol `NotificationChannel`.
+
+Email-доставка для #297 выделена в `notification_gateway.email_delivery`:
+
+- `InMemoryEmailOutboxRepository` хранит outbox сообщений и маршруты
+  `EmailProviderRoute` отдельно по `tenant_id`.
+- `EmailProviderRoute` выбирает provider adapter по `purpose`, `priority` и
+  статусу `active|paused|disabled`; отключённые marketing/system пути не
+  отправляют сообщение, но запись остаётся в outbox со статусом `deferred`.
+- `EmailDeliveryService` создаёт email-сообщение из отрендеренного
+  `NotificationDeliveryCommand`, сохраняет его в outbox и пытается отправить
+  через зарегистрированный `EmailProviderAdapter`.
+- `InMemoryEmailProviderAdapter` покрывает локальные тесты. Для Postalserver,
+  Mailgun или другого REST-провайдера production adapter подключается через тот
+  же protocol и может менять endpoint/region/credentials без изменения тела
+  уже созданного сообщения.
+- `sender_alias` хранится на route, поэтому outbox-сообщение не привязано к
+  конкретному provider sender address и может быть переотправлено через другой
+  route.
 
 ## Безопасность
 
