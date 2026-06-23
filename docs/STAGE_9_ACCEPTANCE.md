@@ -4,8 +4,9 @@
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
 авторизация для внутренних вызовов и `/admin/*`, эпика E из issue #250:
 оркестрация и раскатка единого runtime-контракта, задачи F1 из issue #251:
-DORA dashboard в Grafana для REQ-N3, а также задачи F2 из issue #252: бюджеты
-размера образов и cold-start до `/ready` для REQ-N1/REQ-N2. Внутри эпика E
+DORA dashboard в Grafana для REQ-N3, задачи F2 из issue #252: бюджеты
+размера образов и cold-start до `/ready` для REQ-N1/REQ-N2, а также задачи
+F3 из issue #253: живая матрица конкурентных метрик REQ-M4. Внутри эпика E
 закрыты задача E1 из issue #247: локальный docker-compose с приложенческими
 сервисами, задача E2 из issue #248: k8s/Helm-манифесты для раскатки сервисов,
 и задача E3 из issue #249: раскатка единого runtime-контракта на все 14
@@ -52,6 +53,12 @@ DORA dashboard в Grafana для REQ-N3, а также задачи F2 из issu
 | Задача | Статус | Проверяемые артефакты |
 | --- | --- | --- |
 | F2 / #252 | Выполнено: reusable image workflow после локальной amd64-сборки измеряет `docker image ls` размер сервисного образа и cold-start контейнера до HTTP 200 на `/ready`, пишет JSON-отчёт и job summary, а также падает при `SIZE >= 250 МБ` или cold-start `> 3000` мс. | `.github/workflows/build-service.yml`, `.github/scripts/check_service_performance_budget.py`, `docs/operations/service-performance-budgets.json`, `docs/operations/image-size-budget.md`, `tests/test_performance_budgets_issue252_contract.py` |
+
+## Статус задачи F3
+
+| Задача | Статус | Проверяемые артефакты |
+| --- | --- | --- |
+| F3 / #253 | Выполнено: `competitive-metrics-matrix.md` поддерживает живую матрицу осей из competitive analysis, фиксирует текущие и целевые значения, связывает размер/cold-start с F2 artifacts, DORA с F1 recording rules, supply-chain evidence с release workflow и SLO с SRE-каталогом; процесс обновления описан для каждого релиза. | `docs/case-studies/issue-213/metrics/competitive-metrics-matrix.md`, `docs/case-studies/issue-213/04-competitive-analysis.md`, `tests/test_competitive_metrics_matrix_issue253_contract.py` |
 
 ## Release gate
 
@@ -180,6 +187,19 @@ registry attestations.
   установки всего `[project].dependencies` в каждый runtime-образ;
 - этот snapshot и операционный документ связывают F2 с REQ-N1/REQ-N2.
 
+Контракт F3 по issue #253 закреплён в
+`tests/test_competitive_metrics_matrix_issue253_contract.py`. Он проверяет, что:
+
+- `docs/case-studies/issue-213/metrics/competitive-metrics-matrix.md`
+  содержит оси из `04-competitive-analysis.md`: размер, cold-start, DORA,
+  supply-chain и SLO;
+- каждая ось имеет текущее значение, целевое значение и источник текущего
+  измерения;
+- DORA-строки привязаны к F1 / #251, а размер/cold-start - к F2 / #252;
+- описан release-процесс обновления через CI run, artifacts
+  `service-performance-*`, Prometheus/Grafana rows и SLO catalog;
+- case-study README и этот acceptance snapshot ссылаются на матрицу и тест.
+
 Локальная проверка:
 
 ```bash
@@ -191,7 +211,8 @@ python -m pytest \
   tests/test_stage9_epic_e_issue249_contract.py \
   tests/test_stage9_epic_e_issue250_contract.py \
   tests/test_dora_grafana_issue251_contract.py \
-  tests/test_performance_budgets_issue252_contract.py
+  tests/test_performance_budgets_issue252_contract.py \
+  tests/test_competitive_metrics_matrix_issue253_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```
