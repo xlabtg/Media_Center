@@ -2,10 +2,12 @@
 
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
-авторизация для внутренних вызовов и `/admin/*`, а также задачи E1 из issue
-#247: локальный docker-compose с приложенческими сервисами, задачи E2 из
-issue #248: k8s/Helm-манифесты для раскатки сервисов, и задачи E3 из issue
-#249: раскатка единого runtime-контракта на все 14 продуктовых сервисов.
+авторизация для внутренних вызовов и `/admin/*`, а также эпика E из issue
+#250: оркестрация и раскатка единого runtime-контракта. Внутри эпика E
+закрыты задача E1 из issue #247: локальный docker-compose с приложенческими
+сервисами, задача E2 из issue #248: k8s/Helm-манифесты для раскатки сервисов,
+и задача E3 из issue #249: раскатка единого runtime-контракта на все 14
+продуктовых сервисов.
 Остальные задачи Этапа 9 ведутся отдельными родительскими issue из плана #213.
 
 ## Статус эпика C
@@ -80,6 +82,20 @@ registry attestations.
 - `/admin/*` недоступен без валидной S2S identity;
 - snapshot и `docs/S2S_AUTH.md` ссылаются на код, тесты и ADR.
 
+Сквозной контракт эпика E по issue #250 закреплён в
+`tests/test_stage9_epic_e_issue250_contract.py`. Он проверяет, что:
+
+- единая матрица 14 продуктовых сервисов совпадает между каталогом
+  `services/`, `infra/local/docker-compose.yml`, chart
+  `deploy/helm/media-center` и `services/*/*_app/main.py`;
+- локальный `docker compose` использует port `7700`, `/health`, `read_only`,
+  `tmpfs`, `no-new-privileges:true`, `cap_drop: ALL` и ожидание healthy
+  инфраструктуры;
+- Helm chart сохраняет Service `7700`, probes `/health`/`/ready`,
+  ServiceAccount с projected token, TokenReview RBAC и hardening
+  securityContext;
+- этот snapshot связывает родительский epic #250 с задачами #247, #248 и #249.
+
 Контракт E1 по issue #247 закреплён в
 `tests/test_local_app_compose_issue247_contract.py`. Он проверяет, что:
 
@@ -129,7 +145,8 @@ python -m pytest \
   tests/test_stage9_epic_d_issue246_contract.py \
   tests/test_local_app_compose_issue247_contract.py \
   tests/test_helm_k8s_issue248_contract.py \
-  tests/test_stage9_epic_e_issue249_contract.py
+  tests/test_stage9_epic_e_issue249_contract.py \
+  tests/test_stage9_epic_e_issue250_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```
