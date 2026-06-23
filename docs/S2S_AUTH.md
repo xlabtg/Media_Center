@@ -1,6 +1,6 @@
 # Service-to-service авторизация
 
-- **Связанный issue:** [#245](https://github.com/xlabtg/Media_Center/issues/245)
+- **Связанные issue:** [#246](https://github.com/xlabtg/Media_Center/issues/246), [#245](https://github.com/xlabtg/Media_Center/issues/245)
 - **Код:** [`libs/shared/s2s_auth.py`](../libs/shared/s2s_auth.py)
 - **ADR эволюции:** [ADR-0010](adr/0010-spiffe-mtls-s2s.md)
 
@@ -130,11 +130,12 @@ service-name
 | `tests/test_config_settings.py` | Env/config D2: методы, secret provider, пути token/key, issuer/audience и TTL. |
 | `tests/test_base_server_issue222.py` | D3: `/admin/*` требует валидную S2S подпись. |
 | `tests/test_s2s_auth_issue245_contract.py` | D4: все методы, replay, `hmac.compare_digest`, threat model и ADR SPIFFE/mTLS. |
+| `tests/test_stage9_epic_d_issue246_contract.py` | Сквозной контракт #246: fallback chain, replay/timing controls, защита `/admin/*` и acceptance snapshot эпика D. |
 
 Локальная проверка:
 
 ```bash
-python -m pytest tests/test_s2s_auth_issue242.py tests/test_s2s_auth_issue245_contract.py
+python -m pytest tests/test_s2s_auth_issue242.py tests/test_s2s_auth_issue245_contract.py tests/test_stage9_epic_d_issue246_contract.py
 ```
 
 ## Эволюция к SPIFFE/SPIRE и mTLS
