@@ -2,8 +2,9 @@
 
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
-авторизация для внутренних вызовов и `/admin/*`, а также эпика E из issue
-#250: оркестрация и раскатка единого runtime-контракта. Внутри эпика E
+авторизация для внутренних вызовов и `/admin/*`, эпика E из issue #250:
+оркестрация и раскатка единого runtime-контракта, а также задачи F1 из issue
+#251: DORA dashboard в Grafana для REQ-N3. Внутри эпика E
 закрыты задача E1 из issue #247: локальный docker-compose с приложенческими
 сервисами, задача E2 из issue #248: k8s/Helm-манифесты для раскатки сервисов,
 и задача E3 из issue #249: раскатка единого runtime-контракта на все 14
@@ -38,6 +39,12 @@
 | E1 | Выполнено: `infra/local/docker-compose.yml` добавляет все 14 продуктовых app-сервисов с образами `media-center-<service>`, build через `infra/docker/service.Dockerfile`, внутренним `APP_PORT=7700`, `expose: 7700`, healthcheck `/health`, `read_only`, `tmpfs`, `security_opt: no-new-privileges:true`, `cap_drop: ALL` и `depends_on` на healthy-инфраструктуру. | `infra/local/docker-compose.yml`, `infra/local/.env.local.example`, `infra/local/README.md`, `services/api-gateway/api_gateway_app/main.py`, `services/messenger-adapter/messenger_adapter_app/main.py`, `tests/test_local_app_compose_issue247_contract.py` |
 | E2 | Выполнено: `deploy/helm/media-center` добавляет Helm chart для всех 14 продуктовых сервисов: Deployment с `/health` liveness и `/ready` readiness probes, resources, securityContext non-root/read-only/no privilege escalation/drop caps, ServiceAccount с projected ServiceAccount token для S2S, TokenReview RBAC и Service на `7700`. | `deploy/helm/media-center/Chart.yaml`, `deploy/helm/media-center/values.yaml`, `deploy/helm/media-center/templates/`, `infra/README.md`, `experiments/validate_issue248_helm.sh`, `tests/test_helm_k8s_issue248_contract.py` |
 | E3 | Выполнено: все 14 продуктовых `*_app.main` используют `BaseAppConfig` + `create_base_app` через доменные фабрики, экспортируют ASGI `app`, поддерживают `python -m <service_app>.main`, стартуют на `APP_PORT=7700` и отвечают на `/health`, `/ready`, `/info`, `/metrics`. | `libs/shared/server.py`, `services/*/*_app/main.py`, `services/README.md`, `tests/test_stage9_epic_e_issue249_contract.py` |
+
+## Статус задачи F1
+
+| Задача | Статус | Проверяемые артефакты |
+| --- | --- | --- |
+| F1 / #251 | Выполнено: Grafana dashboard `НМЦ / DORA` показывает Deployment frequency, Lead time for changes, Change failure rate и MTTR, а Prometheus recording rules агрегируют CI/CD и incident events в целевые DORA-ряды REQ-N3. | `infra/observability/grafana/dashboards/dora.json`, `infra/observability/prometheus/rules/dora-metrics.yml`, `docs/case-studies/issue-213/metrics/dora-data-sources.md`, `tests/test_dora_grafana_issue251_contract.py` |
 
 ## Release gate
 
@@ -137,6 +144,20 @@ registry attestations.
 - snapshot и `services/README.md` перечисляют все сервисы и соответствующие
   entrypoint-модули.
 
+Контракт F1 по issue #251 закреплён в
+`tests/test_dora_grafana_issue251_contract.py`. Он проверяет, что:
+
+- Grafana provisioning автоматически подхватывает
+  `infra/observability/grafana/dashboards/dora.json`;
+- dashboard содержит четыре панели DORA: Deployment frequency, Lead time for
+  changes, Change failure rate и MTTR;
+- `infra/observability/prometheus/rules/dora-metrics.yml` строит recording rules
+  из `nmc_delivery_deployments_total`,
+  `nmc_delivery_lead_time_seconds_bucket`, `nmc_delivery_changes_total` и
+  `nmc_incident_recovery_seconds`;
+- `docs/case-studies/issue-213/metrics/dora-data-sources.md` документирует
+  источники GitHub Actions, GitHub Deployments и incident process.
+
 Локальная проверка:
 
 ```bash
@@ -146,7 +167,8 @@ python -m pytest \
   tests/test_local_app_compose_issue247_contract.py \
   tests/test_helm_k8s_issue248_contract.py \
   tests/test_stage9_epic_e_issue249_contract.py \
-  tests/test_stage9_epic_e_issue250_contract.py
+  tests/test_stage9_epic_e_issue250_contract.py \
+  tests/test_dora_grafana_issue251_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```

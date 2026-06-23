@@ -22,6 +22,7 @@
 | [`03-research-and-libraries.md`](03-research-and-libraries.md) | Онлайн-исследование (multi-stage, hardening, S2S/SPIFFE, supply-chain, FastAPI health/logging, semver/GHCR, DORA) + реестр переиспользуемых компонентов |
 | [`04-competitive-analysis.md`](04-competitive-analysis.md) | Конкуренты, оси сравнения, целевые метрики превосходства (REQ-N1..N5) |
 | [`05-solution-plan.md`](05-solution-plan.md) | План «Этап 9»: 6 эпиков → 33 задачи, граф зависимостей, матрица трассируемости REQ→issue |
+| [`metrics/dora-data-sources.md`](metrics/dora-data-sources.md) | Контракт источников данных DORA для issue #251: CI/CD events, incidents и Prometheus recording rules |
 | [`sources/`](sources/) | Первоисточники: транскрипт чата Qwen (`qwen-chat-transcript.md`) и сырой дамп (`qwen-chat-raw-innertext.txt`) |
 
 ## Итог планирования

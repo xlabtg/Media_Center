@@ -110,10 +110,13 @@ App-сервисы issue #247 собираются тем же `infra/docker/ser
 один порт.
 
 Prometheus автоматически читает конфигурацию из
-`infra/observability/prometheus/prometheus.yml`, Grafana подключает datasource и
-дашборд из `infra/observability/grafana/`, а OpenTelemetry Collector принимает
-traces/logs/metrics через OTLP. Логи, метрики и traces обязаны содержать
-`tenant_id` и не должны включать ПДн, токены, сырое содержимое или суммы выплат.
+`infra/observability/prometheus/prometheus.yml`, включая DORA recording rules
+issue #251, Grafana подключает datasource и дашборды из
+`infra/observability/grafana/`, а OpenTelemetry Collector принимает
+traces/logs/metrics через OTLP. Логи, метрики, traces и DORA events обязаны
+содержать только технические labels и не должны включать ПДн, токены, сырое
+содержимое или суммы выплат. Источники DORA-метрик описаны в
+`docs/case-studies/issue-213/metrics/dora-data-sources.md`.
 
 ## Миграции, сиды и фикстуры
 

@@ -32,9 +32,13 @@ make up
 | OpenTelemetry gRPC | `localhost:4317` |
 | OpenTelemetry HTTP | `http://localhost:4318` |
 
-Grafana автоматически подключает Prometheus и дашборд
-`НМЦ / Tenant Observability`. Dev-учётные данные задаются только в
-`infra/local/.env.local.example` и предназначены для локального запуска.
+Grafana автоматически подключает Prometheus и дашборды
+`НМЦ / Tenant Observability` и `НМЦ / DORA`. DORA dashboard issue #251
+использует recording rules из `prometheus/rules/dora-metrics.yml` и источники
+CI/CD + incident process, описанные в
+`docs/case-studies/issue-213/metrics/dora-data-sources.md`. Dev-учётные данные
+задаются только в `infra/local/.env.local.example` и предназначены для
+локального запуска.
 
 Для приватной blockchain-сети issue #79 используется compose override
 `infra/observability/prometheus/prometheus.blockchain.yml`: он сохраняет
@@ -70,6 +74,23 @@ Shared-библиотека публикует базовые метрики:
 Каждая метрика обязана иметь label `tenant_id`. Для системных self-check
 endpoint можно использовать `tenant_id="system"`; доменные запросы должны
 получать значение из проверенного tenant context.
+
+## DORA-метрики
+
+REQ-N3 закрывается dashboard `infra/observability/grafana/dashboards/dora.json`.
+Он показывает Deployment frequency, Lead time for changes, Change failure rate и
+MTTR через Prometheus recording rules:
+
+- `nmc:dora_deployment_frequency:deploys_per_day`;
+- `nmc:dora_lead_time:p75_seconds`;
+- `nmc:dora_change_failure_rate:ratio30d`;
+- `nmc:dora_mttr:avg_seconds`.
+
+Исходные метрики `nmc_delivery_deployments_total`,
+`nmc_delivery_lead_time_seconds_bucket`, `nmc_delivery_changes_total` и
+`nmc_incident_recovery_seconds` поступают из GitHub Actions, GitHub Deployments и
+incident process. Подробный контракт источников зафиксирован в
+`docs/case-studies/issue-213/metrics/dora-data-sources.md`.
 
 ## Логи и traces
 
