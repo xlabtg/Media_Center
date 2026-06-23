@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from policy_manager import POLICY_MANAGER_SERVICE_NAME
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "issue": 252,
+  "description": "CI gates for service Docker image size and cold-start to /ready.",
+  "metrics": {
+    "image_size": {
+      "source": "docker image ls",
+      "budget_bytes": 250000000,
+      "budget_mb": 250,
+      "stretch_budget_bytes": 200000000,
+      "stretch_budget_mb": 200,
+      "comparison": "less_than",
+      "adr": "docs/adr/0008-container-image-size-optimization.md"
+    },
+    "cold_start": {
+      "source": "container start to first HTTP 200",
+      "endpoint": "/ready",
+      "port": 7700,
+      "budget_ms": 3000,
+      "timeout_ms": 10000,
+      "comparison": "less_than_or_equal"
+    }
+  },
+  "services": [
+    {
+      "name": "activity-command-center",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "analytics-engine",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "api-gateway",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "blockchain-auditor",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "cglr",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "contribution-ledger",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "hitl-payout-gateway",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "messenger-adapter",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "neuro-agent-orchestrator",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "notification-gateway",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "policy-manager",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "voice-to-chain",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "wallet",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    },
+    {
+      "name": "web-cabinet",
+      "image_size_budget_bytes": 250000000,
+      "cold_start_budget_ms": 3000
+    }
+  ]
+}

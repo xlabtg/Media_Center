@@ -13,17 +13,19 @@ from blockchain_auditor import (
 )
 from pydantic import Field, field_validator
 
-from libs.shared import (
-    COUNCIL_ROLE,
+from libs.shared.audit_logger import (
     AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.models import (
     CorrelationId,
     IdempotencyKey,
-    InMemoryAuditLogSink,
     JSONValue,
     SharedBaseModel,
-    TenantContext,
     TenantId,
 )
+from libs.shared.rbac import COUNCIL_ROLE
+from libs.shared.tenant import TenantContext
 
 from .retention import (
     AudioDeletionReceipt,

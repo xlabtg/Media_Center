@@ -16,37 +16,46 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.audit_logger import (
+    AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import EventEnvelope, InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
+    CorrelationId,
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
+    SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
     PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
-    AuditHash,
-    AuditLogger,
+    require_access,
+)
+from libs.shared.server import (
     BaseAppConfig,
-    CorrelationId,
-    IdempotencyKey,
-    InMemoryAuditLogSink,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
-    SubjectId,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
-from libs.shared.events import EventEnvelope
 
 ANALYTICS_ENGINE_SERVICE_NAME = "analytics-engine"
 ANALYTICS_ENGINE_SOURCE = "analytics-engine"

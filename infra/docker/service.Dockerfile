@@ -8,6 +8,7 @@ ARG SERVICE_VERSION=0.0.0-dev
 ARG BUILD_DATE=1970-01-01T00:00:00Z
 ARG GIT_COMMIT=unknown
 ARG GIT_TAG=
+ARG RUNTIME_REQUIREMENT_GROUPS=runtime-core
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -23,14 +24,41 @@ COPY pyproject.toml /tmp/media-center-pyproject.toml
 RUN python -m venv "$VIRTUAL_ENV"
 
 RUN python - <<'PY'
+import os
 import tomllib
 from pathlib import Path
+
+
+def split_groups(value: str) -> list[str]:
+    return [group.strip() for group in value.split(",") if group.strip()]
 
 
 pyproject = tomllib.loads(
     Path("/tmp/media-center-pyproject.toml").read_text(encoding="utf-8")
 )
-dependencies = pyproject["project"]["dependencies"]
+runtime_groups = split_groups(os.environ.get("RUNTIME_REQUIREMENT_GROUPS", ""))
+service_name = os.environ.get("SERVICE_NAME", "service")
+service_group = f"runtime-{service_name}"
+optional_dependencies = pyproject["project"].get("optional-dependencies", {})
+if service_group in optional_dependencies and service_group not in runtime_groups:
+    runtime_groups.append(service_group)
+missing_groups = [
+    group for group in runtime_groups if group not in optional_dependencies
+]
+if missing_groups:
+    raise SystemExit(
+        "Missing runtime dependency groups in pyproject.toml: "
+        + ", ".join(missing_groups)
+    )
+dependencies = []
+seen = set()
+for group in runtime_groups:
+    for dependency in optional_dependencies[group]:
+        if dependency not in seen:
+            dependencies.append(dependency)
+            seen.add(dependency)
+if not dependencies:
+    raise SystemExit("Runtime dependency groups resolved to an empty requirement set")
 Path("/tmp/requirements-runtime.txt").write_text(
     "\n".join(dependencies) + "\n",
     encoding="utf-8",
@@ -40,6 +68,8 @@ PY
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r /tmp/requirements-runtime.txt \
     && python -m pip uninstall -y pip setuptools wheel \
+    && find "$VIRTUAL_ENV" -type d -name "__pycache__" -prune -exec rm -rf {} + \
+    && find "$VIRTUAL_ENV" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete \
     && rm -rf /root/.cache/pip \
     && rm -f /tmp/media-center-pyproject.toml /tmp/requirements-runtime.txt
 

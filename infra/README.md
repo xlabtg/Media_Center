@@ -25,10 +25,11 @@
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
 каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
 baseline `python:3.13.14-slim` и использует multi-stage схему: builder stage
-создает venv `/opt/venv`, устанавливает runtime-зависимости из
-`[project].dependencies` в [pyproject.toml](../pyproject.toml), подготавливает
-артефакт в `/build/app`, а runtime stage копирует только venv, код сервиса,
-`libs`, entrypoint и build metadata. Финальная структура артефакта единая:
+создает venv `/opt/venv`, устанавливает runtime-зависимости из optional groups
+`runtime-core` и `runtime-<SERVICE_NAME>` в
+[pyproject.toml](../pyproject.toml), подготавливает артефакт в `/build/app`, а
+runtime stage копирует только venv, код сервиса, `libs`, entrypoint и build
+metadata. Финальная структура артефакта единая:
 
 ```text
 /app/
@@ -108,8 +109,13 @@ bash experiments/validate_issue248_helm.sh
 [ADR-0008](../docs/adr/0008-container-image-size-optimization.md) и ведется в
 [docs/operations/image-size-budget.md](../docs/operations/image-size-budget.md):
 базовый целевой порог для F2-гейта — `< 250 МБ` на сервисный runtime-образ,
-stretch-цель — `< 200 МБ`. `.dockerignore` исключает документацию, тесты,
-эксперименты, кеши и локальные артефакты из build context.
+stretch-цель — `< 200 МБ`, cold-start до `/ready` — `< 3 с`. Пороги CI
+заданы в
+[docs/operations/service-performance-budgets.json](../docs/operations/service-performance-budgets.json),
+а reusable workflow запускает
+`.github/scripts/check_service_performance_budget.py` после локальной сборки
+образа. `.dockerignore` исключает документацию, тесты, эксперименты, кеши и
+локальные артефакты из build context.
 
 Образ включает готовый `docker/entrypoint.sh`, который копируется в
 `/app/entrypoint.sh` и запускается через `tini`. Поэтому `docker run` без

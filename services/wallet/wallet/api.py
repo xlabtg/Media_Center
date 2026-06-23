@@ -17,36 +17,45 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
-    BOARD_ROLE,
-    COUNCIL_ROLE,
-    IDEMPOTENCY_CONFLICT_CODE,
-    PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
-    AccessPolicy,
-    AuditHash,
+from libs.shared.audit_logger import (
     AuditLogger,
-    BaseAppConfig,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    IDEMPOTENCY_CONFLICT_CODE,
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import EventEnvelope, InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
     CorrelationId,
     IdempotencyKey,
-    InMemoryAuditLogSink,
-    InMemoryAuditSink,
-    InMemoryEventBus,
     JSONValue,
-    ServiceTemplateConfig,
     SharedBaseModel,
-    SharedError,
     SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
+    BOARD_ROLE,
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_runtime_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
-from libs.shared.events import EventEnvelope
 
 WALLET_SERVICE_NAME = "wallet"
 WALLET_SOURCE = "wallet"

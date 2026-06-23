@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from web_cabinet import WEB_CABINET_SERVICE_NAME
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(

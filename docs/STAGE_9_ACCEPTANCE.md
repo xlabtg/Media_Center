@@ -3,8 +3,9 @@
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
 авторизация для внутренних вызовов и `/admin/*`, эпика E из issue #250:
-оркестрация и раскатка единого runtime-контракта, а также задачи F1 из issue
-#251: DORA dashboard в Grafana для REQ-N3. Внутри эпика E
+оркестрация и раскатка единого runtime-контракта, задачи F1 из issue #251:
+DORA dashboard в Grafana для REQ-N3, а также задачи F2 из issue #252: бюджеты
+размера образов и cold-start до `/ready` для REQ-N1/REQ-N2. Внутри эпика E
 закрыты задача E1 из issue #247: локальный docker-compose с приложенческими
 сервисами, задача E2 из issue #248: k8s/Helm-манифесты для раскатки сервисов,
 и задача E3 из issue #249: раскатка единого runtime-контракта на все 14
@@ -46,6 +47,12 @@
 | --- | --- | --- |
 | F1 / #251 | Выполнено: Grafana dashboard `НМЦ / DORA` показывает Deployment frequency, Lead time for changes, Change failure rate и MTTR, а Prometheus recording rules агрегируют CI/CD и incident events в целевые DORA-ряды REQ-N3. | `infra/observability/grafana/dashboards/dora.json`, `infra/observability/prometheus/rules/dora-metrics.yml`, `docs/case-studies/issue-213/metrics/dora-data-sources.md`, `tests/test_dora_grafana_issue251_contract.py` |
 
+## Статус задачи F2
+
+| Задача | Статус | Проверяемые артефакты |
+| --- | --- | --- |
+| F2 / #252 | Выполнено: reusable image workflow после локальной amd64-сборки измеряет `docker image ls` размер сервисного образа и cold-start контейнера до HTTP 200 на `/ready`, пишет JSON-отчёт и job summary, а также падает при `SIZE >= 250 МБ` или cold-start `> 3000` мс. | `.github/workflows/build-service.yml`, `.github/scripts/check_service_performance_budget.py`, `docs/operations/service-performance-budgets.json`, `docs/operations/image-size-budget.md`, `tests/test_performance_budgets_issue252_contract.py` |
+
 ## Release gate
 
 Основной workflow `.github/workflows/ci.yml` запускает quality/security jobs,
@@ -56,12 +63,14 @@ Reusable workflow выполняет полный порядок release gate:
 1. checkout с `fetch-depth: 0`;
 2. вычисление build metadata и Docker metadata из git-тегов;
 3. локальную сборку amd64-образа для Trivy image scan;
-4. Trivy gate по HIGH/CRITICAL с SARIF artifact;
-5. GHCR login через `secrets.GITHUB_TOKEN`;
-6. финальную multi-arch сборку `linux/amd64,linux/arm64` и публикацию;
-7. cosign keyless signature по digest;
-8. SLSA build provenance attestation;
-9. SBOM SPDX generation и SBOM attestation.
+4. F2 budget gate: размер из `docker image ls`, cold-start до `/ready`,
+   JSON artifact `service-performance-*` и `GITHUB_STEP_SUMMARY`;
+5. Trivy gate по HIGH/CRITICAL с SARIF artifact;
+6. GHCR login через `secrets.GITHUB_TOKEN`;
+7. финальную multi-arch сборку `linux/amd64,linux/arm64` и публикацию;
+8. cosign keyless signature по digest;
+9. SLSA build provenance attestation;
+10. SBOM SPDX generation и SBOM attestation.
 
 Публикация в GHCR выполняется только для `push` в `main` и semver tag push.
 Pull request запускает сборку и security gate без публикации, подписи и
@@ -158,6 +167,19 @@ registry attestations.
 - `docs/case-studies/issue-213/metrics/dora-data-sources.md` документирует
   источники GitHub Actions, GitHub Deployments и incident process.
 
+Контракт F2 по issue #252 закреплён в
+`tests/test_performance_budgets_issue252_contract.py`. Он проверяет, что:
+
+- `docs/operations/service-performance-budgets.json` задаёт бюджеты
+  `250000000` байт, stretch `200000000` байт и `3000` мс для всех 14 сервисов;
+- `.github/scripts/check_service_performance_budget.py` парсит формат
+  `docker image ls`, оценивает size/cold-start budget и формирует отчёты;
+- `.github/workflows/build-service.yml` запускает budget gate сразу после
+  локальной сборки `media-center-<service>:trivy-scan`;
+- Dockerfile использует `runtime-core` и `runtime-<SERVICE_NAME>` вместо
+  установки всего `[project].dependencies` в каждый runtime-образ;
+- этот snapshot и операционный документ связывают F2 с REQ-N1/REQ-N2.
+
 Локальная проверка:
 
 ```bash
@@ -168,7 +190,8 @@ python -m pytest \
   tests/test_helm_k8s_issue248_contract.py \
   tests/test_stage9_epic_e_issue249_contract.py \
   tests/test_stage9_epic_e_issue250_contract.py \
-  tests/test_dora_grafana_issue251_contract.py
+  tests/test_dora_grafana_issue251_contract.py \
+  tests/test_performance_budgets_issue252_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from libs.shared import ServiceTemplateConfig, create_service_app
+from libs.shared.service_template import (
+    ServiceTemplateConfig,
+    create_service_app,
+)
 
 
 def test_template_healthcheck_is_public() -> None:

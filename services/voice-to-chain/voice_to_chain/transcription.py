@@ -10,7 +10,10 @@ from typing import Protocol
 
 from pydantic import Field, field_validator
 
-from libs.shared import JSONValue, SharedBaseModel
+from libs.shared.models import (
+    JSONValue,
+    SharedBaseModel,
+)
 
 from .retention import normalize_datetime
 

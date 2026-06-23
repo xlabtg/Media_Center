@@ -11,7 +11,7 @@ from hitl_payout_gateway import (
 )
 from pydantic import SecretStr
 
-from libs.shared import ServiceTemplateConfig
+from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(

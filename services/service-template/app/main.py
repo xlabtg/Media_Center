@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from libs.shared import create_service_app
+from libs.shared.service_template import create_service_app
 
 from .settings import build_service_config
 

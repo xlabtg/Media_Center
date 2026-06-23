@@ -20,25 +20,33 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.errors import (
     IDEMPOTENCY_CONFLICT_CODE,
     VALIDATION_ERROR_CODE,
-    BaseAppConfig,
-    EventPublisher,
-    IdempotencyKey,
-    InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
     SharedError,
+    error_response_body,
+)
+from libs.shared.events import (
+    EventPublisher,
+    InMemoryEventBus,
+)
+from libs.shared.models import (
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
     SubjectId,
+    TenantId,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_runtime_app,
-    error_response_body,
     require_tenant_context,
 )
 
@@ -607,7 +615,7 @@ async def _publish_content_generated(
     idempotency_key: str,
     occurred_at: datetime,
 ) -> None:
-    from libs.shared import EventEnvelope
+    from libs.shared.events import EventEnvelope
 
     await publisher.publish(
         EventEnvelope(
