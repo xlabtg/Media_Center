@@ -6,7 +6,9 @@ from pathlib import Path
 
 from libs.shared import (
     AppSettings,
+    AuthMethod,
     EnvSecretProvider,
+    S2SConfig,
     VaultSecretProvider,
     VaultSettings,
     load_app_settings,
@@ -131,6 +133,72 @@ def test_secret_provider_replaces_placeholders_before_validation() -> None:
     assert settings.s3_secret_key.get_secret_value() == "vault-s3-secret"
     assert settings.jwt_secret.get_secret_value() == "vault-jwt-secret"
     assert settings.encryption_key.get_secret_value() == "vault-encryption-key"
+
+
+def test_app_settings_builds_s2s_config_from_env() -> None:
+    settings = load_app_settings(
+        environ=_complete_env(
+            {
+                "SERVICE_NAME": "api-gateway",
+                "S2S_AUTH_METHOD": "rsa_key",
+                "S2S_SHARED_SECRET": "env-s2s-secret",
+                "S2S_REPLAY_WINDOW_SECONDS": "180",
+                "S2S_TOKEN_TTL_SECONDS": "45",
+                "K8S_AUTH_ENABLED": "false",
+                "S2S_K8S_TOKEN_PATH": "/run/secrets/k8s-token",
+                "S2S_AUDIENCE": "nmc-internal",
+                "S2S_K8S_ISSUER": "https://kubernetes.default.svc",
+                "S2S_K8S_TOKENREVIEW_URL": "https://kubernetes.default.svc/apis/authentication.k8s.io/v1/tokenreviews",
+                "S2S_K8S_TOKENREVIEW_TOKEN_PATH": "/run/secrets/tokenreview-token",
+                "S2S_K8S_TOKENREVIEW_TIMEOUT_SECONDS": "3.5",
+                "S2S_K8S_CA_PATH": "/run/secrets/k8s-ca.crt",
+                "S2S_K8S_OIDC_PUBLIC_KEY_PATH": "/run/secrets/k8s-oidc.pem",
+                "S2S_RSA_PRIVATE_KEY_PATH": "/run/secrets/s2s-private.pem",
+                "S2S_RSA_PUBLIC_KEY_PATH": "/run/secrets/s2s-public.pem",
+                "S2S_RSA_ISSUER": "nmc-s2s-stage",
+                "S2S_RSA_AUDIENCE": "nmc-s2s-audience",
+            },
+        ),
+    )
+
+    s2s_config = settings.to_s2s_config()
+
+    assert isinstance(s2s_config, S2SConfig)
+    assert s2s_config.method is AuthMethod.RSA_KEY
+    assert s2s_config.service_name == "api-gateway"
+    assert s2s_config.shared_secret == "env-s2s-secret"
+    assert s2s_config.replay_window_seconds == 180
+    assert s2s_config.token_ttl_seconds == 45
+    assert s2s_config.k8s_enabled is False
+    assert s2s_config.k8s_token_path == Path("/run/secrets/k8s-token")
+    assert s2s_config.k8s_audience == "nmc-internal"
+    assert s2s_config.k8s_issuer == "https://kubernetes.default.svc"
+    assert s2s_config.k8s_tokenreview_url == (
+        "https://kubernetes.default.svc/apis/authentication.k8s.io/v1/tokenreviews"
+    )
+    assert s2s_config.k8s_tokenreview_token_path == Path(
+        "/run/secrets/tokenreview-token",
+    )
+    assert s2s_config.k8s_tokenreview_timeout_seconds == 3.5
+    assert s2s_config.k8s_ca_path == Path("/run/secrets/k8s-ca.crt")
+    assert s2s_config.k8s_oidc_public_key_path == Path("/run/secrets/k8s-oidc.pem")
+    assert s2s_config.rsa_private_key_path == Path("/run/secrets/s2s-private.pem")
+    assert s2s_config.rsa_public_key_path == Path("/run/secrets/s2s-public.pem")
+    assert s2s_config.rsa_issuer == "nmc-s2s-stage"
+    assert s2s_config.rsa_audience == "nmc-s2s-audience"
+
+
+def test_s2s_shared_secret_can_come_from_secret_provider() -> None:
+    provider = EnvSecretProvider({"S2S_SHARED_SECRET": "vault-s2s-secret"})
+
+    settings = load_app_settings(
+        environ=_complete_env({"S2S_SHARED_SECRET": "CHANGE_ME_S2S_SHARED_SECRET"}),
+        secret_provider=provider,
+    )
+
+    assert settings.s2s_shared_secret is not None
+    assert settings.s2s_shared_secret.get_secret_value() == "vault-s2s-secret"
+    assert settings.to_s2s_config().shared_secret == "vault-s2s-secret"
 
 
 def test_vault_secret_provider_reads_hashicorp_kv_v2_payload() -> None:
