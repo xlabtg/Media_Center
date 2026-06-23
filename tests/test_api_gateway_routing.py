@@ -12,6 +12,9 @@ from libs.shared import (
     InMemoryRateLimiter,
     InMemoryTenantResourceManager,
     RateLimitPolicy,
+    S2SAuthenticator,
+    S2SConfig,
+    SharedSecretS2SAuth,
     TenantContext,
     TenantContextASGIMiddleware,
     TenantResourcePlan,
@@ -20,6 +23,7 @@ from libs.shared import (
 
 NOW = 1_800_000_000
 SECRET = "local-dev-secret"
+S2S_SECRET = "test-only-s2s-secret"
 
 ASGIMessage = dict[str, object]
 ASGIScope = dict[str, object]
@@ -76,6 +80,7 @@ def _gateway_app(
     *,
     limit: int = 10,
     resource_manager: InMemoryTenantResourceManager | None = None,
+    s2s_auth: S2SAuthenticator | None = None,
 ) -> TenantContextASGIMiddleware:
     return TenantContextASGIMiddleware(
         APIGatewayASGIMiddleware(
@@ -91,6 +96,7 @@ def _gateway_app(
                 clock=lambda: NOW,
             ),
             resource_manager=resource_manager,
+            s2s_auth=s2s_auth,
         ),
         jwt_secret=SECRET,
         expected_issuer="nmc",
@@ -225,6 +231,50 @@ async def _run_gateway_rate_limit_scenario() -> None:
 
 def test_gateway_applies_tenant_resource_plan_before_downstream_call() -> None:
     asyncio.run(_run_gateway_tenant_resource_plan_scenario())
+
+
+def test_gateway_signs_downstream_request_with_s2s_headers() -> None:
+    asyncio.run(_run_gateway_s2s_signature_scenario())
+
+
+async def _run_gateway_s2s_signature_scenario() -> None:
+    downstream = CapturingDownstream()
+    signer = SharedSecretS2SAuth(
+        S2SConfig(shared_secret=S2S_SECRET),
+        clock=lambda: NOW,
+    )
+    app = _gateway_app(downstream, s2s_auth=signer)
+
+    messages = await _call(
+        app,
+        path="/contribution-ledger/admin/log-level",
+    )
+
+    assert messages[0]["status"] == 200
+    assert len(downstream.calls) == 1
+
+    forwarded_headers = {
+        name.decode().lower(): value.decode()
+        for name, value in cast(
+            list[tuple[bytes, bytes]],
+            downstream.calls[0]["headers"],
+        )
+    }
+    verifier = SharedSecretS2SAuth(
+        S2SConfig(shared_secret=S2S_SECRET),
+        clock=lambda: NOW,
+    )
+
+    identity = verifier.verify_request(
+        forwarded_headers,
+        method="GET",
+        path="/admin/log-level",
+    )
+
+    assert identity.service_name == "api-gateway"
+    assert forwarded_headers["authorization"].startswith("Bearer ")
+    assert forwarded_headers["x-s2s-method"] == "shared_secret"
+    assert forwarded_headers["x-s2s-service"] == "api-gateway"
 
 
 async def _run_gateway_tenant_resource_plan_scenario() -> None:

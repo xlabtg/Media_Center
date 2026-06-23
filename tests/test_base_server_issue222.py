@@ -85,6 +85,30 @@ def test_log_level_put_requires_valid_s2s_signature() -> None:
     assert invalid_signature.status_code == 401
 
 
+def test_admin_prefix_requires_s2s_without_tenant_jwt() -> None:
+    app = _app()
+
+    @app.get("/admin/maintenance")
+    def maintenance() -> dict[str, bool]:
+        return {"ok": True}
+
+    client = TestClient(app)
+
+    missing_signature = client.get("/admin/maintenance")
+    valid_signature = client.get(
+        "/admin/maintenance",
+        headers=_s2s_headers(
+            method="GET",
+            nonce="admin-maintenance",
+            path="/admin/maintenance",
+        ),
+    )
+
+    assert missing_signature.status_code == 401
+    assert valid_signature.status_code == 200
+    assert valid_signature.json() == {"ok": True}
+
+
 def _app() -> FastAPI:
     return create_base_app(
         BaseAppConfig(
@@ -97,11 +121,16 @@ def _app() -> FastAPI:
     )
 
 
-def _s2s_headers(*, method: str, nonce: str) -> dict[str, str]:
+def _s2s_headers(
+    *,
+    method: str,
+    nonce: str,
+    path: str = "/admin/log-level",
+) -> dict[str, str]:
     signer = SharedSecretS2SAuth(S2SConfig(shared_secret=S2S_SECRET))
     return signer.sign_request(
         method=method,
-        path="/admin/log-level",
+        path=path,
         service_name="pytest",
         nonce=nonce,
     )

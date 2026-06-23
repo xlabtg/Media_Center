@@ -776,12 +776,16 @@ def get_s2s_auth(config: S2SConfig | None = None) -> S2SAuthenticator:
 
 
 def require_s2s(request: Request) -> S2SIdentity:
+    cached_identity = getattr(request.state, "s2s_identity", None)
+    if isinstance(cached_identity, S2SIdentity):
+        return cached_identity
+
     authenticator = getattr(request.app.state, "s2s_auth", None)
     if authenticator is None:
         authenticator = get_s2s_auth()
 
     try:
-        return authenticator.verify_request(
+        identity = authenticator.verify_request(
             request.headers,
             method=request.method,
             path=request.url.path,
@@ -791,6 +795,9 @@ def require_s2s(request: Request) -> S2SIdentity:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
         ) from exc
+
+    request.state.s2s_identity = identity
+    return identity
 
 
 def _default_k8s_token_validator(
