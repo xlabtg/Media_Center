@@ -30,6 +30,7 @@ from libs.shared import (
     MEMBER_FULL_ROLE,
     VALIDATION_ERROR_CODE,
     AccessPolicy,
+    BaseAppConfig,
     InMemoryAuditLogSink,
     InMemoryAuditSink,
     JSONValue,
@@ -38,7 +39,7 @@ from libs.shared import (
     SharedError,
     TenantContext,
     TenantCoreError,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -127,7 +128,7 @@ router = APIRouter(tags=["Voice-to-Chain"])
 
 
 def create_voice_to_chain_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     voice_settings: VoiceToChainSettings | None = None,
     transcriber: WhisperCppTranscriber | None = None,
@@ -152,7 +153,7 @@ def create_voice_to_chain_app(
             timeout_seconds=resolved_settings.whisper_cpp_timeout_seconds,
         )
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Voice-to-Chain",
         audit_sink=resolved_tenant_audit_sink,

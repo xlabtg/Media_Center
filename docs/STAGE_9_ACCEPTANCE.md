@@ -3,9 +3,10 @@
 Этот snapshot фиксирует закрытие эпика C из issue #241: CI/CD и публикация
 сервисных образов в GHCR, эпика D из issue #246: Service-to-service
 авторизация для внутренних вызовов и `/admin/*`, а также задачи E1 из issue
-#247: локальный docker-compose с приложенческими сервисами, и задачи E2 из
-issue #248: k8s/Helm-манифесты для раскатки сервисов. Остальные задачи Этапа 9
-ведутся отдельными родительскими issue из плана #213.
+#247: локальный docker-compose с приложенческими сервисами, задачи E2 из
+issue #248: k8s/Helm-манифесты для раскатки сервисов, и задачи E3 из issue
+#249: раскатка единого runtime-контракта на все 14 продуктовых сервисов.
+Остальные задачи Этапа 9 ведутся отдельными родительскими issue из плана #213.
 
 ## Статус эпика C
 
@@ -34,6 +35,7 @@ issue #248: k8s/Helm-манифесты для раскатки сервисов
 | --- | --- | --- |
 | E1 | Выполнено: `infra/local/docker-compose.yml` добавляет все 14 продуктовых app-сервисов с образами `media-center-<service>`, build через `infra/docker/service.Dockerfile`, внутренним `APP_PORT=7700`, `expose: 7700`, healthcheck `/health`, `read_only`, `tmpfs`, `security_opt: no-new-privileges:true`, `cap_drop: ALL` и `depends_on` на healthy-инфраструктуру. | `infra/local/docker-compose.yml`, `infra/local/.env.local.example`, `infra/local/README.md`, `services/api-gateway/api_gateway_app/main.py`, `services/messenger-adapter/messenger_adapter_app/main.py`, `tests/test_local_app_compose_issue247_contract.py` |
 | E2 | Выполнено: `deploy/helm/media-center` добавляет Helm chart для всех 14 продуктовых сервисов: Deployment с `/health` liveness и `/ready` readiness probes, resources, securityContext non-root/read-only/no privilege escalation/drop caps, ServiceAccount с projected ServiceAccount token для S2S, TokenReview RBAC и Service на `7700`. | `deploy/helm/media-center/Chart.yaml`, `deploy/helm/media-center/values.yaml`, `deploy/helm/media-center/templates/`, `infra/README.md`, `experiments/validate_issue248_helm.sh`, `tests/test_helm_k8s_issue248_contract.py` |
+| E3 | Выполнено: все 14 продуктовых `*_app.main` используют `BaseAppConfig` + `create_base_app` через доменные фабрики, экспортируют ASGI `app`, поддерживают `python -m <service_app>.main`, стартуют на `APP_PORT=7700` и отвечают на `/health`, `/ready`, `/info`, `/metrics`. | `libs/shared/server.py`, `services/*/*_app/main.py`, `services/README.md`, `tests/test_stage9_epic_e_issue249_contract.py` |
 
 ## Release gate
 
@@ -108,6 +110,17 @@ registry attestations.
 - validation script запускает `helm lint`, `helm template` и `kubeconform`, а
   `.github/workflows/ci.yml` выполняет этот script в job `kubernetes`.
 
+Контракт E3 по issue #249 закреплён в
+`tests/test_stage9_epic_e_issue249_contract.py`. Он проверяет, что:
+
+- каждый продуктовый `*_app.main` импортируется как ASGI entrypoint и хранит
+  `app.state.base_app` с сервисным именем и портом `7700`;
+- все 14 сервисов отвечают на `/health`, `/ready`, `/info` и `/metrics`;
+- каждый entrypoint содержит `run()` для запуска через
+  `python -m <service_app>.main`;
+- snapshot и `services/README.md` перечисляют все сервисы и соответствующие
+  entrypoint-модули.
+
 Локальная проверка:
 
 ```bash
@@ -115,7 +128,8 @@ python -m pytest \
   tests/test_stage9_epic_c_issue241_contract.py \
   tests/test_stage9_epic_d_issue246_contract.py \
   tests/test_local_app_compose_issue247_contract.py \
-  tests/test_helm_k8s_issue248_contract.py
+  tests/test_helm_k8s_issue248_contract.py \
+  tests/test_stage9_epic_e_issue249_contract.py
 
 bash experiments/validate_issue248_helm.sh
 ```

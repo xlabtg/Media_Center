@@ -20,6 +20,7 @@ from libs.shared import (
     VALIDATION_ERROR_CODE,
     AccessPolicy,
     AuditLogger,
+    BaseAppConfig,
     InMemoryAuditLogSink,
     InMemoryAuditSink,
     InMemoryEventBus,
@@ -30,7 +31,7 @@ from libs.shared import (
     SubjectId,
     TenantContext,
     TenantCoreError,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -102,7 +103,7 @@ router = APIRouter(tags=["Policy Manager"])
 
 
 def create_policy_manager_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryPolicyRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -118,7 +119,7 @@ def create_policy_manager_app(
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Policy Manager",
         audit_sink=resolved_tenant_audit_sink,

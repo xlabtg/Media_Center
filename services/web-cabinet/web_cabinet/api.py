@@ -91,6 +91,7 @@ from libs.shared import (
     PRESIDIUM_ROLE,
     VALIDATION_ERROR_CODE,
     AccessPolicy,
+    BaseAppConfig,
     InMemoryAuditSink,
     JSONValue,
     ServiceTemplateConfig,
@@ -103,7 +104,7 @@ from libs.shared import (
     TenantScopedRepository,
     TOTPService,
     audit_hash,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -1120,7 +1121,7 @@ router = APIRouter(tags=["Web Cabinet"])
 
 
 def create_web_cabinet_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryWebCabinetRepository | None = None,
     wallet_repository: InMemoryWalletRepository | None = None,
@@ -1154,7 +1155,7 @@ def create_web_cabinet_app(
     resolved_policy_manager = policy_manager or PolicyManager(
         repository=InMemoryPolicyRepository(),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Web Cabinet",
         audit_sink=resolved_tenant_audit_sink,

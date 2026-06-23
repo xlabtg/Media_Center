@@ -27,6 +27,7 @@ from libs.shared import (
     AccessPolicy,
     AuditHash,
     AuditLogger,
+    BaseAppConfig,
     CorrelationId,
     EventType,
     ForbiddenError,
@@ -42,7 +43,7 @@ from libs.shared import (
     TenantContext,
     TenantCoreError,
     TenantId,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_access,
     require_tenant_context,
@@ -822,7 +823,7 @@ router = APIRouter(tags=["Notification Gateway"])
 
 
 def create_notification_gateway_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryNotificationRepository | None = None,
     channel: InMemoryNotificationChannel | None = None,
@@ -841,7 +842,7 @@ def create_notification_gateway_app(
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Notification Gateway",
         audit_sink=resolved_tenant_audit_sink,

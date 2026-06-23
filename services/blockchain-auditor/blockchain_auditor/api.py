@@ -14,6 +14,7 @@ from pydantic import ConfigDict, Field, field_validator
 from libs.shared import (
     VALIDATION_ERROR_CODE,
     AuditHash,
+    BaseAppConfig,
     CorrelationId,
     EventType,
     IdempotencyKey,
@@ -25,7 +26,7 @@ from libs.shared import (
     TenantContext,
     TenantCoreError,
     TenantId,
-    create_service_app,
+    create_service_runtime_app,
     error_response_body,
     require_tenant_context,
 )
@@ -139,7 +140,7 @@ router = APIRouter(tags=["Private Blockchain Auditor"])
 
 
 def create_blockchain_auditor_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     auditor_settings: BlockchainAuditorSettings | None = None,
     transport: GrpcBlockchainAuditTransport | None = None,
@@ -151,7 +152,7 @@ def create_blockchain_auditor_app(
         settings=auditor_settings or build_blockchain_auditor_settings(),
         transport=transport or InMemoryGrpcBlockchainAuditTransport(),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Private Blockchain Auditor",
         audit_sink=resolved_audit_sink,
