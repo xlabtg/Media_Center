@@ -187,10 +187,14 @@ Private Blockchain Auditor, Unified Messenger Adapter и клиентским п
 
 Границы доверия:
 
+Детальный контракт service-to-service авторизации вынесен в
+[docs/S2S_AUTH.md](S2S_AUTH.md).
+
 | Граница | Входящие данные | Правило доверия |
 |---------|-----------------|-----------------|
 | Клиент -> API Gateway | JWT, 2FA-код, команды пользователя, consent evidence | Доверять только после проверки подписи JWT, срока жизни, tenant context, RBAC и anti-replay. |
 | API Gateway -> сервисы | Проверенный tenant context, subject, role claims, correlation id | Тело запроса и внешние headers не могут переопределять `tenant_id` или роли. |
+| Сервис -> сервис `/admin/*` | `X-S2S-*`, bearer token/JWT/HMAC, method/path, timestamp, nonce | Доверять только после проверки `kubernetes_sa`, `rsa_key` или `shared_secret`; replay и timing-safe HMAC описаны в `docs/S2S_AUTH.md`. |
 | Сервисы -> хранилища | SQL-запросы, cache keys, object paths, vector collections | Все ключи, индексы, RLS-политики и prefixes включают `tenant_id`; cross-tenant доступ запрещён. |
 | Сервисы -> RabbitMQ | События, outbox/inbox, routing keys | События tenant-aware, идемпотентны, не содержат ПДн, токены, суммы и сырой контент без явного контракта. |
 | HITL -> платежный/кошелёчный контур | Payout snapshot, veto, 2FA confirmation, wallet operation | Выполнение денег запрещено без статуса approval, окна вето и 2FA; MVP не исполняет реальные выплаты до legal gate. |
@@ -207,6 +211,7 @@ Private Blockchain Auditor, Unified Messenger Adapter и клиентским п
 | DF-04. Audit-chain | Формирование canonical payload -> SHA256 -> batch -> private chain -> verify API | Tampering payload, hash collision misuse, replay batch, удаление локальной записи, раскрытие ПДн в chain, отказ Auditor | Canonical JSON с `sort_keys`, SHA256, idempotency key, append-only audit records, batch hash, RBAC на verify API, schema allowlist для chain metadata, алерт при недоступности chain. |
 | DF-05. Messenger Adapter и внешние площадки | Подключение токена, публикация, сбор статуса, retry/fallback | Утечка platform token, публикация от чужого имени, обход ToS/rate limits, poisoned content, подмена platform ref | Client-side encryption/secret vault, scoped tokens, policy registry `allowed/restricted/blocked`, content gate ФЗ-149/436, per-platform rate limit, audit publish command без токенов. |
 | DF-06. AI, голос и временные файлы | Prompt/context -> draft/action -> human approval; voice -> transcript -> hash -> deletion | Prompt injection, утечка ПДн в LLM, автоматическое критичное действие, хранение сырого голоса > 24 ч, подмена transcript | Policy Manager, allowlist действий, HITL для денег/статусов/публикаций, PII minimization, local/secure transcription, transcript confirmation, TTL deletion job и deletion audit. |
+| DF-07. Service-to-service авторизация | Внутренний HTTP-вызов -> `require_s2s` -> handler `/admin/*` или internal API | Подделка сервисной identity, replay запроса, timing attack на HMAC, компрометация SA token/RSA key/shared secret | Projected ServiceAccount token + TokenReview/OIDC issuer, RS256 JWT fallback, HMAC-SHA256 через `hmac.compare_digest`, `timestamp + nonce`, короткий TTL, ADR-0010 SPIFFE/SPIRE + mTLS. |
 
 ### 5.3. STRIDE-трассировка
 
