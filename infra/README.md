@@ -1,7 +1,7 @@
 # Infra
 
 **Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов,
-локальной docker-compose средой и observability baseline.
+локальной docker-compose средой, Helm/k8s-манифестами и observability baseline.
 
 ## Назначение
 
@@ -70,6 +70,39 @@ Runtime hardening для app-сервисов зафиксирован в
 non-root UID/GID `1000:1000`, `tini` как PID 1, writable только `/tmp` и
 `/app/logs`, а также compose/k8s флаги `read_only`,
 `no-new-privileges` и `cap_drop: ALL`.
+
+## Kubernetes и Helm
+
+Issue #248 закрывает задачу E2: chart
+[`deploy/helm/media-center`](../deploy/helm/media-center) рендерит
+Deployment, Service, ServiceAccount и TokenReview RBAC для всех 14 продуктовых
+сервисов. Значения сервиса задаются в `values.yaml`: образ
+`ghcr.io/xlabtg/media-center-<service>:<tag>`, replicas, resources, env,
+probes и Service на внутреннем порту `7700`.
+
+Deployment использует liveness probe `/health` и readiness probe `/ready`.
+Hardening повторяет контейнерный runtime-контракт: `runAsUser: 1000`,
+`runAsGroup: 1000`, `runAsNonRoot: true`, `seccompProfile: RuntimeDefault`,
+`readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false` и drop всех
+capabilities. Writable paths ограничены `emptyDir` volume для `/tmp` и
+`/app/logs`.
+
+Для S2S identity каждый workload получает отдельный ServiceAccount с
+`automountServiceAccountToken: false` и projected ServiceAccount token с
+audience `nmc-services`. Token монтируется в
+`/var/run/secrets/nmc/s2s/token`, CA из `kube-root-ca.crt` - в соседний
+`ca.crt`; env `S2S_AUTH_METHOD=kubernetes_sa`, `S2S_K8S_TOKEN_PATH`,
+`S2S_AUDIENCE`, `S2S_K8S_ISSUER`, `S2S_K8S_TOKENREVIEW_URL` и
+`S2S_K8S_CA_PATH` связывает chart с `libs/shared/s2s_auth.py`.
+
+Локальная проверка chart:
+
+```bash
+bash experiments/validate_issue248_helm.sh
+```
+
+Скрипт выполняет `helm lint`, `helm template` и `kubeconform`; инструменты
+должны быть установлены в окружении запуска.
 
 Бюджет размера образов принят в
 [ADR-0008](../docs/adr/0008-container-image-size-optimization.md) и ведется в
