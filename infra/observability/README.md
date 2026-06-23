@@ -50,8 +50,12 @@ CI/CD + incident process, описанные в
 
 SRE-контур issue #98 опубликован в [docs/SRE_RUNBOOK.md](../../docs/SRE_RUNBOOK.md).
 Числовые business SLA, availability SLO, latency p95 и error budget по
-сервисам зафиксированы в `slo-targets.json`. Prometheus загружает правила из
-`prometheus/rules/sre-alerts.yml`, а Alertmanager использует
+сервисам зафиксированы в `slo-targets.json`. F4 / issue #254 для REQ-N5
+добавляет service-specific SLO и error budget burn rate alerts для
+`api-gateway`, `contribution-ledger` и `wallet`; операционный документ находится
+в [docs/operations/slo-error-budget.md](../../docs/operations/slo-error-budget.md).
+Prometheus загружает правила из `prometheus/rules/sre-alerts.yml` и
+`prometheus/rules/slo-error-budget.yml`, а Alertmanager использует
 `alertmanager.yml` для маршрутизации:
 
 - `severity="critical"` уходит в `council-escalation` и `sre-oncall`;
@@ -62,6 +66,7 @@ SRE-контур issue #98 опубликован в [docs/SRE_RUNBOOK.md](../..
 
 ```bash
 pytest tests/test_sre_issue98_acceptance_contract.py
+pytest tests/test_slo_error_budget_issue254_contract.py
 ```
 
 ## Метрики сервисов

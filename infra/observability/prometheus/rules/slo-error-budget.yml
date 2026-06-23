@@ -1,0 +1,283 @@
+groups:
+  - name: nmc-slo-error-budget
+    interval: 1m
+    rules:
+      - record: nmc:slo_error_ratio:ratio5m
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet",status=~"error|denied"}[5m])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet"}[5m])
+            ),
+            1
+          )
+        labels:
+          slo_window: 5m
+
+      - record: nmc:slo_error_ratio:ratio30m
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet",status=~"error|denied"}[30m])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet"}[30m])
+            ),
+            1
+          )
+        labels:
+          slo_window: 30m
+
+      - record: nmc:slo_error_ratio:ratio1h
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet",status=~"error|denied"}[1h])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet"}[1h])
+            ),
+            1
+          )
+        labels:
+          slo_window: 1h
+
+      - record: nmc:slo_error_ratio:ratio6h
+        expr: |
+          sum by (tenant_id, service) (
+            rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet",status=~"error|denied"}[6h])
+          )
+          /
+          clamp_min(
+            sum by (tenant_id, service) (
+              rate(nmc_service_operations_total{service=~"api-gateway|contribution-ledger|wallet"}[6h])
+            ),
+            1
+          )
+        labels:
+          slo_window: 6h
+
+      - record: nmc:slo_error_budget_burn_rate:ratio5m
+        expr: |
+          (
+            nmc:slo_error_ratio:ratio5m{service="api-gateway"} / 0.001
+          )
+          or
+          (
+            nmc:slo_error_ratio:ratio5m{service=~"contribution-ledger|wallet"} / 0.005
+          )
+        labels:
+          burn_rate_alerts: service_specific
+          slo_window: 5m
+
+      - record: nmc:slo_error_budget_burn_rate:ratio30m
+        expr: |
+          (
+            nmc:slo_error_ratio:ratio30m{service="api-gateway"} / 0.001
+          )
+          or
+          (
+            nmc:slo_error_ratio:ratio30m{service=~"contribution-ledger|wallet"} / 0.005
+          )
+        labels:
+          burn_rate_alerts: service_specific
+          slo_window: 30m
+
+      - record: nmc:slo_error_budget_burn_rate:ratio1h
+        expr: |
+          (
+            nmc:slo_error_ratio:ratio1h{service="api-gateway"} / 0.001
+          )
+          or
+          (
+            nmc:slo_error_ratio:ratio1h{service=~"contribution-ledger|wallet"} / 0.005
+          )
+        labels:
+          burn_rate_alerts: service_specific
+          slo_window: 1h
+
+      - record: nmc:slo_error_budget_burn_rate:ratio6h
+        expr: |
+          (
+            nmc:slo_error_ratio:ratio6h{service="api-gateway"} / 0.001
+          )
+          or
+          (
+            nmc:slo_error_ratio:ratio6h{service=~"contribution-ledger|wallet"} / 0.005
+          )
+        labels:
+          burn_rate_alerts: service_specific
+          slo_window: 6h
+
+      - alert: NmcApiGatewaySloErrorBudgetFastBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio5m{service="api-gateway"} > 14.4
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio1h{service="api-gateway"} > 14.4
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "API Gateway быстро выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 14.4x по окнам 5m/1h."
+          runbook_url: "docs/operations/slo-error-budget.md#api-gateway"
+
+      - alert: NmcApiGatewaySloErrorBudgetSlowBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio30m{service="api-gateway"} > 6
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio6h{service="api-gateway"} > 6
+        for: 30m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "API Gateway медленно выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 6x по окнам 30m/6h."
+          runbook_url: "docs/operations/slo-error-budget.md#api-gateway"
+
+      - alert: NmcApiGatewaySloLatencyP95Breached
+        expr: |
+          nmc:service_operation_duration:p95_5m{service="api-gateway"} > 0.25
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_latency
+        annotations:
+          summary: "API Gateway latency p95 выше SLO"
+          description: "tenant={{ $labels.tenant_id }} operation={{ $labels.operation }} p95 > 250ms."
+          runbook_url: "docs/operations/slo-error-budget.md#api-gateway"
+
+      - alert: NmcApiGatewaySloAvailabilityBreached
+        expr: |
+          nmc:slo_availability:ratio5m{service="api-gateway"} < 0.999
+        for: 15m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_availability
+        annotations:
+          summary: "API Gateway availability ниже SLO"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} availability < 99.9%."
+          runbook_url: "docs/operations/slo-error-budget.md#api-gateway"
+
+      - alert: NmcContributionLedgerSloErrorBudgetFastBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio5m{service="contribution-ledger"} > 14.4
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio1h{service="contribution-ledger"} > 14.4
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "Contribution Ledger быстро выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 14.4x по окнам 5m/1h."
+          runbook_url: "docs/operations/slo-error-budget.md#contribution-ledger"
+
+      - alert: NmcContributionLedgerSloErrorBudgetSlowBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio30m{service="contribution-ledger"} > 6
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio6h{service="contribution-ledger"} > 6
+        for: 30m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "Contribution Ledger медленно выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 6x по окнам 30m/6h."
+          runbook_url: "docs/operations/slo-error-budget.md#contribution-ledger"
+
+      - alert: NmcContributionLedgerSloLatencyP95Breached
+        expr: |
+          nmc:service_operation_duration:p95_5m{service="contribution-ledger"} > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_latency
+        annotations:
+          summary: "Contribution Ledger latency p95 выше SLO"
+          description: "tenant={{ $labels.tenant_id }} operation={{ $labels.operation }} p95 > 500ms."
+          runbook_url: "docs/operations/slo-error-budget.md#contribution-ledger"
+
+      - alert: NmcContributionLedgerSloAvailabilityBreached
+        expr: |
+          nmc:slo_availability:ratio5m{service="contribution-ledger"} < 0.995
+        for: 15m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_availability
+        annotations:
+          summary: "Contribution Ledger availability ниже SLO"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} availability < 99.5%."
+          runbook_url: "docs/operations/slo-error-budget.md#contribution-ledger"
+
+      - alert: NmcWalletSloErrorBudgetFastBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio5m{service="wallet"} > 14.4
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio1h{service="wallet"} > 14.4
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "Wallet быстро выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 14.4x по окнам 5m/1h."
+          runbook_url: "docs/operations/slo-error-budget.md#wallet"
+
+      - alert: NmcWalletSloErrorBudgetSlowBurn
+        expr: |
+          nmc:slo_error_budget_burn_rate:ratio30m{service="wallet"} > 6
+          and on (tenant_id, service)
+          nmc:slo_error_budget_burn_rate:ratio6h{service="wallet"} > 6
+        for: 30m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_error_budget
+        annotations:
+          summary: "Wallet медленно выжигает error budget"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} burn rate > 6x по окнам 30m/6h."
+          runbook_url: "docs/operations/slo-error-budget.md#wallet"
+
+      - alert: NmcWalletSloLatencyP95Breached
+        expr: |
+          nmc:service_operation_duration:p95_5m{service="wallet"} > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+          alert_type: slo_latency
+        annotations:
+          summary: "Wallet latency p95 выше SLO"
+          description: "tenant={{ $labels.tenant_id }} operation={{ $labels.operation }} p95 > 500ms."
+          runbook_url: "docs/operations/slo-error-budget.md#wallet"
+
+      - alert: NmcWalletSloAvailabilityBreached
+        expr: |
+          nmc:slo_availability:ratio5m{service="wallet"} < 0.995
+        for: 15m
+        labels:
+          severity: critical
+          team: sre
+          alert_type: slo_availability
+        annotations:
+          summary: "Wallet availability ниже SLO"
+          description: "tenant={{ $labels.tenant_id }} service={{ $labels.service }} availability < 99.5%."
+          runbook_url: "docs/operations/slo-error-budget.md#wallet"

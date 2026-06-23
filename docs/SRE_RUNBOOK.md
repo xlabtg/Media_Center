@@ -4,19 +4,24 @@
 
 Статус: sre-ready для issue #98.
 
-Документ фиксирует эксплуатационный контур этапа 8: ownership сервисов,
-целевые SLA/SLO, error budget, маршрутизацию алертов и runbooks для типовых
-инцидентов. Структурный каталог целей находится в
+Документ фиксирует эксплуатационный контур этапа 8 и F4 / #254: ownership
+сервисов, целевые SLA/SLO, error budget, маршрутизацию алертов и runbooks для
+типовых инцидентов. Структурный каталог целей находится в
 `infra/observability/slo-targets.json`, правила Prometheus - в
-`infra/observability/prometheus/rules/sre-alerts.yml`, маршруты Alertmanager -
-в `infra/observability/alertmanager.yml`. Backup/DR-процедуры этапа 8
-опубликованы в [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md), а структурная
-политика - в `infra/backup/backup-policy.json`. Единый эксплуатационный пакет
-для tenant-команд опубликован в `docs/OPERATIONS_MANUAL.md`, а быстрые ответы
-и workflow обновления материалов - в `docs/KNOWLEDGE_BASE.md`. Chaos-сценарии
+`infra/observability/prometheus/rules/sre-alerts.yml`, service-specific burn
+rate alerts для issue #254 - в
+`infra/observability/prometheus/rules/slo-error-budget.yml`, маршруты
+Alertmanager - в `infra/observability/alertmanager.yml`. Детальный SLO-документ
+ключевых сервисов опубликован в
+`docs/operations/slo-error-budget.md`. Backup/DR-процедуры этапа 8 опубликованы
+в [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md), а структурная политика - в
+`infra/backup/backup-policy.json`. Единый эксплуатационный пакет для
+tenant-команд опубликован в `docs/OPERATIONS_MANUAL.md`, а быстрые ответы и
+workflow обновления материалов - в `docs/KNOWLEDGE_BASE.md`. Chaos-сценарии
 отказов PostgreSQL, RabbitMQ, external API и proxy опубликованы в
-[docs/CHAOS_TESTING.md](CHAOS_TESTING.md). Контракт проверяется тестом
-`tests/test_sre_issue98_acceptance_contract.py`.
+[docs/CHAOS_TESTING.md](CHAOS_TESTING.md). Контракты проверяются тестами
+`tests/test_sre_issue98_acceptance_contract.py` и
+`tests/test_slo_error_budget_issue254_contract.py`.
 
 Все evidence, алерты, постмортемы и тестовые события ведутся по политике
 `no_pdn_no_secrets`: без ПДн, токенов, bearer credentials, платежных реквизитов,
@@ -39,6 +44,7 @@
 |---------|-------------|-------------|-----------|----------|
 | API Gateway, tenant routing, rate limits | backend-oncall | sre-lead | security, council | support |
 | Contribution Ledger и Weight Engine | ledger-oncall | backend-lead | council, analytics | support |
+| Wallet | wallet-oncall | backend-lead | payout, council, security | support |
 | HITL Payout Gateway | payout-oncall | council-duty | security, wallet | board |
 | Messenger Adapter и публикации | messenger-oncall | operations-lead | compliance, support | council |
 | Blockchain Auditor | chain-oncall | security-lead | council, backend | support |
@@ -58,6 +64,7 @@ tenant leak, 2FA abuse или подозрению на обход RBAC.
 |--------|--------------|------------------|-------------|--------------|
 | API Gateway | 99,9 % | 99,9 % | 250 мс | 0,1 % |
 | Contribution Ledger | 99,5 % | 99,5 % | 500 мс | 0,5 % |
+| Wallet | 99,5 % | 99,5 % | 500 мс | 0,5 % |
 | HITL Payout Gateway | 99,5 % | 99,5 % | 700 мс | 0,5 % |
 | Messenger Adapter | 99,0 % | 99,0 % | 1500 мс | 1,0 % |
 | Blockchain Auditor | 99,5 % | 99,5 % | 1000 мс | 0,5 % |
@@ -76,10 +83,14 @@ clamp_min(
 )
 ```
 
-Если burn rate держится выше 1 % в течение 15 минут, `sre-oncall` обязан
-остановить небезопасные изменения для затронутого tenant/service, открыть
-incident record и перевести работу в mitigation-first режим. Для P0/P1 новые
-релизы разрешены только как hotfix с воспроизводящим тестом и rollback plan.
+Для ключевых сервисов `api-gateway`, `contribution-ledger` и `wallet` issue
+#254 вводит нормализованный burn rate: error ratio делится на error budget
+fraction сервиса. Fast burn срабатывает при `5m` и `1h` выше `14.4x`, slow burn
+- при `30m` и `6h` выше `6x`. Если burn rate alert сработал, `sre-oncall`
+обязан остановить небезопасные изменения для затронутого tenant/service,
+открыть incident record и перевести работу в mitigation-first режим. Для P0/P1
+новые релизы разрешены только как hotfix с воспроизводящим тестом и rollback
+plan.
 
 ## 4. Приоритеты инцидентов
 
