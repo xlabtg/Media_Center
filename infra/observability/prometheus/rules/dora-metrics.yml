@@ -1,0 +1,55 @@
+groups:
+  - name: nmc-dora
+    interval: 1m
+    rules:
+      - record: nmc:dora_deployment_frequency:deploys_per_day
+        expr: |
+          sum by (environment, service) (
+            rate(nmc_delivery_deployments_total{status="success"}[1d])
+          ) * 86400
+        labels:
+          dora_metric: deployment_frequency
+          target: ">=1_per_day"
+
+      - record: nmc:dora_lead_time:p75_seconds
+        expr: |
+          histogram_quantile(0.75,
+            sum by (environment, service, le) (
+              rate(nmc_delivery_lead_time_seconds_bucket[7d])
+            )
+          )
+        labels:
+          dora_metric: lead_time_for_changes
+          target: "<86400_seconds"
+
+      - record: nmc:dora_change_failure_rate:ratio30d
+        expr: |
+          sum by (environment, service) (
+            increase(nmc_delivery_changes_total{outcome="failed"}[30d])
+          )
+          /
+          clamp_min(
+            sum by (environment, service) (
+              increase(nmc_delivery_changes_total[30d])
+            ),
+            1
+          )
+        labels:
+          dora_metric: change_failure_rate
+          target: "<0.05"
+
+      - record: nmc:dora_mttr:avg_seconds
+        expr: |
+          sum by (environment, service) (
+            increase(nmc_incident_recovery_seconds_sum[30d])
+          )
+          /
+          clamp_min(
+            sum by (environment, service) (
+              increase(nmc_incident_recovery_seconds_count[30d])
+            ),
+            1
+          )
+        labels:
+          dora_metric: mttr
+          target: "<3600_seconds"
