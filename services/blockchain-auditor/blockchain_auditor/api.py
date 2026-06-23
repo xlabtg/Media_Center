@@ -11,22 +11,29 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.errors import (
     VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.models import (
     AuditHash,
     CorrelationId,
     EventType,
     IdempotencyKey,
-    InMemoryAuditSink,
     JSONValue,
-    ServiceTemplateConfig,
     SharedBaseModel,
-    SharedError,
+    TenantId,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
-    create_service_app,
-    error_response_body,
     require_tenant_context,
 )
 
@@ -139,7 +146,7 @@ router = APIRouter(tags=["Private Blockchain Auditor"])
 
 
 def create_blockchain_auditor_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     auditor_settings: BlockchainAuditorSettings | None = None,
     transport: GrpcBlockchainAuditTransport | None = None,
@@ -151,7 +158,7 @@ def create_blockchain_auditor_app(
         settings=auditor_settings or build_blockchain_auditor_settings(),
         transport=transport or InMemoryGrpcBlockchainAuditTransport(),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Private Blockchain Auditor",
         audit_sink=resolved_audit_sink,

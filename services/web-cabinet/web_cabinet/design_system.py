@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from pydantic import Field
 
-from libs.shared import SharedBaseModel
+from libs.shared.models import SharedBaseModel
 
 DESIGN_SYSTEM_VERSION = "0.1.0"
 DESIGN_SYSTEM_NAME = "nmc-ui"

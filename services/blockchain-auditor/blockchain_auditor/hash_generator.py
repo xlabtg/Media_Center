@@ -6,15 +6,17 @@ from typing import cast
 
 from pydantic import Field
 
-from libs.shared import (
+from libs.shared.audit_logger import (
     AUDIT_HASH_ALGORITHM,
-    AuditHash,
     AuditPayload,
-    JSONValue,
-    SharedBaseModel,
     audit_hash_from_payload,
     build_audit_payload,
     canonical_audit_json,
+)
+from libs.shared.models import (
+    AuditHash,
+    JSONValue,
+    SharedBaseModel,
 )
 
 

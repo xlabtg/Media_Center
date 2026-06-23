@@ -12,28 +12,39 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
-from libs.shared import (
+from libs.shared.audit_logger import (
+    AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import InMemoryEventBus
+from libs.shared.models import (
+    JSONValue,
+    SharedBaseModel,
+    SubjectId,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
     PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
-    AuditLogger,
-    InMemoryAuditLogSink,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
-    SubjectId,
     TenantContext,
     TenantCoreError,
-    create_service_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
 
@@ -138,7 +149,7 @@ router = APIRouter(tags=["Activity Command Center"])
 
 
 def create_activity_command_center_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryActivityRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -154,7 +165,7 @@ def create_activity_command_center_app(
         publisher=resolved_publisher,
         audit_logger=AuditLogger(sink=resolved_audit_log_sink),
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Activity Command Center",
         audit_sink=resolved_tenant_audit_sink,

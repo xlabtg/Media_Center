@@ -60,7 +60,10 @@
 
 1. **DORA-дашборд** (Grafana): deployment frequency, lead time, CFR, MTTR — из данных CI/CD и инцидентов.
 2. **Бюджеты образа/cold-start**: измерение в CI (размер из `docker images`, cold-start из старта контейнера до `/ready`), гейт `fail` при превышении.
-3. **Матрица конкурентных метрик**: единый markdown/доска с осями из §2, обновляется по релизам.
+3. **Матрица конкурентных метрик**:
+   [`metrics/competitive-metrics-matrix.md`](metrics/competitive-metrics-matrix.md)
+   — единый markdown с осями из §2, текущими и целевыми значениями,
+   привязкой к измерениям F1/F2 и процессом обновления по релизам.
 4. **SLO/error budget**: на ключевые сервисы (contribution-ledger, wallet, api-gateway), алерты при выгорании бюджета.
 
 Полная привязка к issues — в `05-solution-plan.md`.

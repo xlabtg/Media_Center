@@ -5,25 +5,29 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from blockchain_auditor import (
+from blockchain_auditor.connector import (
     AuditRecordCommand,
     AuditRecordReceipt,
     GrpcBlockchainAuditConnector,
+)
+from blockchain_auditor.hash_generator import (
     generate_event_hash,
 )
 from pydantic import Field, field_validator
 
-from libs.shared import (
-    COUNCIL_ROLE,
+from libs.shared.audit_logger import (
     AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.models import (
     CorrelationId,
     IdempotencyKey,
-    InMemoryAuditLogSink,
     JSONValue,
     SharedBaseModel,
-    TenantContext,
     TenantId,
 )
+from libs.shared.rbac import COUNCIL_ROLE
+from libs.shared.tenant import TenantContext
 
 from .retention import (
     AudioDeletionReceipt,

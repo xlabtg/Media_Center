@@ -17,35 +17,45 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
-    BOARD_ROLE,
-    COUNCIL_ROLE,
-    IDEMPOTENCY_CONFLICT_CODE,
-    PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
-    AccessPolicy,
-    AuditHash,
+from libs.shared.audit_logger import (
     AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    IDEMPOTENCY_CONFLICT_CODE,
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import EventEnvelope, InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
     CorrelationId,
     IdempotencyKey,
-    InMemoryAuditLogSink,
-    InMemoryAuditSink,
-    InMemoryEventBus,
     JSONValue,
-    ServiceTemplateConfig,
     SharedBaseModel,
-    SharedError,
     SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
+    BOARD_ROLE,
+    COUNCIL_ROLE,
+    PRESIDIUM_ROLE,
+    AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
-from libs.shared.events import EventEnvelope
 
 WALLET_SERVICE_NAME = "wallet"
 WALLET_SOURCE = "wallet"
@@ -314,7 +324,7 @@ router = APIRouter(tags=["Wallet"])
 
 
 def create_wallet_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryWalletRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -326,7 +336,7 @@ def create_wallet_app(
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
     audit_logger = AuditLogger(sink=resolved_audit_log_sink)
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Wallet",
         audit_sink=resolved_tenant_audit_sink,

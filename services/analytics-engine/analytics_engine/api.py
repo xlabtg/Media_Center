@@ -16,36 +16,46 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.audit_logger import (
+    AuditLogger,
+    InMemoryAuditLogSink,
+)
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.events import EventEnvelope, InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
+    CorrelationId,
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
+    SubjectId,
+    TenantId,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
     PRESIDIUM_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
-    AuditHash,
-    AuditLogger,
-    CorrelationId,
-    IdempotencyKey,
-    InMemoryAuditLogSink,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
-    SubjectId,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
-from libs.shared.events import EventEnvelope
 
 ANALYTICS_ENGINE_SERVICE_NAME = "analytics-engine"
 ANALYTICS_ENGINE_SOURCE = "analytics-engine"
@@ -937,7 +947,7 @@ router = APIRouter(tags=["Analytics Engine"])
 
 
 def create_analytics_engine_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryAnalyticsRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -949,7 +959,7 @@ def create_analytics_engine_app(
     resolved_audit_log_sink = audit_log_sink or InMemoryAuditLogSink()
     resolved_tenant_audit_sink = tenant_audit_sink or InMemoryAuditSink()
     audit_logger = AuditLogger(sink=resolved_audit_log_sink)
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Analytics Engine",
         audit_sink=resolved_tenant_audit_sink,

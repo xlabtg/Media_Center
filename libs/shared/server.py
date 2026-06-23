@@ -9,7 +9,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 from libs.shared.config import LOG_LEVELS as CONFIG_LOG_LEVELS
@@ -34,11 +35,12 @@ DEFAULT_BASE_APP_REDOC_URL = "/redoc"
 DEFAULT_BASE_APP_OPENAPI_URL = "/openapi.json"
 DEFAULT_BASE_APP_LOG_LEVEL = "INFO"
 DEFAULT_BUILD_INFO_PATH = Path("/app/config/build_info.json")
+DEFAULT_RUNTIME_APP_HOST = "0.0.0.0"
 BASE_APP_HTTP_METRICS_OPERATION = "http_request"
 BASE_APP_SYSTEM_PUBLIC_PATHS = (
     "/ready",
     "/info",
-    "/admin/log-level",
+    "/admin",
 )
 BASE_APP_LOG_LEVELS = CONFIG_LOG_LEVELS
 
@@ -200,10 +202,60 @@ def create_base_app(
     )
     app.state.s2s_auth = get_s2s_auth(base_config.s2s)
     app.state.service_port = base_config.app_port
+    _install_admin_s2s_guard(app)
     app.include_router(system_router)
     app.include_router(admin_router)
     _install_base_http_metrics(app)
     return app
+
+
+def create_service_runtime_app(
+    config: BaseAppConfig | ServiceTemplateConfig,
+    *,
+    title: str,
+    metrics: TenantMetricRegistry | None = None,
+    audit_sink: AuditSink | None = None,
+) -> FastAPI:
+    if isinstance(config, BaseAppConfig):
+        base_config = (
+            config if config.title is not None else replace(config, title=title)
+        )
+        return create_base_app(
+            base_config,
+            metrics=metrics,
+            audit_sink=audit_sink,
+        )
+
+    return create_service_app(
+        config,
+        title=title,
+        metrics=metrics,
+        audit_sink=audit_sink,
+    )
+
+
+def build_runtime_app_host(
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    values = os.environ if environ is None else environ
+    return _mapping_env(values, "APP_HOST", default=DEFAULT_RUNTIME_APP_HOST)
+
+
+def build_runtime_base_app_config(
+    service: ServiceTemplateConfig,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> BaseAppConfig:
+    values = os.environ if environ is None else environ
+    return BaseAppConfig(
+        service=service,
+        app_port=_mapping_int_env(values, "APP_PORT", default=DEFAULT_BASE_APP_PORT),
+        log_level=_mapping_env(
+            values,
+            "LOG_LEVEL",
+            default=DEFAULT_BASE_APP_LOG_LEVEL,
+        ),
+    )
 
 
 def _coerce_base_app_config(
@@ -305,6 +357,22 @@ def _env(name: str, *, default: str) -> str:
     return value.strip()
 
 
+def _mapping_env(values: Mapping[str, str], name: str, *, default: str) -> str:
+    value = values.get(name)
+    if value is None or value.strip() == "":
+        return default
+
+    return value.strip()
+
+
+def _mapping_int_env(values: Mapping[str, str], name: str, *, default: int) -> int:
+    value = values.get(name)
+    if value is None or value.strip() == "":
+        return default
+
+    return int(value.strip())
+
+
 def _base_public_paths(config: BaseAppConfig) -> tuple[str, ...]:
     paths = [
         *config.service.public_paths,
@@ -365,6 +433,27 @@ def _install_base_http_metrics(app: FastAPI) -> None:
         return response
 
 
+def _install_admin_s2s_guard(app: FastAPI) -> None:
+    @app.middleware("http")
+    async def base_admin_s2s_guard(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        if not _is_admin_path(request.url.path):
+            return await call_next(request)
+
+        try:
+            require_s2s(request)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+
+        return await call_next(request)
+
+
 def _record_base_http_metric(
     state: ServiceTemplateState,
     *,
@@ -387,6 +476,10 @@ def _base_http_metric_status(status_code: int) -> str:
         return "error"
 
     return "success"
+
+
+def _is_admin_path(path: str) -> bool:
+    return path == "/admin" or path.startswith("/admin/")
 
 
 def _normalize_optional_path(value: str | None) -> str | None:

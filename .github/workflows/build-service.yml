@@ -1,0 +1,195 @@
+name: Build Service
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: Service directory name under services/
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    name: Build service image (${{ inputs.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v4.1.0
+        with:
+          platforms: arm64
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Resolve build metadata
+        id: build-metadata
+        shell: bash
+        run: bash .github/scripts/resolve-build-metadata.sh
+
+      - name: Docker metadata
+        id: docker-metadata
+        uses: docker/metadata-action@v6.1.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/media-center-${{ inputs.service }}
+          tags: |
+            type=semver,pattern={{version}},enable=${{ steps.build-metadata.outputs.official_semver == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.build-metadata.outputs.official_semver == 'true' }}
+            type=match,pattern=^v?([0-9]+\.[0-9]+\.[0-9]+.*)$,group=1,enable=${{ steps.build-metadata.outputs.official_semver != 'true' }}
+            type=match,pattern=^v?([0-9]+\.[0-9]+)\.[0-9]+.*$,group=1,enable=${{ steps.build-metadata.outputs.official_semver != 'true' }}
+            type=sha,prefix=,format=long
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+          labels: |
+            org.opencontainers.image.source=${{ steps.build-metadata.outputs.image_source }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.build-metadata.outputs.build_date }}
+            org.opencontainers.image.version=${{ steps.build-metadata.outputs.service_version }}
+            org.opencontainers.image.title=Media Center ${{ inputs.service }}
+
+      - name: Build image for Trivy scan
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: .
+          file: infra/docker/service.Dockerfile
+          build-args: |
+            SERVICE_NAME=${{ inputs.service }}
+            SERVICE_PATH=services/${{ inputs.service }}
+            BUILD_DATE=${{ steps.build-metadata.outputs.build_date }}
+            GIT_COMMIT=${{ github.sha }}
+            GIT_TAG=${{ steps.build-metadata.outputs.git_tag }}
+            SERVICE_VERSION=${{ steps.build-metadata.outputs.service_version }}
+            IMAGE_SOURCE=${{ steps.build-metadata.outputs.image_source }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: media-center-${{ inputs.service }}:trivy-scan
+          labels: ${{ steps.docker-metadata.outputs.labels }}
+          cache-from: type=gha
+
+      - name: Check service performance budgets
+        run: >
+          python .github/scripts/check_service_performance_budget.py
+          --service "${{ inputs.service }}"
+          --image "media-center-${{ inputs.service }}:trivy-scan"
+          --config docs/operations/service-performance-budgets.json
+          --report-dir performance-reports
+
+      - name: Upload service performance budget report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: service-performance-${{ inputs.service }}
+          path: performance-reports/
+          if-no-files-found: warn
+
+      - name: Prepare Trivy image scan report directory
+        run: mkdir -p trivy-reports
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: media-center-${{ inputs.service }}:trivy-scan
+          scanners: vuln
+          format: sarif
+          output: trivy-reports/media-center-${{ inputs.service }}.sarif
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy image scan report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: trivy-image-scan-${{ inputs.service }}
+          path: trivy-reports/media-center-${{ inputs.service }}.sarif
+          if-no-files-found: warn
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: docker/login-action@v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        id: build-image
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: .
+          file: infra/docker/service.Dockerfile
+          build-args: |
+            SERVICE_NAME=${{ inputs.service }}
+            SERVICE_PATH=services/${{ inputs.service }}
+            BUILD_DATE=${{ steps.build-metadata.outputs.build_date }}
+            GIT_COMMIT=${{ github.sha }}
+            GIT_TAG=${{ steps.build-metadata.outputs.git_tag }}
+            SERVICE_VERSION=${{ steps.build-metadata.outputs.service_version }}
+            IMAGE_SOURCE=${{ steps.build-metadata.outputs.image_source }}
+          push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.docker-metadata.outputs.tags }}
+          labels: ${{ steps.docker-metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: v3.1.1
+
+      - name: Sign image digest
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/media-center-${{ inputs.service }}@${{ steps.build-image.outputs.digest }}
+
+      - name: Attest SLSA provenance
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: actions/attest-build-provenance@v4.1.0
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/media-center-${{ inputs.service }}
+          subject-digest: ${{ steps.build-image.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Prepare SBOM directory
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: mkdir -p sbom
+
+      - name: Generate SBOM
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/media-center-${{ inputs.service }}@${{ steps.build-image.outputs.digest }}
+          format: spdx-json
+          artifact-name: media-center-${{ inputs.service }}.spdx.json
+          output-file: sbom/media-center-${{ inputs.service }}.spdx.json
+          upload-artifact: true
+          upload-release-assets: false
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest SBOM
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: actions/attest@v4.1.0
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/media-center-${{ inputs.service }}
+          subject-digest: ${{ steps.build-image.outputs.digest }}
+          sbom-path: sbom/media-center-${{ inputs.service }}.spdx.json
+          push-to-registry: true
+          create-storage-record: false

@@ -1,7 +1,7 @@
 # Infra
 
 **Статус:** каркас инфраструктуры с базовой CI-сборкой сервисных образов,
-локальной docker-compose средой и observability baseline.
+локальной docker-compose средой, Helm/k8s-манифестами и observability baseline.
 
 ## Назначение
 
@@ -23,10 +23,33 @@
 ## Docker-образы сервисов
 
 `docker/service.Dockerfile` собирает базовый образ для каждого сервисного
-каталога из matrix в [CI](../.github/workflows/ci.yml). Пока продуктовый код не
-добавлен, образ фиксирует runtime baseline `python:3.13.14-slim`, копирует
-README сервиса и `libs/shared/README.md`, чтобы проверять build pipeline без
-смешивания с реализацией будущих микросервисов.
+каталога из matrix в [CI](../.github/workflows/ci.yml). Образ фиксирует runtime
+baseline `python:3.13.14-slim` и использует multi-stage схему: builder stage
+создает venv `/opt/venv`, устанавливает runtime-зависимости из optional groups
+`runtime-core` и `runtime-<SERVICE_NAME>` в
+[pyproject.toml](../pyproject.toml), подготавливает артефакт в `/build/app`, а
+runtime stage копирует только venv, Python-пакеты сервисов, `libs`, entrypoint
+и build metadata. Финальная структура артефакта единая:
+
+```text
+/app/
+├── service/                 # выбранный SERVICE_PATH и peer service packages
+├── libs/                    # общие библиотеки монорепозитория
+├── config/                  # конфиги и build metadata
+│   └── build_info.json
+└── logs/                    # writable-каталог для runtime-логов при необходимости
+```
+
+`WORKDIR` всегда `/app`, а `PYTHONPATH=/app/service:/app`, поэтому код сервиса
+и легковесные peer packages из соседних сервисов импортируются из
+`/app/service`, а общие модули из `/app/libs` доступны как `libs.*`. Peer
+packages копируются как исходный код без их dev/audit/integration зависимостей;
+runtime-зависимости по-прежнему ограничены optional groups.
+
+Для F2 cold-start гейта build stage сохраняет только selective bytecode:
+FastAPI/Starlette/Pydantic в venv, текущий service package, его `*_app`
+entrypoint и `libs/shared`. Остальной venv bytecode удаляется, чтобы образ
+оставался ниже 250 MB.
 
 Локальная smoke-сборка одного сервиса:
 
@@ -35,15 +58,102 @@ docker build \
   -f infra/docker/service.Dockerfile \
   --build-arg SERVICE_NAME=api-gateway \
   --build-arg SERVICE_PATH=services/api-gateway \
+  --build-arg SERVICE_VERSION="$(git describe --tags --always --dirty)" \
+  --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+  --build-arg GIT_COMMIT="$(git rev-parse HEAD)" \
+  --build-arg GIT_TAG="$(git describe --tags --exact-match 2>/dev/null || true)" \
+  --build-arg IMAGE_SOURCE=https://github.com/xlabtg/Media_Center \
   -t media-center-api-gateway:local \
   .
 ```
 
+При сборке образ пишет `/app/config/build_info.json` с `service`,
+`version`, `build_date`, `git_commit`, `git_tag`, `python`,
+`python_version` и `python_compiler`; те же build-аргументы используются для
+OCI-меток `org.opencontainers.image.source`, `version`, `revision` и
+`created`.
+
+Runtime hardening для app-сервисов зафиксирован в
+[docs/operations/container-hardening.md](../docs/operations/container-hardening.md):
+non-root UID/GID `1000:1000`, `tini` как PID 1, writable только `/tmp` и
+`/app/logs`, а также compose/k8s флаги `read_only`,
+`no-new-privileges` и `cap_drop: ALL`.
+
+## Kubernetes и Helm
+
+Issue #248 закрывает задачу E2: chart
+[`deploy/helm/media-center`](../deploy/helm/media-center) рендерит
+Deployment, Service, ServiceAccount и TokenReview RBAC для всех 14 продуктовых
+сервисов. Значения сервиса задаются в `values.yaml`: образ
+`ghcr.io/xlabtg/media-center-<service>:<tag>`, replicas, resources, env,
+probes и Service на внутреннем порту `7700`.
+
+Deployment использует liveness probe `/health` и readiness probe `/ready`.
+Hardening повторяет контейнерный runtime-контракт: `runAsUser: 1000`,
+`runAsGroup: 1000`, `runAsNonRoot: true`, `seccompProfile: RuntimeDefault`,
+`readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false` и drop всех
+capabilities. Writable paths ограничены `emptyDir` volume для `/tmp` и
+`/app/logs`.
+
+Для S2S identity каждый workload получает отдельный ServiceAccount с
+`automountServiceAccountToken: false` и projected ServiceAccount token с
+audience `nmc-services`. Token монтируется в
+`/var/run/secrets/nmc/s2s/token`, CA из `kube-root-ca.crt` - в соседний
+`ca.crt`; env `S2S_AUTH_METHOD=kubernetes_sa`, `S2S_K8S_TOKEN_PATH`,
+`S2S_AUDIENCE`, `S2S_K8S_ISSUER`, `S2S_K8S_TOKENREVIEW_URL` и
+`S2S_K8S_CA_PATH` связывает chart с `libs/shared/s2s_auth.py`.
+
+Локальная проверка chart:
+
+```bash
+bash experiments/validate_issue248_helm.sh
+```
+
+Скрипт выполняет `helm lint`, `helm template` и `kubeconform`; инструменты
+должны быть установлены в окружении запуска.
+
+Бюджет размера образов принят в
+[ADR-0008](../docs/adr/0008-container-image-size-optimization.md) и ведется в
+[docs/operations/image-size-budget.md](../docs/operations/image-size-budget.md):
+базовый целевой порог для F2-гейта — `< 250 МБ` на сервисный runtime-образ,
+stretch-цель — `< 200 МБ`, cold-start до `/ready` — `< 3 с`. Пороги CI
+заданы в
+[docs/operations/service-performance-budgets.json](../docs/operations/service-performance-budgets.json),
+а reusable workflow запускает
+`.github/scripts/check_service_performance_budget.py` после локальной сборки
+образа. `.dockerignore` исключает документацию, тесты, эксперименты, кеши и
+локальные артефакты из build context.
+
+Образ включает готовый `docker/entrypoint.sh`, который копируется в
+`/app/entrypoint.sh` и запускается через `tini`. Поэтому `docker run` без
+аргументов выполняет команду `serve`: entrypoint стартует `uvicorn` на
+`APP_HOST=0.0.0.0` и `APP_PORT=7700`. ASGI import string можно задать явно через
+`APP_MODULE`; если переменная не задана, entrypoint строит значение из
+`SERVICE_NAME`, заменяя дефисы на подчёркивания: например
+`SERVICE_NAME=contribution-ledger` даёт
+`contribution_ledger_app.main:app`.
+
+Smoke-запуск собранного сервиса:
+
+```bash
+docker run --rm \
+  -e SERVICE_NAME=contribution-ledger \
+  -e JWT_SECRET=local-jwt-secret \
+  -p 7700:7700 \
+  media-center-contribution-ledger:local
+```
+
+Для сервисов с нестандартным модулем задайте `APP_MODULE`, например
+`APP_MODULE=app.main:app`. Любые аргументы вместо `serve` считаются override:
+`docker run --rm media-center-contribution-ledger:local python -V` выполнит
+переданную команду внутри контейнера.
+
 ## Локальная среда
 
 `infra/local/docker-compose.yml` поднимает PostgreSQL, Redis, RabbitMQ,
-ChromaDB, MinIO, Prometheus, Alertmanager, Grafana и OpenTelemetry Collector с
-фиксированными версиями. Основной workflow:
+ChromaDB, MinIO, Prometheus, Alertmanager, Grafana, OpenTelemetry Collector и
+приложенческие сервисы из Stage 9 на внутреннем порту `7700` с compose
+hardening. Основной workflow:
 
 ```bash
 make up

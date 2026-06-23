@@ -1,0 +1,109 @@
+{{- range $serviceName, $service := .Values.services }}
+{{- if $service.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "media-center.serviceFullname" (dict "root" $ "serviceName" $serviceName) }}
+  labels:
+    {{- include "media-center.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceName }}
+spec:
+  replicas: {{ default $.Values.replicaCount $service.replicas }}
+  selector:
+    matchLabels:
+      {{- include "media-center.selectorLabels" (dict "root" $ "serviceName" $serviceName) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "media-center.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $serviceName }}
+    spec:
+      serviceAccountName: {{ include "media-center.serviceAccountName" (dict "root" $ "serviceName" $serviceName) }}
+      automountServiceAccountToken: {{ $.Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $serviceName }}
+          image: "{{ $.Values.image.registry }}/{{ $.Values.image.repositoryOwner }}/{{ default (printf "media-center-%s" $serviceName) $service.image.repository }}:{{ default $.Values.image.tag $service.image.tag }}"
+          imagePullPolicy: {{ default $.Values.image.pullPolicy $service.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $.Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: SERVICE_NAME
+              value: {{ $service.serviceName | quote }}
+            - name: S2S_AUTH_METHOD
+              value: {{ $.Values.s2s.authMethod | quote }}
+            - name: S2S_K8S_TOKEN_PATH
+              value: {{ printf "%s/%s" $.Values.s2s.tokenMountPath $.Values.s2s.tokenPath | quote }}
+            - name: S2S_AUDIENCE
+              value: {{ $.Values.s2s.audience | quote }}
+            - name: S2S_K8S_ISSUER
+              value: {{ $.Values.s2s.issuer | quote }}
+            - name: S2S_K8S_TOKENREVIEW_URL
+              value: {{ $.Values.s2s.tokenReviewUrl | quote }}
+            - name: S2S_K8S_CA_PATH
+              value: {{ printf "%s/%s" $.Values.s2s.tokenMountPath $.Values.s2s.caPath | quote }}
+            {{- range $name, $value := $.Values.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- with $service.env }}
+            {{- range $name, $value := . }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ $.Values.probes.liveness.path | quote }}
+              port: http
+            initialDelaySeconds: {{ $.Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ $.Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ $.Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ $.Values.probes.readiness.path | quote }}
+              port: http
+            initialDelaySeconds: {{ $.Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ $.Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ $.Values.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml (default $.Values.resources $service.resources) | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-logs
+              mountPath: /app/logs
+            - name: s2s-token
+              mountPath: {{ $.Values.s2s.tokenMountPath }}
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+        - name: app-logs
+          emptyDir:
+            medium: Memory
+        - name: s2s-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken:
+                  audience: {{ $.Values.s2s.audience | quote }}
+                  expirationSeconds: {{ $.Values.s2s.expirationSeconds }}
+                  path: {{ $.Values.s2s.tokenPath | quote }}
+              - configMap:
+                  name: kube-root-ca.crt
+                  optional: true
+                  items:
+                    - key: ca.crt
+                      path: {{ $.Values.s2s.caPath | quote }}
+---
+{{- end }}
+{{- end }}

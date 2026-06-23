@@ -1,83 +1,158 @@
 from __future__ import annotations
 
-from hitl_payout_gateway.api import (
-    HITL_PAYOUT_GATEWAY_SERVICE_NAME,
-    ConfirmPayoutRequest,
-    ExecutePayoutRequest,
-    HITLPayoutAPIState,
-    PayoutListResponse,
-    QueuePayoutRequest,
-    SyncPayoutStatusRequest,
-    VetoPayoutRequest,
-    create_hitl_payout_app,
-)
-from hitl_payout_gateway.confirmation_manager import (
-    PAYOUT_CONFIRM_OPERATION,
-    PAYOUT_CONFIRM_POLICY,
-    PAYOUT_CONFIRM_RESOURCE_TYPE,
-    PAYOUT_CONFIRMED_EVENT,
-    InMemoryPayoutConfirmationRepository,
-    PayoutConfirmation,
-    PayoutConfirmationManager,
-)
-from hitl_payout_gateway.execution_manager import (
-    PAYOUT_EXECUTED_EVENT,
-    PAYOUT_FAILED_EVENT,
-    PAYOUT_PAYMENT_STATUS_SYNCED_EVENT,
-    BlockchainAuditConnector,
-    BlockchainAuditRecordCommand,
-    BlockchainAuditRecordResult,
-    InMemoryBlockchainAuditConnector,
-    InMemoryNotificationConnector,
-    InMemoryPaymentConnector,
-    NotificationConnector,
-    PaymentConnector,
-    PaymentStatusConnector,
-    PayoutConnectorError,
-    PayoutExecutionManager,
-    PayoutExecutionReceipt,
-    PayoutNotificationCommand,
-    PayoutNotificationResult,
-    PayoutPaymentCommand,
-    PayoutPaymentResult,
-    PayoutPaymentStatusCommand,
-    PayoutPaymentStatusReceipt,
-    PayoutPaymentStatusResult,
-)
-from hitl_payout_gateway.queue_manager import (
-    DEFAULT_VETO_WINDOW_HOURS,
-    HITL_PAYOUT_SCHEMA_VERSION,
-    HITL_PAYOUT_SOURCE,
-    MAX_VETO_WINDOW_HOURS,
-    MIN_VETO_WINDOW_HOURS,
-    PAYOUT_QUEUED_EVENT,
-    VETO_WINDOW_HOURS_ENV,
-    InMemoryPayoutQueueRepository,
-    PayoutNotExecutableError,
-    PayoutNotFoundError,
-    PayoutPaymentStatus,
-    PayoutQueueError,
-    PayoutQueueItem,
-    PayoutQueueManager,
-    PayoutQueueResult,
-    PayoutStatus,
-    resolve_veto_window_hours,
-    subject_ref_hash,
-    validate_veto_window_hours,
-)
-from hitl_payout_gateway.rf_payment_gateway import (
-    DEFAULT_RF_STATUS_MAPPING,
-    RFPayoutGatewayConfig,
-    RFPayoutGatewayConnector,
-    RFPayoutPaymentDetails,
-)
-from hitl_payout_gateway.veto_manager import (
-    PAYOUT_VETOED_EVENT,
-    InMemoryVetoDecisionRepository,
-    VetoDecision,
-    VetoManager,
-    VetoWindowClosedError,
-)
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from hitl_payout_gateway.api import (
+        HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        ConfirmPayoutRequest,
+        ExecutePayoutRequest,
+        HITLPayoutAPIState,
+        PayoutListResponse,
+        QueuePayoutRequest,
+        SyncPayoutStatusRequest,
+        VetoPayoutRequest,
+        create_hitl_payout_app,
+    )
+    from hitl_payout_gateway.confirmation_manager import (
+        PAYOUT_CONFIRM_OPERATION,
+        PAYOUT_CONFIRM_POLICY,
+        PAYOUT_CONFIRM_RESOURCE_TYPE,
+        PAYOUT_CONFIRMED_EVENT,
+        InMemoryPayoutConfirmationRepository,
+        PayoutConfirmation,
+        PayoutConfirmationManager,
+    )
+    from hitl_payout_gateway.execution_manager import (
+        PAYOUT_EXECUTED_EVENT,
+        PAYOUT_FAILED_EVENT,
+        PAYOUT_PAYMENT_STATUS_SYNCED_EVENT,
+        BlockchainAuditConnector,
+        BlockchainAuditRecordCommand,
+        BlockchainAuditRecordResult,
+        InMemoryBlockchainAuditConnector,
+        InMemoryNotificationConnector,
+        InMemoryPaymentConnector,
+        NotificationConnector,
+        PaymentConnector,
+        PaymentStatusConnector,
+        PayoutConnectorError,
+        PayoutExecutionManager,
+        PayoutExecutionReceipt,
+        PayoutNotificationCommand,
+        PayoutNotificationResult,
+        PayoutPaymentCommand,
+        PayoutPaymentResult,
+        PayoutPaymentStatusCommand,
+        PayoutPaymentStatusReceipt,
+        PayoutPaymentStatusResult,
+    )
+    from hitl_payout_gateway.queue_manager import (
+        DEFAULT_VETO_WINDOW_HOURS,
+        HITL_PAYOUT_SCHEMA_VERSION,
+        HITL_PAYOUT_SOURCE,
+        MAX_VETO_WINDOW_HOURS,
+        MIN_VETO_WINDOW_HOURS,
+        PAYOUT_QUEUED_EVENT,
+        VETO_WINDOW_HOURS_ENV,
+        InMemoryPayoutQueueRepository,
+        PayoutNotExecutableError,
+        PayoutNotFoundError,
+        PayoutPaymentStatus,
+        PayoutQueueError,
+        PayoutQueueItem,
+        PayoutQueueManager,
+        PayoutQueueResult,
+        PayoutStatus,
+        resolve_veto_window_hours,
+        subject_ref_hash,
+        validate_veto_window_hours,
+    )
+    from hitl_payout_gateway.rf_payment_gateway import (
+        DEFAULT_RF_STATUS_MAPPING,
+        RFPayoutGatewayConfig,
+        RFPayoutGatewayConnector,
+        RFPayoutPaymentDetails,
+    )
+    from hitl_payout_gateway.veto_manager import (
+        PAYOUT_VETOED_EVENT,
+        InMemoryVetoDecisionRepository,
+        VetoDecision,
+        VetoManager,
+        VetoWindowClosedError,
+    )
+
+_EXPORTS: dict[str, str] = {
+    "HITL_PAYOUT_GATEWAY_SERVICE_NAME": "hitl_payout_gateway.api",
+    "ConfirmPayoutRequest": "hitl_payout_gateway.api",
+    "ExecutePayoutRequest": "hitl_payout_gateway.api",
+    "HITLPayoutAPIState": "hitl_payout_gateway.api",
+    "PayoutListResponse": "hitl_payout_gateway.api",
+    "QueuePayoutRequest": "hitl_payout_gateway.api",
+    "SyncPayoutStatusRequest": "hitl_payout_gateway.api",
+    "VetoPayoutRequest": "hitl_payout_gateway.api",
+    "create_hitl_payout_app": "hitl_payout_gateway.api",
+    "PAYOUT_CONFIRM_OPERATION": "hitl_payout_gateway.confirmation_manager",
+    "PAYOUT_CONFIRM_POLICY": "hitl_payout_gateway.confirmation_manager",
+    "PAYOUT_CONFIRM_RESOURCE_TYPE": "hitl_payout_gateway.confirmation_manager",
+    "PAYOUT_CONFIRMED_EVENT": "hitl_payout_gateway.confirmation_manager",
+    "InMemoryPayoutConfirmationRepository": (
+        "hitl_payout_gateway.confirmation_manager"
+    ),
+    "PayoutConfirmation": "hitl_payout_gateway.confirmation_manager",
+    "PayoutConfirmationManager": "hitl_payout_gateway.confirmation_manager",
+    "PAYOUT_EXECUTED_EVENT": "hitl_payout_gateway.execution_manager",
+    "PAYOUT_FAILED_EVENT": "hitl_payout_gateway.execution_manager",
+    "PAYOUT_PAYMENT_STATUS_SYNCED_EVENT": "hitl_payout_gateway.execution_manager",
+    "BlockchainAuditConnector": "hitl_payout_gateway.execution_manager",
+    "BlockchainAuditRecordCommand": "hitl_payout_gateway.execution_manager",
+    "BlockchainAuditRecordResult": "hitl_payout_gateway.execution_manager",
+    "InMemoryBlockchainAuditConnector": "hitl_payout_gateway.execution_manager",
+    "InMemoryNotificationConnector": "hitl_payout_gateway.execution_manager",
+    "InMemoryPaymentConnector": "hitl_payout_gateway.execution_manager",
+    "NotificationConnector": "hitl_payout_gateway.execution_manager",
+    "PaymentConnector": "hitl_payout_gateway.execution_manager",
+    "PaymentStatusConnector": "hitl_payout_gateway.execution_manager",
+    "PayoutConnectorError": "hitl_payout_gateway.execution_manager",
+    "PayoutExecutionManager": "hitl_payout_gateway.execution_manager",
+    "PayoutExecutionReceipt": "hitl_payout_gateway.execution_manager",
+    "PayoutNotificationCommand": "hitl_payout_gateway.execution_manager",
+    "PayoutNotificationResult": "hitl_payout_gateway.execution_manager",
+    "PayoutPaymentCommand": "hitl_payout_gateway.execution_manager",
+    "PayoutPaymentResult": "hitl_payout_gateway.execution_manager",
+    "PayoutPaymentStatusCommand": "hitl_payout_gateway.execution_manager",
+    "PayoutPaymentStatusReceipt": "hitl_payout_gateway.execution_manager",
+    "PayoutPaymentStatusResult": "hitl_payout_gateway.execution_manager",
+    "DEFAULT_VETO_WINDOW_HOURS": "hitl_payout_gateway.queue_manager",
+    "HITL_PAYOUT_SCHEMA_VERSION": "hitl_payout_gateway.queue_manager",
+    "HITL_PAYOUT_SOURCE": "hitl_payout_gateway.queue_manager",
+    "MAX_VETO_WINDOW_HOURS": "hitl_payout_gateway.queue_manager",
+    "MIN_VETO_WINDOW_HOURS": "hitl_payout_gateway.queue_manager",
+    "PAYOUT_QUEUED_EVENT": "hitl_payout_gateway.queue_manager",
+    "VETO_WINDOW_HOURS_ENV": "hitl_payout_gateway.queue_manager",
+    "InMemoryPayoutQueueRepository": "hitl_payout_gateway.queue_manager",
+    "PayoutNotExecutableError": "hitl_payout_gateway.queue_manager",
+    "PayoutNotFoundError": "hitl_payout_gateway.queue_manager",
+    "PayoutPaymentStatus": "hitl_payout_gateway.queue_manager",
+    "PayoutQueueError": "hitl_payout_gateway.queue_manager",
+    "PayoutQueueItem": "hitl_payout_gateway.queue_manager",
+    "PayoutQueueManager": "hitl_payout_gateway.queue_manager",
+    "PayoutQueueResult": "hitl_payout_gateway.queue_manager",
+    "PayoutStatus": "hitl_payout_gateway.queue_manager",
+    "resolve_veto_window_hours": "hitl_payout_gateway.queue_manager",
+    "subject_ref_hash": "hitl_payout_gateway.queue_manager",
+    "validate_veto_window_hours": "hitl_payout_gateway.queue_manager",
+    "DEFAULT_RF_STATUS_MAPPING": "hitl_payout_gateway.rf_payment_gateway",
+    "RFPayoutGatewayConfig": "hitl_payout_gateway.rf_payment_gateway",
+    "RFPayoutGatewayConnector": "hitl_payout_gateway.rf_payment_gateway",
+    "RFPayoutPaymentDetails": "hitl_payout_gateway.rf_payment_gateway",
+    "PAYOUT_VETOED_EVENT": "hitl_payout_gateway.veto_manager",
+    "InMemoryVetoDecisionRepository": "hitl_payout_gateway.veto_manager",
+    "VetoDecision": "hitl_payout_gateway.veto_manager",
+    "VetoManager": "hitl_payout_gateway.veto_manager",
+    "VetoWindowClosedError": "hitl_payout_gateway.veto_manager",
+}
 
 __all__ = [
     "DEFAULT_VETO_WINDOW_HOURS",
@@ -147,3 +222,16 @@ __all__ = [
     "subject_ref_hash",
     "validate_veto_window_hours",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    module_name = _EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module_name), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})

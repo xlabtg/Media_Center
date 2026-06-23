@@ -8,11 +8,11 @@ from datetime import UTC, datetime
 from typing import Annotated, Protocol, cast
 from uuid import uuid4
 
-from contribution_ledger import (
+from contribution_ledger.contribution_events import record_contribution_event
+from contribution_ledger.points_calculator import (
     ContributionEventType,
     Platform,
     calculate_points,
-    record_contribution_event,
 )
 from fastapi import APIRouter, Depends, FastAPI, Header, Path, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -20,24 +20,33 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
-from libs.shared import (
+from libs.shared.errors import (
     IDEMPOTENCY_CONFLICT_CODE,
     VALIDATION_ERROR_CODE,
-    EventPublisher,
-    IdempotencyKey,
-    InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
     SharedError,
+    error_response_body,
+)
+from libs.shared.events import (
+    EventPublisher,
+    InMemoryEventBus,
+)
+from libs.shared.models import (
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
     SubjectId,
+    TenantId,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TenantId,
     TenantScopedRepository,
-    create_service_app,
-    error_response_body,
     require_tenant_context,
 )
 
@@ -385,7 +394,7 @@ router = APIRouter(tags=["CGLR"])
 
 
 def create_cglr_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryGeneratedContentRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -394,7 +403,7 @@ def create_cglr_app(
 ) -> FastAPI:
     resolved_audit_sink = audit_sink or InMemoryAuditSink()
     resolved_publisher = publisher or InMemoryEventBus()
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Content Generator & Link Router",
         audit_sink=resolved_audit_sink,
@@ -606,7 +615,7 @@ async def _publish_content_generated(
     idempotency_key: str,
     occurred_at: datetime,
 ) -> None:
-    from libs.shared import EventEnvelope
+    from libs.shared.events import EventEnvelope
 
     await publisher.publish(
         EventEnvelope(

@@ -7,13 +7,15 @@ from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import uuid4
 
-from blockchain_auditor import (
+from blockchain_auditor.connector import (
     AuditBatchError,
     AuditMetadataPolicyError,
     AuditRecordConflictError,
     GrpcBlockchainAuditConnector,
     GrpcBlockchainAuditTransport,
     InMemoryGrpcBlockchainAuditTransport,
+)
+from blockchain_auditor.settings import (
     build_blockchain_auditor_settings,
 )
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -23,24 +25,33 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field, field_validator
 
-from libs.shared import (
+from libs.shared.audit_logger import InMemoryAuditLogSink
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
+    SharedError,
+    error_response_body,
+)
+from libs.shared.models import (
+    JSONValue,
+    SharedBaseModel,
+)
+from libs.shared.rbac import (
     BOARD_ROLE,
     COUNCIL_ROLE,
     MEMBER_ASSOC_ROLE,
     MEMBER_FULL_ROLE,
-    VALIDATION_ERROR_CODE,
     AccessPolicy,
-    InMemoryAuditLogSink,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
     InMemoryAuditSink,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
-    SharedError,
     TenantContext,
     TenantCoreError,
-    create_service_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
 
@@ -127,7 +138,7 @@ router = APIRouter(tags=["Voice-to-Chain"])
 
 
 def create_voice_to_chain_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     voice_settings: VoiceToChainSettings | None = None,
     transcriber: WhisperCppTranscriber | None = None,
@@ -152,7 +163,7 @@ def create_voice_to_chain_app(
             timeout_seconds=resolved_settings.whisper_cpp_timeout_seconds,
         )
     )
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center Voice-to-Chain",
         audit_sink=resolved_tenant_audit_sink,

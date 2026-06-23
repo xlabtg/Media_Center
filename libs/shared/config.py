@@ -20,6 +20,36 @@ from libs.shared.object_storage import (
     validate_s3_bucket_name,
     validate_s3_endpoint_url,
 )
+from libs.shared.s2s_auth import (
+    DEFAULT_K8S_SERVICE_ACCOUNT_CA_PATH,
+    DEFAULT_K8S_SERVICE_ACCOUNT_TOKEN_PATH,
+    DEFAULT_S2S_AUDIENCE,
+    DEFAULT_S2S_REPLAY_WINDOW_SECONDS,
+    DEFAULT_S2S_RSA_ISSUER,
+    DEFAULT_S2S_SERVICE_NAME,
+    DEFAULT_S2S_TOKEN_TTL_SECONDS,
+    DEFAULT_S2S_TOKENREVIEW_TIMEOUT_SECONDS,
+    K8S_AUTH_ENABLED_ENV,
+    S2S_AUDIENCE_ENV,
+    S2S_AUTH_METHOD_ENV,
+    S2S_K8S_CA_PATH_ENV,
+    S2S_K8S_ISSUER_ENV,
+    S2S_K8S_OIDC_PUBLIC_KEY_PATH_ENV,
+    S2S_K8S_TOKEN_PATH_ENV,
+    S2S_K8S_TOKENREVIEW_TIMEOUT_SECONDS_ENV,
+    S2S_K8S_TOKENREVIEW_TOKEN_PATH_ENV,
+    S2S_K8S_TOKENREVIEW_URL_ENV,
+    S2S_REPLAY_WINDOW_SECONDS_ENV,
+    S2S_RSA_AUDIENCE_ENV,
+    S2S_RSA_ISSUER_ENV,
+    S2S_RSA_PRIVATE_KEY_PATH_ENV,
+    S2S_RSA_PUBLIC_KEY_PATH_ENV,
+    S2S_SERVICE_NAME_ENV,
+    S2S_SHARED_SECRET_ENV,
+    S2S_TOKEN_TTL_SECONDS_ENV,
+    AuthMethod,
+    S2SConfig,
+)
 from libs.shared.vector import (
     ChromaSettings,
     validate_chroma_host,
@@ -50,6 +80,24 @@ APP_SETTINGS_ENV_NAMES = (
     "TOTP_STEP_SECONDS",
     "TOTP_ALLOWED_DRIFT_STEPS",
     "ENCRYPTION_KEY",
+    S2S_AUTH_METHOD_ENV,
+    S2S_SHARED_SECRET_ENV,
+    S2S_REPLAY_WINDOW_SECONDS_ENV,
+    S2S_TOKEN_TTL_SECONDS_ENV,
+    S2S_SERVICE_NAME_ENV,
+    K8S_AUTH_ENABLED_ENV,
+    S2S_K8S_TOKEN_PATH_ENV,
+    S2S_AUDIENCE_ENV,
+    S2S_K8S_ISSUER_ENV,
+    S2S_K8S_TOKENREVIEW_URL_ENV,
+    S2S_K8S_TOKENREVIEW_TOKEN_PATH_ENV,
+    S2S_K8S_TOKENREVIEW_TIMEOUT_SECONDS_ENV,
+    S2S_K8S_CA_PATH_ENV,
+    S2S_K8S_OIDC_PUBLIC_KEY_PATH_ENV,
+    S2S_RSA_PRIVATE_KEY_PATH_ENV,
+    S2S_RSA_PUBLIC_KEY_PATH_ENV,
+    S2S_RSA_ISSUER_ENV,
+    S2S_RSA_AUDIENCE_ENV,
     "API_GATEWAY_RATE_LIMIT",
     "API_GATEWAY_RATE_LIMIT_WINDOW_SECONDS",
     "COUNCIL_CAP_KV",
@@ -65,6 +113,7 @@ SECRET_ENV_NAMES = (
     "S3_SECRET_KEY",
     "JWT_SECRET",
     "ENCRYPTION_KEY",
+    S2S_SHARED_SECRET_ENV,
 )
 VAULT_ENV_NAMES = (
     "VAULT_ENABLED",
@@ -82,6 +131,7 @@ SECRET_FIELD_NAMES = frozenset(
         "s3_secret_key",
         "jwt_secret",
         "encryption_key",
+        "s2s_shared_secret",
     },
 )
 LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
@@ -264,6 +314,82 @@ class AppSettings(BaseSettings):
     )
     encryption_key: SecretStr = Field(validation_alias="ENCRYPTION_KEY")
 
+    s2s_auth_method: AuthMethod | None = Field(
+        default=None,
+        validation_alias=S2S_AUTH_METHOD_ENV,
+    )
+    s2s_shared_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias=S2S_SHARED_SECRET_ENV,
+    )
+    s2s_replay_window_seconds: int = Field(
+        default=DEFAULT_S2S_REPLAY_WINDOW_SECONDS,
+        gt=0,
+        validation_alias=S2S_REPLAY_WINDOW_SECONDS_ENV,
+    )
+    s2s_token_ttl_seconds: int = Field(
+        default=DEFAULT_S2S_TOKEN_TTL_SECONDS,
+        gt=0,
+        validation_alias=S2S_TOKEN_TTL_SECONDS_ENV,
+    )
+    s2s_service_name: str = Field(
+        default=DEFAULT_S2S_SERVICE_NAME,
+        validation_alias=S2S_SERVICE_NAME_ENV,
+    )
+    k8s_auth_enabled: bool = Field(
+        default=True,
+        validation_alias=K8S_AUTH_ENABLED_ENV,
+    )
+    s2s_k8s_token_path: str = Field(
+        default=str(DEFAULT_K8S_SERVICE_ACCOUNT_TOKEN_PATH),
+        validation_alias=S2S_K8S_TOKEN_PATH_ENV,
+    )
+    s2s_audience: str = Field(
+        default=DEFAULT_S2S_AUDIENCE,
+        validation_alias=S2S_AUDIENCE_ENV,
+    )
+    s2s_k8s_issuer: str | None = Field(
+        default=None,
+        validation_alias=S2S_K8S_ISSUER_ENV,
+    )
+    s2s_k8s_tokenreview_url: str | None = Field(
+        default=None,
+        validation_alias=S2S_K8S_TOKENREVIEW_URL_ENV,
+    )
+    s2s_k8s_tokenreview_token_path: str | None = Field(
+        default=None,
+        validation_alias=S2S_K8S_TOKENREVIEW_TOKEN_PATH_ENV,
+    )
+    s2s_k8s_tokenreview_timeout_seconds: float = Field(
+        default=DEFAULT_S2S_TOKENREVIEW_TIMEOUT_SECONDS,
+        gt=0,
+        validation_alias=S2S_K8S_TOKENREVIEW_TIMEOUT_SECONDS_ENV,
+    )
+    s2s_k8s_ca_path: str | None = Field(
+        default=str(DEFAULT_K8S_SERVICE_ACCOUNT_CA_PATH),
+        validation_alias=S2S_K8S_CA_PATH_ENV,
+    )
+    s2s_k8s_oidc_public_key_path: str | None = Field(
+        default=None,
+        validation_alias=S2S_K8S_OIDC_PUBLIC_KEY_PATH_ENV,
+    )
+    s2s_rsa_private_key_path: str | None = Field(
+        default=None,
+        validation_alias=S2S_RSA_PRIVATE_KEY_PATH_ENV,
+    )
+    s2s_rsa_public_key_path: str | None = Field(
+        default=None,
+        validation_alias=S2S_RSA_PUBLIC_KEY_PATH_ENV,
+    )
+    s2s_rsa_issuer: str = Field(
+        default=DEFAULT_S2S_RSA_ISSUER,
+        validation_alias=S2S_RSA_ISSUER_ENV,
+    )
+    s2s_rsa_audience: str = Field(
+        default=DEFAULT_S2S_AUDIENCE,
+        validation_alias=S2S_RSA_AUDIENCE_ENV,
+    )
+
     api_gateway_rate_limit: int = Field(
         default=120,
         gt=0,
@@ -324,7 +450,25 @@ class AppSettings(BaseSettings):
 
         return normalized
 
-    @field_validator("app_host", "totp_issuer", "blockchain_auditor_url")
+    @field_validator("s2s_auth_method", mode="before")
+    @classmethod
+    def _validate_s2s_auth_method(cls, value: object) -> AuthMethod | None:
+        if value is None or isinstance(value, AuthMethod):
+            return value
+        if not isinstance(value, str):
+            raise ValueError("S2S_AUTH_METHOD должен быть строкой")
+
+        return cast(AuthMethod | None, S2SConfig(method=value).method)
+
+    @field_validator(
+        "app_host",
+        "totp_issuer",
+        "blockchain_auditor_url",
+        "s2s_service_name",
+        "s2s_audience",
+        "s2s_rsa_issuer",
+        "s2s_rsa_audience",
+    )
     @classmethod
     def _validate_required_string(cls, value: str) -> str:
         normalized = value.strip()
@@ -423,6 +567,32 @@ class AppSettings(BaseSettings):
             secret_key=self.s3_secret_key.get_secret_value(),
             bucket=self.s3_bucket,
             region=self.s3_region,
+        )
+
+    def to_s2s_config(self) -> S2SConfig:
+        return S2SConfig(
+            method=self.s2s_auth_method,
+            shared_secret=(
+                None
+                if self.s2s_shared_secret is None
+                else self.s2s_shared_secret.get_secret_value()
+            ),
+            replay_window_seconds=self.s2s_replay_window_seconds,
+            service_name=self.s2s_service_name,
+            k8s_enabled=self.k8s_auth_enabled,
+            k8s_token_path=self.s2s_k8s_token_path,
+            k8s_audience=self.s2s_audience,
+            k8s_issuer=self.s2s_k8s_issuer,
+            k8s_tokenreview_url=self.s2s_k8s_tokenreview_url,
+            k8s_tokenreview_token_path=self.s2s_k8s_tokenreview_token_path,
+            k8s_tokenreview_timeout_seconds=self.s2s_k8s_tokenreview_timeout_seconds,
+            k8s_ca_path=self.s2s_k8s_ca_path,
+            k8s_oidc_public_key_path=self.s2s_k8s_oidc_public_key_path,
+            rsa_private_key_path=self.s2s_rsa_private_key_path,
+            rsa_public_key_path=self.s2s_rsa_public_key_path,
+            rsa_issuer=self.s2s_rsa_issuer,
+            rsa_audience=self.s2s_rsa_audience,
+            token_ttl_seconds=self.s2s_token_ttl_seconds,
         )
 
     def redacted_dict(self) -> dict[str, object]:

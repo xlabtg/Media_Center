@@ -17,19 +17,28 @@ assert_file() {
 assert_contains() {
   local path="$1"
   local pattern="$2"
-  grep -Fq "$pattern" "$path" || fail "missing marker in $path: $pattern"
+  grep -Fq -- "$pattern" "$path" || fail "missing marker in $path: $pattern"
 }
 
 expected_services=(
+  activity-command-center
+  analytics-engine
   api-gateway
-  contribution-ledger
+  blockchain-auditor
   cglr
+  contribution-ledger
   hitl-payout-gateway
   messenger-adapter
-  blockchain-auditor
+  neuro-agent-orchestrator
+  notification-gateway
+  policy-manager
+  voice-to-chain
+  wallet
+  web-cabinet
 )
 
 assert_file ".github/workflows/ci.yml"
+assert_file ".github/workflows/build-service.yml"
 assert_file "infra/docker/service.Dockerfile"
 assert_file "pyproject.toml"
 assert_file "requirements-dev.txt"
@@ -68,12 +77,15 @@ image_markers=(
 )
 
 for marker in "${image_markers[@]}"; do
-  assert_contains ".github/workflows/ci.yml" "$marker"
+  assert_contains ".github/workflows/build-service.yml" "$marker"
 done
 
+assert_contains ".github/workflows/ci.yml" "uses: ./.github/workflows/build-service.yml"
+assert_contains ".github/workflows/build-service.yml" "workflow_call:"
+assert_contains ".github/workflows/build-service.yml" "SERVICE_PATH=services/\${{ inputs.service }}"
+
 for service in "${expected_services[@]}"; do
-  assert_contains ".github/workflows/ci.yml" "service: $service"
-  assert_contains ".github/workflows/ci.yml" "path: services/$service"
+  assert_contains ".github/workflows/ci.yml" "- $service"
 done
 
 tool_pins=(

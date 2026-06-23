@@ -3,14 +3,38 @@ from __future__ import annotations
 from fastapi import FastAPI
 from voice_to_chain import build_voice_to_chain_settings, create_voice_to_chain_app
 
+from libs.shared.server import (
+    BaseAppConfig,
+    build_runtime_app_host,
+    build_runtime_base_app_config,
+)
+
 from .settings import build_service_config
 
+runtime_host = build_runtime_app_host()
+runtime_config = build_runtime_base_app_config(build_service_config())
 
-def build_app() -> FastAPI:
+
+def build_app(config: BaseAppConfig | None = None) -> FastAPI:
     return create_voice_to_chain_app(
-        build_service_config(),
+        config or runtime_config,
         voice_settings=build_voice_to_chain_settings(),
     )
 
 
-app = build_app()
+app = build_app(runtime_config)
+
+
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host=runtime_host,
+        port=runtime_config.app_port,
+        log_level=runtime_config.log_level.lower(),
+    )
+
+
+if __name__ == "__main__":
+    run()

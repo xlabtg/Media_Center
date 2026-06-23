@@ -8,6 +8,9 @@ on:
     branches:
       - main
       - issue-9-df5fa4653e80
+    tags:
+      - '*.*.*'
+      - 'v*.*.*'
   workflow_dispatch:
 
 concurrency:
@@ -112,68 +115,63 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
 
-  images:
-    name: Build service image (${{ matrix.service }})
+  kubernetes:
+    name: Helm/k8s validation
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: api-gateway
-            path: services/api-gateway
-          - service: contribution-ledger
-            path: services/contribution-ledger
-          - service: cglr
-            path: services/cglr
-          - service: hitl-payout-gateway
-            path: services/hitl-payout-gateway
-          - service: messenger-adapter
-            path: services/messenger-adapter
-          - service: notification-gateway
-            path: services/notification-gateway
-          - service: blockchain-auditor
-            path: services/blockchain-auditor
-          - service: voice-to-chain
-            path: services/voice-to-chain
-          - service: wallet
-            path: services/wallet
-          - service: web-cabinet
-            path: services/web-cabinet
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4.1.0
+      - name: Install Helm
+        env:
+          HELM_VERSION: v3.21.2
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/linux-amd64/helm "$HOME/.local/bin/helm"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Login to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install kubeconform
+        env:
+          KUBECONFORM_VERSION: v0.8.0
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 /tmp/kubeconform "$HOME/.local/bin/kubeconform"
 
-      - name: Build image
-        uses: docker/build-push-action@v7.2.0
-        with:
-          context: .
-          file: infra/docker/service.Dockerfile
-          build-args: |
-            SERVICE_NAME=${{ matrix.service }}
-            SERVICE_PATH=${{ matrix.path }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/media-center-${{ matrix.service }}:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/media-center-${{ matrix.service }}:latest
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Media Center ${{ matrix.service }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Validate Helm chart
+        run: bash experiments/validate_issue248_helm.sh
+
+  images:
+    name: Build service image (${{ matrix.service }})
+    uses: ./.github/workflows/build-service.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - activity-command-center
+          - analytics-engine
+          - api-gateway
+          - blockchain-auditor
+          - cglr
+          - contribution-ledger
+          - hitl-payout-gateway
+          - messenger-adapter
+          - neuro-agent-orchestrator
+          - notification-gateway
+          - policy-manager
+          - voice-to-chain
+          - wallet
+          - web-cabinet
+    with:
+      service: ${{ matrix.service }}
+    secrets: inherit

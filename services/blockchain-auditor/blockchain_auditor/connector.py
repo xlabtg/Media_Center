@@ -8,7 +8,7 @@ from typing import Protocol, cast
 
 from pydantic import Field, field_validator
 
-from libs.shared import (
+from libs.shared.models import (
     AuditHash,
     CorrelationId,
     EventType,

@@ -13,27 +13,38 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
-from libs.shared import (
-    COUNCIL_ROLE,
-    VALIDATION_ERROR_CODE,
-    AccessPolicy,
-    AuditHash,
+from libs.shared.audit_logger import (
     AuditLogger,
-    IdempotencyKey,
     InMemoryAuditLogSink,
-    InMemoryAuditSink,
-    InMemoryEventBus,
-    JSONValue,
-    ServiceTemplateConfig,
-    SharedBaseModel,
+)
+from libs.shared.auth import TOTPService
+from libs.shared.errors import (
+    VALIDATION_ERROR_CODE,
     SharedError,
+    error_response_body,
+)
+from libs.shared.events import InMemoryEventBus
+from libs.shared.models import (
+    AuditHash,
+    IdempotencyKey,
+    JSONValue,
+    SharedBaseModel,
     SubjectId,
+)
+from libs.shared.rbac import (
+    COUNCIL_ROLE,
+    AccessPolicy,
+    require_access,
+)
+from libs.shared.server import (
+    BaseAppConfig,
+    create_service_runtime_app,
+)
+from libs.shared.service_template import ServiceTemplateConfig
+from libs.shared.tenant import (
+    InMemoryAuditSink,
     TenantContext,
     TenantCoreError,
-    TOTPService,
-    create_service_app,
-    error_response_body,
-    require_access,
     require_tenant_context,
 )
 
@@ -170,7 +181,7 @@ router = APIRouter(tags=["HITL Payout Gateway"])
 
 
 def create_hitl_payout_app(
-    config: ServiceTemplateConfig,
+    config: BaseAppConfig | ServiceTemplateConfig,
     *,
     repository: InMemoryPayoutQueueRepository | None = None,
     publisher: InMemoryEventBus | None = None,
@@ -220,7 +231,7 @@ def create_hitl_payout_app(
         )
     )
 
-    app = create_service_app(
+    app = create_service_runtime_app(
         config,
         title="Media Center HITL Payout Gateway",
         audit_sink=resolved_tenant_audit_sink,
