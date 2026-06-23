@@ -11,13 +11,21 @@ from hitl_payout_gateway import (
 )
 from pydantic import SecretStr
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
         service_name=_env(
             values,
@@ -35,8 +43,15 @@ def build_service_config(
 
 def build_totp_secrets(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> dict[tuple[str, str], str]:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     tenant_id = _optional_env(values, "HITL_TOTP_TENANT_ID")
     subject = _optional_env(values, "HITL_TOTP_SUBJECT")
     secret = _optional_env(values, "HITL_TOTP_SECRET")
@@ -53,8 +68,15 @@ def build_totp_secrets(
 
 def build_payment_connector(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> PaymentConnector | None:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=HITL_PAYOUT_GATEWAY_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     if not _bool_env(values, "RF_PAYMENT_GATEWAY_ENABLED", default=False):
         return None
 

@@ -133,6 +133,11 @@
   environment variables и typed service wiring;
 - `load_app_settings()` заполняет конфигурацию из окружения и может подставлять
   отсутствующие или `CHANGE_ME*` секреты через `SecretProvider`;
+- `ConfigServerSettings`, `ConfigServerProvider` и `resolve_config_values()`
+  подключают опциональный config server: если `CONFIG_SERVER_URL` задан и
+  доступен Kubernetes ServiceAccount token, сервис получает настройки по
+  `/api/v2/{project}/{env}/{framework}/{application}` и не использует env как
+  fallback для runtime-значений;
 - `VaultSettings` и `VaultSecretProvider` поддерживают HashiCorp Vault KV v2
   без хранения реальных секретов в репозитории;
 - `redacted_dict()` отдаёт безопасный для логов снимок конфигурации, где

@@ -20,6 +20,12 @@ env:
   APP_PORT: "7700"
   LOG_LEVEL: INFO
   PROMETHEUS_ENABLED: "true"
+  CONFIG_SERVER_URL: ""
+  CONFIG_SERVER_PROJECT: media-center
+  CONFIG_SERVER_ENV: production
+  CONFIG_SERVER_FRAMEWORK: fastapi
+  CONFIG_SERVER_TOKEN_PATH: /var/run/secrets/nmc/s2s/token
+  CONFIG_SERVER_TIMEOUT_SECONDS: "5"
 
 probes:
   liveness:

@@ -13,7 +13,13 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Respons
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
-from libs.shared.config import LOG_LEVELS as CONFIG_LOG_LEVELS
+from libs.shared.config import (
+    LOG_LEVELS as CONFIG_LOG_LEVELS,
+)
+from libs.shared.config import (
+    ConfigServerTransport,
+    resolve_config_values,
+)
 from libs.shared.logging_config import setup_logging
 from libs.shared.observability import (
     DEFAULT_METRICS_PATH,
@@ -236,8 +242,16 @@ def create_service_runtime_app(
 
 def build_runtime_app_host(
     environ: Mapping[str, str] | None = None,
+    *,
+    application: str | None = None,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> str:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=_runtime_application(raw_values, application),
+        config_server_transport=config_server_transport,
+    )
     return _mapping_env(values, "APP_HOST", default=DEFAULT_RUNTIME_APP_HOST)
 
 
@@ -245,8 +259,14 @@ def build_runtime_base_app_config(
     service: ServiceTemplateConfig,
     *,
     environ: Mapping[str, str] | None = None,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> BaseAppConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=service.service_name,
+        config_server_transport=config_server_transport,
+    )
     return BaseAppConfig(
         service=service,
         app_port=_mapping_int_env(values, "APP_PORT", default=DEFAULT_BASE_APP_PORT),
@@ -256,6 +276,20 @@ def build_runtime_base_app_config(
             default=DEFAULT_BASE_APP_LOG_LEVEL,
         ),
     )
+
+
+def _runtime_application(
+    values: Mapping[str, str],
+    application: str | None,
+) -> str:
+    raw_application = (
+        application if application is not None else values.get("SERVICE_NAME")
+    )
+    normalized = "" if raw_application is None else raw_application.strip().strip("/")
+    if normalized == "":
+        return "media-center"
+
+    return normalized
 
 
 def _coerce_base_app_config(

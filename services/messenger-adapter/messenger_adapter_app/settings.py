@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.server import (
     DEFAULT_BASE_APP_LOG_LEVEL,
     DEFAULT_BASE_APP_PORT,
@@ -14,15 +15,31 @@ MESSENGER_ADAPTER_SERVICE_NAME = "messenger-adapter"
 DEFAULT_APP_HOST = "0.0.0.0"
 
 
-def build_app_host(environ: Mapping[str, str] | None = None) -> str:
-    values = os.environ if environ is None else environ
+def build_app_host(
+    environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
+) -> str:
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=MESSENGER_ADAPTER_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     return _env(values, "APP_HOST", default=DEFAULT_APP_HOST)
 
 
 def build_base_app_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> BaseAppConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=MESSENGER_ADAPTER_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     return BaseAppConfig(
         service=build_service_config(values),
         app_port=_int_env(values, "APP_PORT", default=DEFAULT_BASE_APP_PORT),
@@ -32,8 +49,15 @@ def build_base_app_config(
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=MESSENGER_ADAPTER_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
         service_name=_env(
             values,

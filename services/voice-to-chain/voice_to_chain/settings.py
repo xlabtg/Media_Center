@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
+
 VOICE_TO_CHAIN_SERVICE_NAME = "voice-to-chain"
 DEFAULT_RAW_AUDIO_TTL_HOURS = 24
 MAX_RAW_AUDIO_TTL_HOURS = 24
@@ -35,8 +37,15 @@ class VoiceToChainSettings:
 
 def build_voice_to_chain_settings(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> VoiceToChainSettings:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application=VOICE_TO_CHAIN_SERVICE_NAME,
+        config_server_transport=config_server_transport,
+    )
     return VoiceToChainSettings(
         raw_audio_ttl_hours=_int_env(
             values,

@@ -3,13 +3,21 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from libs.shared.config import ConfigServerTransport, resolve_config_values
 from libs.shared.service_template import ServiceTemplateConfig
 
 
 def build_service_config(
     environ: Mapping[str, str] | None = None,
+    *,
+    config_server_transport: ConfigServerTransport | None = None,
 ) -> ServiceTemplateConfig:
-    values = os.environ if environ is None else environ
+    raw_values = os.environ if environ is None else environ
+    values = resolve_config_values(
+        raw_values,
+        application="service-template",
+        config_server_transport=config_server_transport,
+    )
     return ServiceTemplateConfig(
         service_name=_env(values, "SERVICE_NAME", default="service-template"),
         version=_env(values, "SERVICE_VERSION", default="0.1.0"),

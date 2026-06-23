@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Protocol, Self, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -106,6 +108,20 @@ APP_SETTINGS_ENV_NAMES = (
     "PROMETHEUS_ENABLED",
     "OTEL_EXPORTER_OTLP_ENDPOINT",
 )
+CONFIG_SERVER_URL_ENV = "CONFIG_SERVER_URL"
+CONFIG_SERVER_PROJECT_ENV = "CONFIG_SERVER_PROJECT"
+CONFIG_SERVER_ENV_ENV = "CONFIG_SERVER_ENV"
+CONFIG_SERVER_FRAMEWORK_ENV = "CONFIG_SERVER_FRAMEWORK"
+CONFIG_SERVER_TOKEN_PATH_ENV = "CONFIG_SERVER_TOKEN_PATH"
+CONFIG_SERVER_TIMEOUT_SECONDS_ENV = "CONFIG_SERVER_TIMEOUT_SECONDS"
+CONFIG_SERVER_ENV_NAMES = (
+    CONFIG_SERVER_URL_ENV,
+    CONFIG_SERVER_PROJECT_ENV,
+    CONFIG_SERVER_ENV_ENV,
+    CONFIG_SERVER_FRAMEWORK_ENV,
+    CONFIG_SERVER_TOKEN_PATH_ENV,
+    CONFIG_SERVER_TIMEOUT_SECONDS_ENV,
+)
 SECRET_ENV_NAMES = (
     "DATABASE_URL",
     "RABBITMQ_URL",
@@ -137,8 +153,13 @@ SECRET_FIELD_NAMES = frozenset(
 LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 APP_ENVS = frozenset({"development", "staging", "production"})
 REDACTED_SECRET = "**********"
+DEFAULT_CONFIG_SERVER_PROJECT = "media-center"
+DEFAULT_CONFIG_SERVER_ENV = "dev"
+DEFAULT_CONFIG_SERVER_FRAMEWORK = "fastapi"
+DEFAULT_CONFIG_SERVER_TIMEOUT_SECONDS = 5.0
 
 VaultTransport = Callable[[str, str, float], bytes]
+ConfigServerTransport = Callable[[str, str, float], bytes]
 
 
 class SecretProvider(Protocol):
@@ -260,6 +281,128 @@ class VaultSecretProvider:
             )
 
         return self._cache
+
+
+class ConfigServerSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    url: str | None = Field(default=None, validation_alias=CONFIG_SERVER_URL_ENV)
+    project: str = Field(
+        default=DEFAULT_CONFIG_SERVER_PROJECT,
+        validation_alias=CONFIG_SERVER_PROJECT_ENV,
+    )
+    environment: str = Field(
+        default=DEFAULT_CONFIG_SERVER_ENV,
+        validation_alias=CONFIG_SERVER_ENV_ENV,
+    )
+    framework: str = Field(
+        default=DEFAULT_CONFIG_SERVER_FRAMEWORK,
+        validation_alias=CONFIG_SERVER_FRAMEWORK_ENV,
+    )
+    token_path: str = Field(
+        default=str(DEFAULT_K8S_SERVICE_ACCOUNT_TOKEN_PATH),
+        validation_alias=CONFIG_SERVER_TOKEN_PATH_ENV,
+    )
+    timeout_seconds: float = Field(
+        default=DEFAULT_CONFIG_SERVER_TIMEOUT_SECONDS,
+        gt=0,
+        validation_alias=CONFIG_SERVER_TIMEOUT_SECONDS_ENV,
+    )
+
+    @classmethod
+    def from_environ(cls, values: Mapping[str, str]) -> Self:
+        init_values = dict(values)
+        if (
+            CONFIG_SERVER_TOKEN_PATH_ENV not in init_values
+            and S2S_K8S_TOKEN_PATH_ENV in init_values
+        ):
+            init_values[CONFIG_SERVER_TOKEN_PATH_ENV] = init_values[
+                S2S_K8S_TOKEN_PATH_ENV
+            ]
+
+        return cls.model_validate(init_values)
+
+    @field_validator("url")
+    @classmethod
+    def _normalize_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip().rstrip("/")
+        if normalized == "":
+            return None
+        if not normalized.startswith(("http://", "https://")):
+            raise ValueError(
+                "CONFIG_SERVER_URL должен использовать http:// или https://",
+            )
+
+        return normalized
+
+    @field_validator("project", "environment", "framework")
+    @classmethod
+    def _normalize_path_segment(cls, value: str) -> str:
+        normalized = value.strip().strip("/")
+        if normalized == "":
+            raise ValueError("config server path segment должен быть непустым")
+
+        return normalized
+
+    @field_validator("token_path")
+    @classmethod
+    def _normalize_token_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if normalized == "":
+            raise ValueError("CONFIG_SERVER_TOKEN_PATH должен быть непустой строкой")
+
+        return normalized
+
+    @property
+    def configured(self) -> bool:
+        return self.url is not None
+
+
+class ConfigServerProvider:
+    def __init__(
+        self,
+        settings: ConfigServerSettings,
+        *,
+        transport: ConfigServerTransport | None = None,
+    ) -> None:
+        if not settings.configured:
+            raise ValueError("ConfigServerProvider требует CONFIG_SERVER_URL")
+
+        self._settings = settings
+        self._transport = transport or _http_config_server_get
+
+    def get_config(self, *, application: str) -> dict[str, str]:
+        token = _read_kubernetes_service_account_token(self._settings.token_path)
+        return _config_server_payload_to_values(
+            self._transport(
+                _config_server_url(self._settings, application=application),
+                token,
+                self._settings.timeout_seconds,
+            ),
+        )
+
+    def get_value(self, *, application: str, key: str) -> str | None:
+        token = _read_kubernetes_service_account_token(self._settings.token_path)
+        payload = self._transport(
+            _config_server_url(
+                self._settings,
+                application=application,
+                key=key,
+                value_as_string=True,
+            ),
+            token,
+            self._settings.timeout_seconds,
+        )
+        value = payload.decode("utf-8").strip()
+        return value or None
 
 
 class AppSettings(BaseSettings):
@@ -607,7 +750,18 @@ def load_app_settings(
     environ: Mapping[str, str] | None = None,
     *,
     secret_provider: SecretProvider | None = None,
+    config_server_transport: ConfigServerTransport | None = None,
+    application: str | None = None,
 ) -> AppSettings:
+    source_values = os.environ if environ is None else environ
+    config_values = _config_server_values_from_sources(
+        source_values,
+        application=application,
+        transport=config_server_transport,
+    )
+    if config_values is not None:
+        return AppSettings.model_validate(dict(config_values))
+
     if environ is None:
         if secret_provider is None:
             vault_settings = VaultSettings()
@@ -630,12 +784,72 @@ def load_app_settings(
     return AppSettings.model_validate(values)
 
 
+def resolve_config_values(
+    environ: Mapping[str, str] | None = None,
+    *,
+    application: str,
+    config_server_transport: ConfigServerTransport | None = None,
+) -> Mapping[str, str]:
+    source_values = os.environ if environ is None else environ
+    config_values = _config_server_values_from_sources(
+        source_values,
+        application=application,
+        transport=config_server_transport,
+    )
+    if config_values is None:
+        return source_values
+
+    return config_values
+
+
 def _app_settings_from_sources() -> AppSettings:
     return AppSettings()  # type: ignore[call-arg]
 
 
 def _app_settings_from_init(values: Mapping[str, str]) -> AppSettings:
     return AppSettings(**dict(values))  # type: ignore[arg-type]
+
+
+def _config_server_values_from_sources(
+    values: Mapping[str, str],
+    *,
+    application: str | None,
+    transport: ConfigServerTransport | None,
+) -> dict[str, str] | None:
+    settings = ConfigServerSettings.from_environ(values)
+    if not settings.configured:
+        return None
+    if not _kubernetes_api_available(values, settings.token_path):
+        return None
+
+    return ConfigServerProvider(settings, transport=transport).get_config(
+        application=_config_server_application(values, application),
+    )
+
+
+def _config_server_application(
+    values: Mapping[str, str],
+    application: str | None,
+) -> str:
+    raw_application = (
+        application if application is not None else values.get("SERVICE_NAME")
+    )
+    normalized = "" if raw_application is None else raw_application.strip().strip("/")
+    if normalized == "":
+        return "media-center"
+
+    return normalized
+
+
+def _kubernetes_api_available(
+    values: Mapping[str, str],
+    token_path: str,
+) -> bool:
+    host = values.get("KUBERNETES_SERVICE_HOST")
+    if host is None or host.strip() == "":
+        return False
+
+    return Path(token_path).is_file()
 
 
 def _missing_secret_values(
@@ -707,6 +921,52 @@ def _vault_payload_to_secrets(raw_payload: bytes) -> dict[str, str]:
     return result
 
 
+def _config_server_url(
+    settings: ConfigServerSettings,
+    *,
+    application: str,
+    key: str | None = None,
+    value_as_string: bool = False,
+) -> str:
+    if settings.url is None:
+        raise ValueError("CONFIG_SERVER_URL должен быть задан")
+
+    segments: tuple[str, ...] = (
+        "api",
+        "v2",
+        settings.project,
+        settings.environment,
+        settings.framework,
+        application,
+    )
+    if key is not None:
+        segments = (*segments, key)
+    path = "/".join(quote(segment, safe="") for segment in segments)
+    url = f"{settings.url}/{path}"
+    if value_as_string:
+        return f"{url}?{urlencode({'value': 'string'})}"
+
+    return url
+
+
+def _config_server_payload_to_values(raw_payload: bytes) -> dict[str, str]:
+    decoded = json.loads(raw_payload.decode("utf-8"))
+    if not isinstance(decoded, list):
+        raise ValueError("Config server response должен быть JSON array")
+
+    result: dict[str, str] = {}
+    for item in decoded:
+        if not isinstance(item, dict):
+            raise ValueError("Config server response items должны быть object")
+
+        key = item.get("key")
+        value = item.get("value")
+        if isinstance(key, str) and key.strip() != "" and _is_secret_scalar(value):
+            result[key] = str(value)
+
+    return result
+
+
 def _is_secret_scalar(value: object) -> bool:
     return isinstance(value, str | int | float | bool)
 
@@ -722,3 +982,24 @@ def _http_vault_get(url: str, token: str, timeout_seconds: float) -> bytes:
     )
     with urlopen(request, timeout=timeout_seconds) as response:
         return cast(bytes, response.read())
+
+
+def _http_config_server_get(url: str, token: str, timeout_seconds: float) -> bytes:
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=timeout_seconds) as response:
+        return cast(bytes, response.read())
+
+
+def _read_kubernetes_service_account_token(token_path: str) -> str:
+    token = Path(token_path).read_text(encoding="utf-8").strip()
+    if token == "":
+        raise ValueError("Kubernetes Service Account token пустой")
+
+    return token
