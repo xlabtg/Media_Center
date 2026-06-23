@@ -7,8 +7,17 @@ def read_text(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def read_workflow_bundle() -> str:
+    return "\n".join(
+        [
+            read_text(".github/workflows/ci.yml"),
+            read_text(".github/workflows/build-service.yml"),
+        ]
+    )
+
+
 def test_issue_236_ci_builds_multiarch_service_images_with_gha_cache() -> None:
-    workflow = read_text(".github/workflows/ci.yml")
+    workflow = read_workflow_bundle()
 
     qemu_marker = "uses: docker/setup-qemu-action@v4.1.0"
     buildx_marker = "uses: docker/setup-buildx-action@v4.1.0"
