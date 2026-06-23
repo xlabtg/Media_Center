@@ -48,13 +48,10 @@ def test_issue_229_service_dockerfile_sets_oci_labels_from_build_args() -> None:
 
 def test_issue_229_ci_passes_build_metadata_to_service_image_build() -> None:
     workflow = read_text(".github/workflows/ci.yml")
+    resolver = read_text(".github/scripts/resolve-build-metadata.sh")
 
-    required_markers = [
+    required_workflow_markers = [
         "id: build-metadata",
-        "build_date=",
-        "git_tag=",
-        "service_version=",
-        "image_source=",
         "BUILD_DATE=${{ steps.build-metadata.outputs.build_date }}",
         "GIT_COMMIT=${{ github.sha }}",
         "GIT_TAG=${{ steps.build-metadata.outputs.git_tag }}",
@@ -74,6 +71,15 @@ def test_issue_229_ci_passes_build_metadata_to_service_image_build() -> None:
             "${{ steps.build-metadata.outputs.image_source }}"
         ),
     ]
-    missing = [marker for marker in required_markers if marker not in workflow]
+    required_resolver_markers = [
+        'emit_output "build_date"',
+        'emit_output "git_tag"',
+        'emit_output "service_version"',
+        'emit_output "image_source"',
+        'emit_output "official_semver"',
+    ]
+    missing = [
+        marker for marker in required_workflow_markers if marker not in workflow
+    ] + [marker for marker in required_resolver_markers if marker not in resolver]
 
     assert not missing
