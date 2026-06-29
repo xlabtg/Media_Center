@@ -21,7 +21,7 @@ dependencies = [
   "cryptography==49.0.0",
   "Telethon==1.44.0",
   "chromadb-client==1.5.9",
-  "boto3==1.43.32",
+  "boto3==1.43.36",
 ]
 
 [project.optional-dependencies]
